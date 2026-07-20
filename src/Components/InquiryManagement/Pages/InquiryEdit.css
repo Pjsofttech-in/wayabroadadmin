@@ -1,0 +1,31 @@
+/* Dropdown z-index fixes */
+
+/* For react-select dropdowns */
+.css-1nmdiq5-menu {
+  z-index: 9999 !important;
+}
+
+/* For the control when menu is open */
+.css-1nmdiq5-menu > div {
+  z-index: 10000 !important;
+}
+
+/* For Material-UI Select dropdowns */
+.MuiPopover-root {
+  z-index: 9999 !important;
+}
+
+/* For the dropdown menu itself */
+.MuiMenu-paper {
+  z-index: 10000 !important;
+}
+
+/* Ensure the menu appears above modals */
+.MuiDialog-root .MuiMenu-paper {
+  z-index: 1301 !important; /* Material-UI modal z-index is 1300 by default */
+}
+
+/* For react-select inside modals */
+.MuiDialog-root .css-1nmdiq5-menu {
+  z-index: 1301 !important;
+}
