@@ -3,7 +3,7 @@ name: Deploy Expense Frontend
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
