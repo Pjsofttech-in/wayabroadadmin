@@ -39,7 +39,7 @@ import RegisterForm from "./Components/Register/RegisterForm";
 import RegistrationSidebar from "./Components/Register/RegisterationSidebar";
 import RegistrationQRForm from "./Components/Register/RegisterationQR";
 import PublicRegistration from "./Components/Register/PublicRegistration";
-import ContactUsList from "./Components/ContactUs/ContactUsList";
+import ContactUsList from "./Components/ContactUs/ContactUslist";
 import ContactUsForm from "./Components/ContactUs/ContactUsForm";
 import ContactUsSidebar from "./Components/ContactUs/ContactUsSidebar";
 
