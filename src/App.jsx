@@ -16,7 +16,7 @@ import AbroadInquiryTodo from "./Components/InquiryManagement/Pages/AbroadInquir
 import AbroadInquiryFeedback from "./Components/InquiryManagement/Pages/AbroadInquiryFeedback.jsx";
 import AbroadInquiryDashboard from "./Components/InquiryManagement/Pages/AbroadInquiryDashboard.jsx";
 import AbroadInquiryQR from "./Components/InquiryManagement/Pages/AbroadInquiryQR.jsx";
-import SettingSidebar from "./Components/Settings/SettingSideBar.jsx";
+import SettingSidebar from "./Components/Settings/SettingSidebar.jsx";
 import ContinentRelation from "./Components/Courses/Continent/ContinentRelation.jsx";
 import StreamManagement from "./Components/Settings/StreamManagement";
 import CourseManagement from "./Components/Settings/CourseManagement";
