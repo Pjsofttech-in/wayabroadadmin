@@ -2,8 +2,9 @@
 import axios from "axios";
 import axiosInstance from "../Utils/axiosConfig";
 
-  const API_BASE_URL = "http://localhost:8080";
+  // const API_BASE_URL = "http://localhost:8080";
   // const API_BASE_URL = "https://wayabroad.in:10443"; // Uncomment for production
+  const API_BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL || "http://localhost:8080";
 
 // Create axios instance with common settings
 const apiClient = axios.create({

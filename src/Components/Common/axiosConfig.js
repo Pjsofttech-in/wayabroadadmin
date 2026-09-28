@@ -20,9 +20,12 @@
 
 import axios from "axios";
 import Swal from "sweetalert2";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:8097", // your base URL
+  // baseURL: "http://localhost:8097", // your base URL
   // baseURL: "https://wayabroad.in:11443", // Uncomment for production
+  baseURL: BASE_URL,
 });
 // Request Interceptor: attach token
 axiosInstance.interceptors.request.use(
