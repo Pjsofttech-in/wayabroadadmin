@@ -2,7 +2,9 @@ import axios from "axios";
 
 //  const BASE_URL = "https://wayabroad.in:10443";
 
- const BASE_URL = "http://localhost:8080"; // Update if backend URL changes
+//  const BASE_URL = "http://localhost:8080"; // Update if backend URL changes
+
+const BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL || "http://localhost:8080";
 
 
 //  const BASE_URL = "https://wayabroad.in:10443"; // Uncomment for production

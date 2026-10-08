@@ -16,7 +16,7 @@ import AbroadInquiryTodo from "./Components/InquiryManagement/Pages/AbroadInquir
 import AbroadInquiryFeedback from "./Components/InquiryManagement/Pages/AbroadInquiryFeedback.jsx";
 import AbroadInquiryDashboard from "./Components/InquiryManagement/Pages/AbroadInquiryDashboard.jsx";
 import AbroadInquiryQR from "./Components/InquiryManagement/Pages/AbroadInquiryQR.jsx";
-import SettingSidebar from "./Components/Settings/SettingSideBar.jsx";
+import SettingSidebar from "./Components/Settings/SettingSidebar.jsx";
 import ContinentRelation from "./Components/Courses/Continent/ContinentRelation.jsx";
 import StreamManagement from "./Components/Settings/StreamManagement";
 import CourseManagement from "./Components/Settings/CourseManagement";
@@ -39,7 +39,7 @@ import RegisterForm from "./Components/Register/RegisterForm";
 import RegistrationSidebar from "./Components/Register/RegisterationSidebar";
 import RegistrationQRForm from "./Components/Register/RegisterationQR";
 import PublicRegistration from "./Components/Register/PublicRegistration";
-import ContactUsList from "./Components/ContactUs/ContactUsList";
+import ContactUsList from "./Components/ContactUs/ContactUslist";
 import ContactUsForm from "./Components/ContactUs/ContactUsForm";
 import ContactUsSidebar from "./Components/ContactUs/ContactUsSidebar";
 
