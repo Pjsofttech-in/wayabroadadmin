@@ -6,5 +6,3 @@ export default defineConfig({
   // base: "/wayabroadadmin/",
   plugins: [react()],
 })
-
-

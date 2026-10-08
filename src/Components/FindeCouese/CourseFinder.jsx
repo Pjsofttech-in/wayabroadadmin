@@ -24,7 +24,9 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText as MuiListItemText,
-  Divider
+  Divider,
+  Chip,
+  Pagination
 } from "@mui/material";
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -37,14 +39,13 @@ import MapIcon from '@mui/icons-material/Map';
 import LocationCityIcon from '@mui/icons-material/LocationCity';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CategoryIcon from '@mui/icons-material/Category';
-import { 
-  getAllContinents, 
-  getHierarchy, 
-  getAllCountries, 
-  getAllStates, 
-  getAllCities, 
-  getAllUniversity as getAllUniversities, 
-  getAllColleges, 
+import {
+  getHierarchy,
+  getAllCountries,
+  getAllStates,
+  getAllCities,
+  getAllUniversities,
+  getAllColleges,
   getAllCourses,
   getAllStreams,
   searchUniversities,
@@ -58,7 +59,6 @@ import {
 export default function CourseFinder() {
   // Search state for filter dropdowns
   const [searchTexts, setSearchTexts] = useState({
-    continent: '',
     country: '',
     state: '',
     city: '',
@@ -67,7 +67,6 @@ export default function CourseFinder() {
     stream: ''
   });
   
-  const [continents, setContinents] = useState([]);
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCity] = useState([]);
@@ -80,7 +79,6 @@ export default function CourseFinder() {
   
   // Filter states - now support multiple selections
   const [filters, setFilters] = useState({
-    continentId: [],
     countryId: [],
     stateId: [],
     cityId: [],
@@ -101,6 +99,8 @@ export default function CourseFinder() {
   const [expandedCourses, setExpandedCourses] = useState({});
   const [showDescription, setShowDescription] = useState({});
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const universitiesPerPage = 6;
 
   // Handle filter text change
   const handleFilterTextChange = (type, value) => {
@@ -184,9 +184,6 @@ export default function CourseFinder() {
       const params = {};
       
       // Add any selected filters to the params
-      if (filters.continentId?.length) {
-        params.continentId = filters.continentId;
-      }
       if (filters.countryId?.length) {
         const selectedCountries = countries
           .filter(c => filters.countryId.includes(c.id))
@@ -355,35 +352,24 @@ export default function CourseFinder() {
 
         // Fetch all data in parallel
         const [
-          continentsData, 
           allCoursesData, 
           streamsData,
-          countriesData,
-          statesData,
-          citiesData,
-          universitiesData,
-          collegesData
+          countriesData
         ] = await Promise.all([
-          getAllContinents("", email, role),
           getAllCourses({ email, role }),
           getAllStreams({ email, role }),
-          getAllCountries({ email, role, branchCode }),
-          getAllStates({ email, role }),
-          getAllCities({ email, role }),
-          getAllUniversities({ email, role }),
-          getAllColleges({ email, role })
+          getAllCountries({ email, role, branchCode })
         ]);
 
         // Set all data independently
-        setContinents(Array.isArray(continentsData) ? continentsData : []);
         setAllCourses(Array.isArray(allCoursesData) ? allCoursesData : []);
         setCourses(Array.isArray(allCoursesData) ? allCoursesData : []);
         setStreams(Array.isArray(streamsData) ? streamsData : []);
         setCountries(Array.isArray(countriesData) ? countriesData : []);
-        setStates(Array.isArray(statesData) ? statesData : []);
-        setCity(Array.isArray(citiesData) ? citiesData : []);
-        setUniversities(Array.isArray(universitiesData) ? universitiesData : []);
-        setColleges(Array.isArray(collegesData) ? collegesData : []);
+        setStates([]);
+        setCity([]);
+        setUniversities([]);
+        setColleges([]);
 
         // Fetch initial filtered data
         await fetchFilteredData();
@@ -398,10 +384,158 @@ export default function CourseFinder() {
 
     fetchAllData();
   }, []);
-  
+
+  // Fetch states only for the selected countries
+  useEffect(() => {
+    const fetchStatesByCountries = async () => {
+      if (!filters.countryId.length) {
+        setStates([]);
+        setCity([]);
+        setUniversities([]);
+        setColleges([]);
+        return;
+      }
+
+      try {
+        const { email, role } = getUserCredentials();
+        const stateResponses = await Promise.all(
+          filters.countryId.map((countryId) =>
+            getAllStates({ email, role, countryId })
+          )
+        );
+
+        const stateMap = new Map();
+        stateResponses.flat().forEach((state) => {
+          if (state?.id != null) stateMap.set(state.id, state);
+        });
+
+        setStates(Array.from(stateMap.values()));
+      } catch (err) {
+        console.error("Error fetching states:", err);
+        setStates([]);
+      }
+    };
+
+    fetchStatesByCountries();
+  }, [filters.countryId]);
+
+  // Fetch cities only for the selected states
+  useEffect(() => {
+    const fetchCitiesByStates = async () => {
+      if (!filters.stateId.length) {
+        setCity([]);
+        setUniversities([]);
+        setColleges([]);
+        return;
+      }
+
+      try {
+        const { email, role } = getUserCredentials();
+        const cityResponses = await Promise.all(
+          filters.stateId.map((stateId) =>
+            getAllCities({ email, role, stateId })
+          )
+        );
+
+        const cityMap = new Map();
+        cityResponses.flat().forEach((city) => {
+          if (city?.id != null) cityMap.set(city.id, city);
+        });
+
+        setCity(Array.from(cityMap.values()));
+      } catch (err) {
+        console.error("Error fetching cities:", err);
+        setCity([]);
+      }
+    };
+
+    fetchCitiesByStates();
+  }, [filters.stateId]);
+
+  // Fetch universities only for the selected cities
+  // Fetch universities only for the selected cities
+useEffect(() => {
+  const fetchUniversitiesByCities = async () => {
+    if (!filters.cityId.length) {
+      setUniversities([]);
+      setColleges([]);
+      return;
+    }
+
+    try {
+      const { email, role } = getUserCredentials();
+
+      const universityResponses = await Promise.all(
+        filters.cityId.map((cityId) =>
+          getAllUniversities({
+            email,
+            role,
+            cityId
+          })
+        )
+      );
+
+      const universityMap = new Map();
+
+      universityResponses.flat().forEach((university) => {
+        if (university?.id != null) {
+          universityMap.set(university.id, university);
+        }
+      });
+
+      setUniversities(Array.from(universityMap.values()));
+    } catch (err) {
+      console.error("Error fetching universities:", err);
+      setUniversities([]);
+      setColleges([]);
+    }
+  };
+
+  fetchUniversitiesByCities();
+}, [filters.cityId]);
+
+  // Fetch colleges only for the selected universities
+  useEffect(() => {
+    const fetchCollegesByUniversities = async () => {
+      if (!filters.universityId.length) {
+        setColleges([]);
+        return;
+      }
+
+      try {
+        const { email, role } = getUserCredentials();
+
+        const collegeResponses = await Promise.all(
+          filters.universityId.map((universityId) =>
+            getAllColleges({
+              email,
+              role,
+              universityId
+            })
+          )
+        );
+
+        const collegeMap = new Map();
+
+        collegeResponses.flat().forEach((college) => {
+          if (college?.id != null) {
+            collegeMap.set(college.id, college);
+          }
+        });
+
+        setColleges(Array.from(collegeMap.values()));
+      } catch (err) {
+        console.error("Error fetching colleges:", err);
+        setColleges([]);
+      }
+    };
+
+    fetchCollegesByUniversities();
+  }, [filters.universityId]);
+
   // Define which filters are multiple select
   const multipleSelectFilters = [
-    'continentId', 'countryId', 'stateId', 'cityId', 'universityId', 'collegeId',
+    'countryId', 'stateId', 'cityId', 'universityId', 'collegeId',
     'courseId', 'streamName', 'examType', 'academicRequirements', 'intake'
   ];
 
@@ -416,6 +550,29 @@ export default function CourseFinder() {
       } else {
         updatedFilters[filterName] = value || '';
       }
+
+      // Reset child selections when their parent selection changes
+      if (filterName === 'countryId') {
+        updatedFilters.stateId = [];
+        updatedFilters.cityId = [];
+        updatedFilters.universityId = [];
+        updatedFilters.collegeId = [];
+      }
+
+      if (filterName === 'stateId') {
+        updatedFilters.cityId = [];
+        updatedFilters.universityId = [];
+        updatedFilters.collegeId = [];
+      }
+
+      if (filterName === 'cityId') {
+        updatedFilters.universityId = [];
+        updatedFilters.collegeId = [];
+      }
+
+      if (filterName === 'universityId') {
+        updatedFilters.collegeId = [];
+      }
       
       return updatedFilters;
     });
@@ -429,11 +586,14 @@ export default function CourseFinder() {
     return () => clearTimeout(timer);
   }, [filters]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
   // Clear all filters
   const clearAllFilters = () => {
     setFilters({
-      continentId: [],
-      countryId: [],
+        countryId: [],
       stateId: [],
       cityId: [],
       universityId: [],
@@ -448,6 +608,132 @@ export default function CourseFinder() {
       intake: []
     });
   };
+
+  // Remove one selected filter chip
+  const removeFilterValue = (filterName, value) => {
+    const currentValue = filters[filterName];
+
+    if (Array.isArray(currentValue)) {
+      handleFilterChange(
+        filterName,
+        currentValue.filter(item => item !== value)
+      );
+    } else {
+      handleFilterChange(filterName, '');
+    }
+  };
+
+  // Selected filter chips
+  const selectedFilterChips = [
+    ...filters.countryId.map(id => {
+      const item = countries.find(c => c.id === id);
+      return item ? {
+        key: `country-${id}`,
+        filterName: 'countryId',
+        value: id,
+        label: item.countryName || item.country
+      } : null;
+    }),
+
+    ...filters.stateId.map(id => {
+      const item = states.find(s => s.id === id);
+      return item ? {
+        key: `state-${id}`,
+        filterName: 'stateId',
+        value: id,
+        label: item.stateName || item.state
+      } : null;
+    }),
+
+    ...filters.cityId.map(id => {
+      const item = cities.find(c => c.id === id);
+      return item ? {
+        key: `city-${id}`,
+        filterName: 'cityId',
+        value: id,
+        label: item.cityName || item.city
+      } : null;
+    }),
+
+    ...filters.universityId.map(id => {
+      const item = universities.find(u => u.id === id);
+      return item ? {
+        key: `university-${id}`,
+        filterName: 'universityId',
+        value: id,
+        label: item.universityName || item.university
+      } : null;
+    }),
+
+    ...filters.collegeId.map(id => {
+      const item = colleges.find(c => c.id === id);
+      return item ? {
+        key: `college-${id}`,
+        filterName: 'collegeId',
+        value: id,
+        label: item.name || item.collegeName
+      } : null;
+    }),
+
+    ...filters.courseId.map(id => {
+      const item = allCourses.find(c => c.id === id);
+      return item ? {
+        key: `course-${id}`,
+        filterName: 'courseId',
+        value: id,
+        label: item.name || item.courseName
+      } : null;
+    }),
+
+    ...filters.streamName.map(name => ({
+      key: `stream-${name}`,
+      filterName: 'streamName',
+      value: name,
+      label: name
+    })),
+
+    ...(filters.scholarship ? [{
+      key: "scholarship",
+      filterName: 'scholarship',
+      value: filters.scholarship,
+      label: `Scholarship: ${filters.scholarship}`
+    }] : []),
+
+    ...(filters.feesRange ? [{
+      key: "feesRange",
+      filterName: 'feesRange',
+      value: filters.feesRange,
+      label: `Fees: ${filters.feesRange}`
+    }] : []),
+
+    ...filters.examType.map(exam => ({
+      key: `exam-${exam}`,
+      filterName: 'examType',
+      value: exam,
+      label: exam
+    })),
+
+    ...(filters.englishExamRequirements ? [{
+      key: "english",
+      filterName: 'englishExamRequirements',
+      value: filters.englishExamRequirements,
+      label: `English: ${filters.englishExamRequirements}`
+    }] : []),
+
+    ...filters.academicRequirements.map(value => ({
+      key: `academic-${value}`,
+      filterName: 'academicRequirements',
+      value,
+      label: value
+    })),
+
+    ...filters.intake.map(value => ({
+      key: `intake-${value}`,
+      filterName: 'intake',
+      value,
+      label: value
+    }))
+  ].filter(Boolean);
 
   // Rest of the component remains the same...
   const toggleCourseExpansion = (courseKey) => {
@@ -712,6 +998,32 @@ export default function CourseFinder() {
     );
   };
 
+  const universityItems = hierarchyData.flatMap((continent) =>
+    (continent.abroadCountries || []).flatMap((country) =>
+      (country.abroadStates || []).flatMap((state) =>
+        (state.abroadCities || []).flatMap((city) =>
+          (city.abroadUniversities || []).map((university, uniIndex) => ({
+            continent,
+            country,
+            state,
+            city,
+            university,
+            uniIndex
+          }))
+        )
+      )
+    )
+  );
+
+  const totalUniversityPages = Math.ceil(
+    universityItems.length / universitiesPerPage
+  );
+
+  const paginatedUniversityItems = universityItems.slice(
+    (currentPage - 1) * universitiesPerPage,
+    currentPage * universitiesPerPage
+  );
+
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -761,78 +1073,84 @@ export default function CourseFinder() {
         </Alert>
       )}
 
-      <Grid container spacing={4}>
-        {/* Sidebar for Filters */}
-        <Grid item xs={12} md={1.5} sx={{ width: '18%' }}>
-          {/* <Typography variant="h6" gutterBottom>Filters</Typography> */}
-          
-          {/* Continent Filter */}
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Continent</InputLabel>
-            <Select
-              multiple
-              value={filters.continentId}
-              onChange={(e) => handleFilterChange('continentId', e.target.value)}
-              label="Continent"
-              disabled={loading}
-              renderValue={(selected) => {
-                if (!selected.length) return <em>All Continents</em>;
-                return continents
-                  .filter(c => selected.includes(c.id))
-                  .map(c => c.continentName || c.continentname)
-                  .join(', ');
-              }}
-              MenuProps={{
-                PaperProps: {
-                  style: {
-                    maxHeight: 300,
-                  },
-                },
+      <Grid container spacing={2}>
+        {/* Filters */}
+        <Grid item xs={12}>
+          <Box
+            sx={{
+              width: '100%',
+              backgroundColor: '#fff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '12px',
+              p: 1.5,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                width: '100%'
               }}
             >
-              <Box sx={{ p: 1 }}>
-                <TextField
-                  size="small"
-                  fullWidth
-                  placeholder="Search continents..."
-                  value={searchTexts.continent}
-                  onChange={(e) => handleFilterTextChange('continent', e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  sx={searchFieldStyles}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                    endAdornment: searchTexts.continent && (
-                      <InputAdornment position="end">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFilterTextChange('continent', '');
-                          }}
-                        >
-                          <ClearIcon fontSize="small" />
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Box>
-              <MenuItem value="">
-                <em>All Continents</em>
-              </MenuItem>
-              {getFilteredOptions('continent', continents).map((cont) => (
-                <MenuItem key={cont.id} value={cont.id}>
-                  <Checkbox checked={filters.continentId.indexOf(cont.id) > -1} />
-                  <ListItemText primary={cont.continentName || cont.continentname} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  document
+                    .getElementById('course-filter-scroll')
+                    ?.scrollTo({
+                      left: 0,
+                      behavior: 'smooth'
+                    });
+                }}
+                sx={{
+                  minWidth: '105px',
+                  height: '44px',
+                  flexShrink: 0,
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  color: '#344255',
+                  borderColor: '#d1d5db',
+                  backgroundColor: '#fff',
+                  '&:hover': {
+                    borderColor: '#344255',
+                    backgroundColor: '#f8fafc'
+                  }
+                }}
+              >
+                All Filter
+              </Button>
+
+              <Box
+                id="course-filter-scroll"
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.2,
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  flex: 1,
+                  pb: 0.5,
+                  scrollbarWidth: 'none',
+                  '&::-webkit-scrollbar': {
+                    display: 'none'
+                  },
+                  '& .MuiFormControl-root': {
+                    minWidth: '140px',
+                    width: '140px',
+                    flex: '0 0 140px',
+                    mb: '0 !important'
+                  },
+                  '& .MuiInputBase-root': {
+                    height: '44px',
+                    borderRadius: '8px',
+                    backgroundColor: '#fff'
+                  }
+                }}
+              >
+
           {/* Country Filter */}
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Country</InputLabel>
@@ -841,7 +1159,7 @@ export default function CourseFinder() {
               value={filters.countryId}
               onChange={(e) => handleFilterChange('countryId', e.target.value)}
               label="Country"
-              disabled={!filters.continentId.length || loading}
+              disabled={loading}
               renderValue={(selected) => {
                 if (!selected.length) return <em>All Countries</em>;
                 return countries
@@ -865,7 +1183,7 @@ export default function CourseFinder() {
                   value={searchTexts.country}
                   onChange={(e) => handleFilterTextChange('country', e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  disabled={!filters.continentId.length}
+                  disabled={loading}
                   sx={searchFieldStyles}
                   InputProps={{
                     startAdornment: (
@@ -1447,32 +1765,107 @@ export default function CourseFinder() {
             </Select>
           </FormControl>
 
-          {/* Clear Filters Button */}
-          <Button 
-            variant="outlined" 
-            fullWidth 
-            onClick={clearAllFilters}
-            disabled={loading}
-            sx={{ mt: 1 }}
-          >
-            Clear All Filters
-          </Button>
+              </Box>
+
+              <IconButton
+                onClick={() => {
+                  document
+                    .getElementById('course-filter-scroll')
+                    ?.scrollBy({
+                      left: 300,
+                      behavior: 'smooth'
+                    });
+                }}
+                sx={{
+                  width: '42px',
+                  height: '42px',
+                  flexShrink: 0,
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  backgroundColor: '#fff',
+                  '&:hover': {
+                    backgroundColor: '#f8fafc'
+                  }
+                }}
+              >
+                →
+              </IconButton>
+            </Box>
+
+            {selectedFilterChips.length > 0 && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  mt: 1.5,
+                  pt: 1.5,
+                  borderTop: '1px solid #f0f0f0',
+                  flexWrap: 'wrap'
+                }}
+              >
+                {selectedFilterChips.map((filter) => (
+                  <Chip
+                    key={filter.key}
+                    label={filter.label}
+                    variant="outlined"
+                    onDelete={() =>
+                      removeFilterValue(
+                        filter.filterName,
+                        filter.value
+                      )
+                    }
+                    sx={{
+                      height: '34px',
+                      borderRadius: '7px',
+                      borderColor: '#f97316',
+                      color: '#f97316',
+                      backgroundColor: '#fff7ed',
+                      fontWeight: 500,
+                      '& .MuiChip-deleteIcon': {
+                        color: '#f97316',
+                        fontSize: '18px'
+                      },
+                      '&:hover': {
+                        backgroundColor: '#fff7ed',
+                        borderColor: '#ea580c'
+                      }
+                    }}
+                  />
+                ))}
+
+                <Button
+                  variant="text"
+                  onClick={clearAllFilters}
+                  disabled={loading}
+                  sx={{
+                    textTransform: 'none',
+                    color: '#f97316',
+                    fontWeight: 600,
+                    minWidth: 'auto',
+                    ml: 0.5,
+                    '&:hover': {
+                      backgroundColor: '#fff7ed'
+                    }
+                  }}
+                >
+                  Clear All
+                </Button>
+              </Box>
+            )}
+          </Box>
         </Grid>
 
         {/* Main Content */}
-        <Grid item xs={12} md={10.5} sx={{ width: '100%' }}>
+        <Grid item xs={12} sx={{ width: '100%' }}>
           {loading ? (
             <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
               <CircularProgress />
             </Box>
           ) : (
             <Box>
-              {hierarchyData?.length > 0 ? (
-                hierarchyData.map((continent, contIndex) => 
-                  (continent.abroadCountries || []).map((country, countIndex) =>
-                    (country.abroadStates || []).map((state, stateIndex) =>
-                      (state.abroadCities || []).map((city, cityIndex) =>
-                        (city.abroadUniversities || []).map((university, uniIndex) => (
+              {paginatedUniversityItems.length > 0 ? (
+                paginatedUniversityItems.map(({ continent, country, state, city, university, uniIndex }) => (
                           <Card key={`${continent.id}-${country.id}-${state.id}-${city.id}-${university.id}-${uniIndex}`} sx={{ 
                             mb: 4, 
                             borderRadius: 2,
@@ -1497,7 +1890,7 @@ export default function CourseFinder() {
                                     {university.universityName}
                                   </Typography>
                                   <Typography variant="body2" color="text.secondary">
-                                    {city.city}, {state.state}, {country.country} ({continent.continentname})
+                                    {city.city}, {state.state}, {country.country}
                                   </Typography>
                                   <Typography variant="body2" color="text.secondary">
                                     ID: {university.id} | Courses: {university.abroadColleges?.reduce((total, college) => total + (college.abroadCourses?.length || 0), 0) || 0}
@@ -1541,11 +1934,7 @@ export default function CourseFinder() {
                               </Box>
                             </CardContent>
                           </Card>
-                        ))
-                      )
-                    )
-                  )
-                )
+                ))
               ) : (
                 // Custom no data messages for specific filters
                 <Box sx={{ textAlign: 'center', my: 4 }}>
@@ -1559,9 +1948,21 @@ export default function CourseFinder() {
                     </Typography>
                   ) : (
                     <Typography variant="body1" color="text.secondary">
-                      No data available. Please check if there are any continents and countries added.
+                      No data available. Please check if there are any countries added.
                     </Typography>
                   )}
+                </Box>
+              )}
+
+              {totalUniversityPages > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3, mb: 2 }}>
+                  <Pagination
+                    count={totalUniversityPages}
+                    page={currentPage}
+                    onChange={(_, value) => setCurrentPage(value)}
+                    color="primary"
+                    shape="rounded"
+                  />
                 </Box>
               )}
             </Box>
