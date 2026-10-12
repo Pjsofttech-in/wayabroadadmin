@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import {
   List,
   ListItem,
@@ -8,10 +8,13 @@ import {
   IconButton,
   Tooltip,
   Zoom,
+  Collapse,
 } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { motion } from "framer-motion";
 import { NAVIGATION } from "./SidebarNavigation";
 
@@ -105,8 +108,13 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const userRole = sessionStorage.getItem("role");
+  const [coursesExpanded, setCoursesExpanded] = useState(location.pathname.startsWith("/wayabroadadmin/admin/courses"));
 
-  // Only filter NAVIGATION based on roles (no submenu logic)
+  useEffect(() => {
+    if (location.pathname.startsWith("/wayabroadadmin/admin/courses")) setCoursesExpanded(true);
+  }, [location.pathname]);
+
+  // Filter navigation items by the current user's role.
   const filteredNavigation = NAVIGATION.filter((item) =>
     item.roles?.includes(userRole)
   );
@@ -130,53 +138,89 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
       >
         <List className="sidebar-list">
           {filteredNavigation.map((item, idx) => {
-            const isActive = location.pathname === item.segment;
+            const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+            const isActive = hasChildren
+              ? location.pathname.startsWith("/wayabroadadmin/admin/courses")
+              : location.pathname === item.segment;
             return (
-              <Tooltip
-                key={item.segment + idx}
-                title={!open ? item.title : ""}
-                placement="right"
-                TransitionComponent={Zoom}
-                arrow
-                enterDelay={500}
-              >
-                <MotionListItem
-                  button
-                  className={`sidebar-item ${isActive ? "active" : ""}`}
-                  onClick={() => handleNavigation(item.segment)}
-                  whileTap={{ scale: 0.95 }}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3 }}
+              <React.Fragment key={item.segment + idx}>
+                <Tooltip
+                  title={!open ? item.title : ""}
+                  placement="right"
+                  TransitionComponent={Zoom}
+                  arrow
+                  enterDelay={500}
                 >
-                  <ListItemIcon
-                    sx={{
-                      color: isActive ? "black" : "white",
-                      transition: "all 0.3s ease",
+                  <MotionListItem
+                    button
+                    className={`sidebar-item ${isActive ? "active" : ""}`}
+                    onClick={() => {
+                      if (hasChildren) {
+                        setCoursesExpanded((previous) => !previous);
+                        navigate(item.segment);
+                      } else {
+                        handleNavigation(item.segment);
+                      }
                     }}
+                    whileTap={{ scale: 0.95 }}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
                   >
-                    {item.icon}
-                  </ListItemIcon>
-                  {open && (
-                    <ListItemText
-                      primary={item.title}
-                      primaryTypographyProps={{
-                        fontWeight: isActive ? "bold" : "medium",
-                        fontSize: "13px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        transition: "all 0.3s ease",
-                      }}
-                      sx={{
-                        opacity: open ? 1 : 0,
-                        transition: "opacity 0.3s",
-                        marginLeft: "-10px",
-                      }}
-                    />
-                  )}
-                </MotionListItem>
-              </Tooltip>
+                    <ListItemIcon sx={{ color: isActive ? "black" : "white", minWidth: 38 }}>
+                      {item.icon}
+                    </ListItemIcon>
+                    {open && (
+                      <ListItemText
+                        primary={item.title}
+                        primaryTypographyProps={{
+                          fontWeight: isActive ? "bold" : "medium",
+                          fontSize: "13px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        sx={{ opacity: 1, marginLeft: "-10px" }}
+                      />
+                    )}
+                    {open && hasChildren && (coursesExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
+                  </MotionListItem>
+                </Tooltip>
+                {hasChildren && open && (
+                  <Collapse in={coursesExpanded} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                      {item.children.map((child) => {
+                        const childActive = location.pathname === child.segment;
+                        return (
+                          <ListItem
+                            key={child.segment}
+                            button
+                            onClick={() => handleNavigation(child.segment)}
+                            sx={{
+                              pl: 5,
+                              py: 0.7,
+                              color: "white",
+                              borderRadius: 2,
+                              backgroundColor: childActive ? "rgba(255,255,255,0.95)" : "transparent",
+                              "&:hover": { backgroundColor: childActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.13)" },
+                            }}
+                          >
+                            <ListItemText
+                              primary={child.title}
+                              primaryTypographyProps={{
+                                fontSize: "12px",
+                                fontWeight: childActive ? 700 : 400,
+                                color: childActive ? "#17202a" : "white",
+                                noWrap: true,
+                              }}
+                            />
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  </Collapse>
+                )}
+              </React.Fragment>
             );
           })}
         </List>

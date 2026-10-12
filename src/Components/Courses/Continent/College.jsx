@@ -1,84 +1,129 @@
 import React, { useEffect, useState } from "react";
-import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, IconButton, Typography, CircularProgress } from "@mui/material";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Stack,
+  IconButton,
+  Typography,
+  CircularProgress,
+  MenuItem,
+} from "@mui/material";
 import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import UploadIcon from '@mui/icons-material/Upload';
-import { getAllColleges, createCollege, updateCollege, deleteCollege } from "./CollegeService";
-import Course from "./Course";
+import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
+import PlusOutlined from "@ant-design/icons/PlusOutlined";
+import UploadIcon from "@mui/icons-material/Upload";
+
+import {
+  getAllColleges,
+  createCollege,
+  updateCollege,
+  deleteCollege,
+} from "./CollegeService";
+
 import LoadingOverlay from "../../Common/LoadingOverlay";
 
 const initialCollege = {
   collegeName: "",
   image: null,
-  fileError: null
+  fileError: null,
 };
+
+const PAGE_SIZE_OPTIONS = [10, 20, 25, 50];
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 export default function College({ university, onBack }) {
   const [colleges, setColleges] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [collegeData, setCollegeData] = useState(initialCollege);
+  const [collegeData, setCollegeData] = useState({
+    ...initialCollege,
+  });
+
   const [search, setSearch] = useState("");
   const [tableLoading, setTableLoading] = useState(false);
-  const [showCourses, setShowCourses] = useState(false);
-  const [selectedCollege, setSelectedCollege] = useState(null);
-  const [selectedStream, setSelectedStream] = useState(null);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [apiLoading, setApiLoading] = useState(false);
 
-  // Get authentication data from session storage with fallbacks
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const API_URL = import.meta.env.VITE_API_URL || "";
+
+  // Get authentication information.
   const getAuthData = () => {
-    const role = sessionStorage.getItem("role");
-    const email = sessionStorage.getItem("email");
-    const branchCode = sessionStorage.getItem("branchCode") || "";
-    
-    console.log('Auth data from sessionStorage:', { role, email, branchCode });
-    
-    if (!role || !email) {
-      console.error('Missing authentication data in sessionStorage');
-      // Try to get from localStorage as fallback
-      const fallbackRole = localStorage.getItem("role");
-      const fallbackEmail = localStorage.getItem("email");
-      const fallbackBranchCode = localStorage.getItem("branchCode") || "";
-      
-      if (fallbackRole && fallbackEmail) {
-        console.log('Using auth data from localStorage');
-        return {
-          role: fallbackRole,
-          email: fallbackEmail,
-          branchCode: fallbackBranchCode
-        };
-      }
-      
-      // If still not found, redirect to login
-      console.error('No authentication data found, redirecting to login');
-      window.location.href = '/login';
-      return { role: null, email: null, branchCode: '' };
+    const sessionRole = sessionStorage.getItem("role");
+    const sessionEmail = sessionStorage.getItem("email");
+    const sessionBranchCode =
+      sessionStorage.getItem("branchCode") || "";
+
+    if (sessionRole && sessionEmail) {
+      return {
+        role: sessionRole,
+        email: sessionEmail,
+        branchCode: sessionBranchCode,
+      };
     }
-    
-    return { role, email, branchCode };
+
+    const localRole = localStorage.getItem("role");
+    const localEmail = localStorage.getItem("email");
+    const localBranchCode =
+      localStorage.getItem("branchCode") || "";
+
+    if (localRole && localEmail) {
+      return {
+        role: localRole,
+        email: localEmail,
+        branchCode: localBranchCode,
+      };
+    }
+
+    return {
+      role: null,
+      email: null,
+      branchCode: "",
+    };
   };
-  
+
   const { role, email, branchCode } = getAuthData();
 
+  // Fetch colleges belonging to the selected university.
   const fetchColleges = async () => {
+    if (!university?.id || !role || !email) {
+      setColleges([]);
+      return;
+    }
+
     setTableLoading(true);
     setApiLoading(true);
+
     try {
-      const data = await getAllColleges({ 
-        search, 
-        email, 
-        role, 
-        branchCode, 
-        universityId: university?.id 
+      const data = await getAllColleges({
+        search: search.trim(),
+        email,
+        role,
+        branchCode,
+        universityId: university.id,
       });
-      
-      const formattedData = data?.map(college => ({
+
+      const formattedData = (
+        Array.isArray(data) ? data : []
+      ).map((college) => ({
         ...college,
-        collegeName: college.collegeName || college.college || String(college.id) || 'N/A'
-      })) || [];
-      
+        collegeName:
+          college.collegeName ||
+          college.college ||
+          (college.id != null ? String(college.id) : "N/A"),
+      }));
+
       setColleges(formattedData);
     } catch (error) {
       console.error("Error fetching colleges:", error);
@@ -90,104 +135,149 @@ export default function College({ university, onBack }) {
   };
 
   useEffect(() => {
+    if (!role || !email) {
+      window.location.href = "/login";
+      return;
+    }
+
     if (university?.id) {
       fetchColleges();
+    } else {
+      setColleges([]);
     }
-  }, [search, university?.id]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, university?.id, role, email, branchCode]);
+
+  // Reset pagination when search or page size changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, pageSize]);
+
+  // Keep the selected page valid when the number of records changes.
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(colleges.length / pageSize)
+    );
+
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [colleges.length, currentPage, pageSize]);
+
+  // Open Add/Edit College dialog.
   const handleOpenDialog = (college = null) => {
     if (college) {
       setEditing(college.id);
+
       setCollegeData({
-        collegeName: college.collegeName || college.college || "",
-        image: null
+        collegeName:
+          college.collegeName || college.college || "",
+        image: null,
+        fileError: null,
       });
     } else {
       setEditing(null);
-      setCollegeData(initialCollege);
+      setCollegeData({ ...initialCollege });
     }
+
     setDialogOpen(true);
   };
 
+  // Close and reset the dialog.
   const handleCloseDialog = () => {
+    if (loading) return;
+
     setDialogOpen(false);
-    setCollegeData(initialCollege);
+    setCollegeData({ ...initialCollege });
     setEditing(null);
   };
 
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+  // Handle college name and image inputs.
+  const handleInputChange = (event) => {
+    const { name, value, files } = event.target;
 
-  const handleInputChange = (e) => {
-    const { name, value, files } = e.target;
-    
-    if (name === 'image' && files && files.length > 0) {
+    if (name === "image") {
+      if (!files?.length) return;
+
       const file = files[0];
-      
-      // Check file size
+
       if (file.size > MAX_FILE_SIZE) {
-        message.error('File size should not exceed 5MB');
-        // Clear the file input
-        e.target.value = '';
-        setCollegeData(prev => ({ ...prev, fileError: 'File size should not exceed 5MB' }));
+        message.error("File size should not exceed 5MB");
+
+        setCollegeData((previous) => ({
+          ...previous,
+          image: null,
+          fileError: "File size should not exceed 5MB",
+        }));
+
+        event.target.value = "";
         return;
       }
-      
-      setCollegeData(prev => ({ 
-        ...prev, 
-        [name]: file,
-        fileError: null 
+
+      setCollegeData((previous) => ({
+        ...previous,
+        image: file,
+        fileError: null,
       }));
-    } else {
-      setCollegeData(prev => ({ ...prev, [name]: value }));
+
+      return;
     }
+
+    setCollegeData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
 
+  // Create or update a college.
   const handleSave = async () => {
     if (!collegeData.collegeName?.trim()) {
       message.error("Please enter college name");
       return;
     }
 
-    // Verify user has required permissions
     if (!email || !role) {
-      const errorMsg = `Authentication error: Please log in again. Missing: ${!email ? 'email ' : ''}${!role ? 'role' : ''}`.trim();
-      console.error(errorMsg);
-      message.error(errorMsg);
-      window.location.href = '/login';
+      message.error("Authentication error. Please log in again.");
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!university?.id) {
+      message.error("University information is missing");
+      return;
+    }
+
+    if (collegeData.fileError) {
+      message.error(collegeData.fileError);
       return;
     }
 
     setLoading(true);
     setApiLoading(true);
-    
-    const formData = new FormData();
-    
-    // Create the college object according to the AbroadCollege entity
-    const collegeObj = {
-      collegeName: collegeData.collegeName.trim(),
-      createdByEmail: email,
-      role: role,
-      abroadUniversity: { id: university?.id }
-    };
-    
-    // Append the college object as JSON string
-    formData.append('college', JSON.stringify(collegeObj));
-    
-    // Append the image file if it exists and is a File object
-    if (collegeData.image instanceof File) {
-      formData.append('image', collegeData.image);
-    } else if (editing && !collegeData.image) {
-      // If editing and no new photo is selected, ensure we don't send an empty file
-      formData.delete('image');
-    }
-    
-    // Add universityId as a separate form field
-    if (university?.id) {
-      formData.append('universityId', university.id.toString());
-    }
 
     try {
-      if (editing) {
+      const formData = new FormData();
+
+      const collegeObj = {
+        collegeName: collegeData.collegeName.trim(),
+        createdByEmail: email,
+        role,
+        abroadUniversity: {
+          id: university.id,
+        },
+      };
+
+      formData.append("college", JSON.stringify(collegeObj));
+
+      if (collegeData.image instanceof File) {
+        formData.append("image", collegeData.image);
+      }
+
+      formData.append("universityId", String(university.id));
+
+      if (editing !== null && editing !== undefined) {
         await updateCollege(
           editing,
           formData,
@@ -196,144 +286,191 @@ export default function College({ university, onBack }) {
           branchCode,
           null
         );
+
         message.success("College updated successfully");
       } else {
         await createCollege(
           formData,
           null,
-          university?.id,
+          university.id,
           email,
           role
         );
+
         message.success("College created successfully");
       }
-      
-      fetchColleges();
-      handleCloseDialog();
+
+      setDialogOpen(false);
+      setCollegeData({ ...initialCollege });
+      setEditing(null);
+
+      await fetchColleges();
     } catch (error) {
       console.error("Error saving college:", error);
-      
-      // Log the full error response for debugging
+
       if (error.response) {
         console.error("Response data:", error.response.data);
         console.error("Response status:", error.response.status);
-        console.error("Response headers:", error.response.headers);
-      } else if (error.request) {
-        console.error("No response received:", error.request);
-      } else {
-        console.error('Error:', error.message);
       }
-      
-      // Show user-friendly error message
-      const errorMessage = error.response?.data?.message || 
-                         error.response?.data?.error || 
-                         error.message || 
-                         "Failed to save college. Please try again.";
-      
-      message.error(errorMessage);
+
+      message.error(
+        error.response?.data?.message ||
+          error.response?.data?.error ||
+          error.message ||
+          "Failed to save college. Please try again."
+      );
     } finally {
       setLoading(false);
       setApiLoading(false);
     }
   };
 
+  // Delete a college.
   const handleDelete = async (id) => {
+    setLoading(true);
     setApiLoading(true);
+
     try {
       await deleteCollege(id, email, role, branchCode);
+
       message.success("College deleted successfully");
-      fetchColleges();
+      await fetchColleges();
     } catch (error) {
       console.error("Error deleting college:", error);
-      message.error("Failed to delete college");
+
+      message.error(
+        error.response?.data?.message ||
+          "Failed to delete college"
+      );
     } finally {
+      setLoading(false);
       setApiLoading(false);
     }
   };
 
+  // Open the standalone Streams route while preserving the selected hierarchy.
   const handleManageCourses = (college) => {
-    setSelectedCollege(college);
-    setSelectedStream({ id: college.id, name: college.collegeName });
-    setShowCourses(true);
+    const params = new URLSearchParams(searchParams);
+    params.set("collegeId", String(college.id));
+    navigate(`/wayabroadadmin/admin/courses/stream?${params.toString()}`);
   };
 
-  const handleBackFromCourses = () => {
-    setShowCourses(false);
-    setSelectedCollege(null);
-    setSelectedStream(null);
-    fetchColleges();
+  // Resolve college image URLs.
+  const getImageUrl = (record) => {
+    const image =
+      record.imageUrl ||
+      record.image ||
+      (Array.isArray(record.images) ? record.images[0] : null) ||
+      record.imagePath;
+
+    if (!image) return null;
+
+    if (
+      image.startsWith("data:image") ||
+      image.startsWith("http://") ||
+      image.startsWith("https://")
+    ) {
+      return image;
+    }
+
+    return `${API_URL}${image.startsWith("/") ? "" : "/"}${image}`;
   };
 
   const columns = [
     {
-      title: 'College Name',
-      dataIndex: 'collegeName',
-      key: 'collegeName',
-      sorter: (a, b) => (a.collegeName || '').localeCompare(b.collegeName || ''),
+      title: "College Name",
+      dataIndex: "collegeName",
+      key: "collegeName",
+      sorter: (a, b) =>
+        (a.collegeName || "").localeCompare(b.collegeName || ""),
+      render: (name) => (
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 500,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {name || "N/A"}
+        </Typography>
+      ),
     },
     {
-      title: 'Image',
-      key: 'image',
-      width: 100,
+      title: "Image",
+      key: "image",
+      width: 120,
       render: (_, record) => {
-        // Check for image URL in common possible properties
-        const imageUrl = record.imageUrl || record.image || 
-                        (record.images && record.images[0]) ||
-                        (record.imagePath ? `${process.env.REACT_APP_API_BASE_URL}${record.imagePath}` : null);
-        
+        const imageUrl = getImageUrl(record);
+
         return imageUrl ? (
-          <img 
-            src={imageUrl} 
-            alt={record.collegeName}
-            style={{
-              width: '50px',
-              height: '50px',
-              objectFit: 'cover',
-              borderRadius: '4px'
+          <img
+            src={imageUrl}
+            alt={record.collegeName || "College"}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
             }}
-            onError={(e) => {
-              console.error('Error loading image:', imageUrl);
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'flex';
+            style={{
+              width: 50,
+              height: 50,
+              objectFit: "cover",
+              borderRadius: 4,
             }}
           />
         ) : (
-          <div style={{
-            width: '50px',
-            height: '50px',
-            backgroundColor: '#f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '4px',
-            color: '#999',
-            fontSize: '10px',
-            textAlign: 'center',
-            padding: '4px'
-          }}>
+          <Box
+            sx={{
+              width: 60,
+              height: 40,
+              backgroundColor: "#f0f0f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 1,
+              color: "#777",
+              fontSize: 10,
+              textAlign: "center",
+              p: 0.5,
+            }}
+          >
             No Image
-          </div>
+          </Box>
         );
       },
     },
     {
-      title: 'Actions',
-      key: 'actions',
+      title: "Actions",
+      key: "actions",
+      width: 220,
       render: (_, record) => (
-        <Stack direction="row" spacing={1}>
-          {/* <IconButton size="small" onClick={() => handleOpenDialog(record)}>
-            <EditOutlined />
-          </IconButton> */}
-          <Popconfirm title="Delete this college?" onConfirm={() => handleDelete(record.id)}>
-            <IconButton size="small">
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Popconfirm
+            title="Delete this college?"
+            description="This action cannot be undone."
+            onConfirm={() => handleDelete(record.id)}
+            okText="Delete"
+            cancelText="Cancel"
+          >
+            <IconButton
+              size="small"
+              color="error"
+              aria-label="Delete college"
+              disabled={loading}
+            >
               <DeleteOutlined />
             </IconButton>
           </Popconfirm>
+
           <Button
             size="small"
             variant="outlined"
             onClick={() => handleManageCourses(record)}
-            sx={{ ml: 1 }}
+            sx={{ whiteSpace: "nowrap" }}
           >
             Manage Courses
           </Button>
@@ -342,115 +479,276 @@ export default function College({ university, onBack }) {
     },
   ];
 
-  if (showCourses && selectedCollege) {
-    return (
-      <Course 
-        stream={selectedStream}
-        onBack={handleBackFromCourses} 
-        branchCode={branchCode}
-        role={role}
-        email={email}
-      />
-    );
-  }
+  const totalRecords = colleges.length;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalRecords / pageSize)
+  );
+
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const startRecord =
+    totalRecords === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+
+  const endRecord = Math.min(
+    safeCurrentPage * pageSize,
+    totalRecords
+  );
 
   return (
-    <div>
+    <Box sx={{ width: "100%", minWidth: 0 }}>
       <LoadingOverlay loading={apiLoading} />
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+
+      {/* Toolbar */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        alignItems={{ xs: "stretch", sm: "center" }}
+        justifyContent="space-between"
+        sx={{ mb: 2, width: "100%" }}
+      >
         <Button
           variant="outlined"
           startIcon={<ArrowBackIcon />}
           onClick={onBack}
+          sx={{
+            alignSelf: { xs: "flex-start", sm: "center" },
+            whiteSpace: "nowrap",
+          }}
         >
           Back to University
         </Button>
 
-        <Input.Search
-          placeholder="Search colleges"
-          allowClear
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 300 }}
-        />
-        <Button
-          variant="contained"
-          startIcon={<PlusOutlined />}
-          onClick={() => handleOpenDialog()}
-          sx={{ ml: 2 }}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          alignItems={{ xs: "stretch", sm: "center" }}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
         >
-          Add College
-        </Button>
-      </Box>
+          <Input.Search
+            placeholder="Search colleges"
+            allowClear
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{
+              width: "100%",
+              maxWidth: 320,
+            }}
+          />
 
-      <Table
-        columns={columns}
-        dataSource={colleges}
-        rowKey="id"
-        loading={tableLoading}
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: 'max-content' }}
-        style={{ marginTop: '16px' }}
-      />
+          <Button
+            variant="contained"
+            startIcon={<PlusOutlined />}
+            onClick={() => handleOpenDialog()}
+            sx={{
+              whiteSpace: "nowrap",
+              alignSelf: { xs: "flex-start", sm: "center" },
+            }}
+          >
+            Add College
+          </Button>
+        </Stack>
+      </Stack>
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>{editing ? 'Edit College' : 'Add New College'}</DialogTitle>
+      {/* Add / Edit College Dialog */}
+      <Dialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editing !== null && editing !== undefined
+            ? "Edit College"
+            : "Add New College"}
+        </DialogTitle>
+
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 2 }}>
             <TextField
               label="College Name"
               name="collegeName"
-              value={collegeData.collegeName || ''}
+              value={collegeData.collegeName || ""}
               onChange={handleInputChange}
               fullWidth
               required
-              sx={{ mb: 2 }}
+              autoFocus
             />
-            
-            <Box sx={{ mb: 2 }}>
+
+            <Box>
               <Typography variant="subtitle2" gutterBottom>
                 College Image
               </Typography>
+
               <input
                 accept="image/*"
                 type="file"
                 id="college-image-upload"
                 name="image"
                 onChange={handleInputChange}
-                style={{ display: 'none' }}
+                style={{ display: "none" }}
               />
+
               {collegeData.fileError && (
-                <Typography color="error" variant="caption" display="block" gutterBottom>
+                <Typography
+                  color="error"
+                  variant="caption"
+                  display="block"
+                  gutterBottom
+                >
                   {collegeData.fileError}
                 </Typography>
               )}
+
               <label htmlFor="college-image-upload">
                 <Button
                   variant="outlined"
                   component="span"
                   startIcon={<UploadIcon />}
+                  disabled={loading}
                 >
-                  {collegeData.image ? 'Change Image' : 'Upload Image'}
+                  {collegeData.image ? "Change Image" : "Upload Image"}
                 </Button>
               </label>
+
+              {collegeData.image && (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1, overflowWrap: "anywhere" }}
+                >
+                  Selected: {collegeData.image.name}
+                </Typography>
+              )}
+
+              <Typography
+                variant="caption"
+                display="block"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
+                Maximum image size: 5 MB
+              </Typography>
             </Box>
-
-
           </Stack>
         </DialogContent>
+
         <DialogActions>
           <Button onClick={handleCloseDialog} disabled={loading}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleSave} 
-            variant="contained" 
+
+          <Button
+            onClick={handleSave}
+            variant="contained"
             disabled={loading || !collegeData.collegeName?.trim()}
+            startIcon={
+              loading ? <CircularProgress size={18} /> : null
+            }
           >
-            {loading ? <CircularProgress size={24} /> : 'Save'}
+            {loading
+              ? "Saving..."
+              : editing !== null && editing !== undefined
+                ? "Update"
+                : "Save"}
           </Button>
         </DialogActions>
       </Dialog>
-    </div>
+
+      {/* Colleges Table */}
+      <Box
+        sx={{
+          width: "100%",
+          minWidth: 0,
+          mt: 2,
+          "& .ant-table": {
+            fontSize: "14px",
+          },
+          "& .ant-table-thead > tr > th": {
+            backgroundColor: "#fafafa",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+          },
+          "& .ant-table-cell": {
+            verticalAlign: "middle",
+            padding: { xs: "10px 8px", sm: "12px 16px" },
+          },
+        }}
+      >
+        <Table
+          columns={columns}
+          dataSource={colleges}
+          rowKey="id"
+          loading={tableLoading}
+          pagination={{
+            current: safeCurrentPage,
+            pageSize,
+            total: totalRecords,
+            showSizeChanger: false,
+            showQuickJumper: false,
+            position: ["bottomCenter"],
+            onChange: (page) => setCurrentPage(page),
+          }}
+          locale={{
+            emptyText: search.trim()
+              ? "No colleges match your search"
+              : "No colleges found",
+          }}
+          tableLayout="auto"
+        />
+      </Box>
+
+      {/* Record Count and Page Size */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        justifyContent="space-between"
+        sx={{
+          mt: 2,
+          mb: 2,
+          width: "100%",
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          Showing {startRecord}–{endRecord} of {totalRecords} items
+        </Typography>
+
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            Rows per page:
+          </Typography>
+
+          <TextField
+            select
+            size="small"
+            value={pageSize}
+            onChange={(event) =>
+              setPageSize(Number(event.target.value))
+            }
+            sx={{
+              width: 100,
+              "& .MuiSelect-select": {
+                py: 1,
+              },
+            }}
+            inputProps={{
+              "aria-label": "Rows per page",
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <MenuItem key={size} value={size}>
+                {size}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+      </Stack>
+    </Box>
   );
 }

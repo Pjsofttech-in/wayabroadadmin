@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, IconButton, Typography, CircularProgress } from "@mui/material";
 import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { getAllStreams, createStream, updateStream, deleteStream } from "./StreamService";
-import Course from "./Course";
 import LoadingOverlay from "../../Common/LoadingOverlay";
 
 const initialStream = {
@@ -20,8 +20,8 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
   const [streamData, setStreamData] = useState(initialStream);
   const [search, setSearch] = useState("");
   const [tableLoading, setTableLoading] = useState(false);
-  const [showCourse, setShowCourse] = useState(false);
-  const [selectedStream, setSelectedStream] = useState(null);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [apiLoading, setApiLoading] = useState(false);
 
   const fetchStreams = async () => {
@@ -169,8 +169,10 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
             size="small"
             variant="outlined"
             onClick={() => {
-              setSelectedStream(record);
-              setShowCourse(true);
+              const params = new URLSearchParams(searchParams);
+              params.set("streamId", String(record.id));
+              if (college?.id != null) params.set("collegeId", String(college.id));
+              navigate(`/wayabroadadmin/admin/courses/course?${params.toString()}`);
             }}
             sx={{ ml: 1 }}
           >
@@ -180,30 +182,6 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
       ),
     },
   ];
-
-  if (showCourse && selectedStream) {
-    return (
-      <Course
-        stream={selectedStream}
-        branchCode={branchCode}
-        role={role}
-        email={email}
-        onBack={() => setShowCourse(false)}
-      />
-    );
-  }
-
-  if (showCourse && selectedStream) {
-    return (
-      <Course
-        stream={selectedStream}
-        onBack={() => setShowCourse(false)}
-        branchCode={branchCode}
-        role={role}
-        email={email}
-      />
-    );
-  }
 
   return (
     <div>
@@ -277,3 +255,4 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
     </div>
   );
 }
+

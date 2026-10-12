@@ -114,10 +114,20 @@ export const NAVIGATION = [
     },
      {
       title: "Courses",
-      segment: "/wayabroadadmin/admin/courses",
+      segment: "/wayabroadadmin/admin/courses/continent",
       icon: <MenuBookIcon />,
-      description: "Manage Courses",
+      description: "Manage course hierarchy",
       roles: ["superAdmin"],
+      children: [
+        { title: "Continents", segment: "/wayabroadadmin/admin/courses/continent" },
+        { title: "Countries", segment: "/wayabroadadmin/admin/courses/country" },
+        { title: "States", segment: "/wayabroadadmin/admin/courses/state" },
+        { title: "Cities", segment: "/wayabroadadmin/admin/courses/city" },
+        { title: "Universities", segment: "/wayabroadadmin/admin/courses/university" },
+        { title: "Colleges", segment: "/wayabroadadmin/admin/courses/college" },
+        { title: "Streams", segment: "/wayabroadadmin/admin/courses/stream" },
+        { title: "Courses", segment: "/wayabroadadmin/admin/courses/course" },
+      ],
     },
     {
       title: "Scholarship",

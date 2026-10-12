@@ -1,47 +1,101 @@
-import React, { useEffect, useState } from "react";
-import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, IconButton, Typography, CircularProgress } from "@mui/material";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Stack,
+  IconButton,
+  Typography,
+  CircularProgress,
+  MenuItem,
+} from "@mui/material";
 import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { getAllUniversity, createUniversity, updateUniversity, deleteUniversity } from "./UniversityService";
-import College from "./College";
+import {
+  DeleteOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
+
+import {
+  getAllUniversity,
+  createUniversity,
+  updateUniversity,
+  deleteUniversity,
+} from "./UniversityService";
+
 import LoadingOverlay from "../../Common/LoadingOverlay";
 
-const initialCountry = {
+const initialUniversity = {
   universityName: "",
   photo: null,
 };
 
-export default function University({ country, city, branchCode, role, email, onBack }) {
+const PAGE_SIZE_OPTIONS = [10, 20, 25, 50];
+
+export default function University({
+  country,
+  city,
+  branchCode,
+  role,
+  email,
+  onBack,
+}) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [universities, setUniversities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [universitiesData, setUniversitiesData] = useState(initialCountry);
+  const [universitiesData, setUniversitiesData] =
+    useState({ ...initialUniversity });
+
   const [search, setSearch] = useState("");
   const [tableLoading, setTableLoading] = useState(false);
-  const [showCollege, setShowCollege] = useState(false);
-  const [selectedUniversity, setSelectedUniversity] = useState(null);
   const [apiLoading, setApiLoading] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const API_URL = import.meta.env.VITE_API_URL || "";
+
+  // Fetch universities for the selected city or country.
   const fetchUniversities = async () => {
     setTableLoading(true);
     setApiLoading(true);
+
     try {
-      const params = { search, email, role, branchCode };
+      const params = {
+        search: "",
+        email,
+        role,
+        branchCode,
+      };
+
       if (city?.id) {
         params.cityId = city.id;
       } else if (country?.id) {
         params.countryId = country.id;
       }
-      
+
       const data = await getAllUniversity(params);
-      // Map through the data to ensure proper field mapping
-      const formattedData = data?.map(university => ({
-        ...university,
-        universityName: university.universityName || university.university || university.name || 'N/A',
-        imageUrl: university.image || null
-      })) || [];
+
+      const formattedData = (Array.isArray(data) ? data : []).map(
+        (university) => ({
+          ...university,
+          universityName:
+            university.universityName ||
+            university.university ||
+            university.name ||
+            "N/A",
+          imageUrl: university.image || university.imageUrl || null,
+        })
+      );
+
       setUniversities(formattedData);
     } catch (error) {
       console.error("Error fetching universities:", error);
@@ -54,142 +108,279 @@ export default function University({ country, city, branchCode, role, email, onB
 
   useEffect(() => {
     fetchUniversities();
-    // eslint-disable-next-line
-  }, [search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city?.id, country?.id]);
+
+  // Client-side search.
+  const filteredUniversities = useMemo(() => {
+    const searchText = search.trim().toLowerCase();
+
+    if (!searchText) {
+      return universities;
+    }
+
+    return universities.filter((university) =>
+      String(university.universityName || "")
+        .toLowerCase()
+        .includes(searchText)
+    );
+  }, [universities, search]);
+
+  // Reset pagination when search or page size changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, pageSize]);
+
+  // Keep the current page valid when records are deleted.
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredUniversities.length / pageSize)
+    );
+
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [filteredUniversities.length, pageSize, currentPage]);
 
   const handleOpenDialog = (record = null) => {
     if (record) {
-      setUniversitiesData({ ...record, universityName: record.universityName || record.university || record.name || "", photo: null });
+      setUniversitiesData({
+        universityName:
+          record.universityName ||
+          record.university ||
+          record.name ||
+          "",
+        photo: null,
+      });
+
       setEditing(record.id);
     } else {
-      setUniversitiesData(initialCountry);
+      setUniversitiesData({ ...initialUniversity });
       setEditing(null);
     }
+
     setDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
+    if (loading) return;
+
     setDialogOpen(false);
-    setUniversitiesData(initialCountry);
+    setUniversitiesData({ ...initialUniversity });
     setEditing(null);
   };
 
-  const handleChange = (e) => {
-    const { name, value, files } = e.target;
+  const handleChange = (event) => {
+    const { name, value, files } = event.target;
+
     if (name === "photo") {
-      setUniversitiesData((prev) => ({ ...prev, photo: files[0] }));
+      setUniversitiesData((previous) => ({
+        ...previous,
+        photo: files?.[0] || null,
+      }));
     } else {
-      setUniversitiesData((prev) => ({ ...prev, [name]: value }));
+      setUniversitiesData((previous) => ({
+        ...previous,
+        [name]: value,
+      }));
     }
   };
 
   const handleSave = async () => {
-    if (!universitiesData.universityName?.trim()) {
+    const universityName = universitiesData.universityName?.trim();
+
+    if (!universityName) {
       message.error("University name is required");
       return;
     }
-    
+
     setLoading(true);
-    setApiLoading(true);
+
     try {
-      const payload = { 
-        universityName: universitiesData.universityName.trim()
-      };
-      let response;
-      if (editing) {
-        const params = { email, role, branchCode };
-        if (city?.id) {
-          params.cityId = city.id;
-        } else if (country?.id) {
-          params.countryId = country.id;
-        }
-        response = await updateUniversity(editing, payload, universitiesData.photo, country?.id, email, role, branchCode, city?.id);
-        message.success("University updated");
+      const payload = { universityName };
+
+      if (editing !== null && editing !== undefined) {
+        await updateUniversity(
+          editing,
+          payload,
+          universitiesData.photo,
+          country?.id,
+          email,
+          role,
+          branchCode,
+          city?.id
+        );
+
+        message.success("University updated successfully");
       } else {
-        response = await createUniversity(payload, universitiesData.photo, country?.id, email, role, city?.id);
-        message.success("University created");
+        await createUniversity(
+          payload,
+          universitiesData.photo,
+          country?.id,
+          email,
+          role,
+          city?.id
+        );
+
+        message.success("University created successfully");
       }
-      
-      // Ensure we have the latest data including the name
-      if (response) {
-        fetchUniversities();
-      }
-      fetchUniversities();
-      handleCloseDialog();
+
+      setDialogOpen(false);
+      setUniversitiesData({ ...initialUniversity });
+      setEditing(null);
+
+      await fetchUniversities();
     } catch (error) {
       console.error("Error saving university:", error);
-      message.error(error.message || "Operation failed");
+
+      message.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "University operation failed"
+      );
     } finally {
       setLoading(false);
-      setApiLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
     setLoading(true);
-    setApiLoading(true);
+
     try {
       await deleteUniversity(id, email, role, branchCode);
-      message.success("University deleted");
-      fetchUniversities();
-    } catch {
-      message.error("Delete failed");
+
+      message.success("University deleted successfully");
+      await fetchUniversities();
+    } catch (error) {
+      console.error("Error deleting university:", error);
+
+      message.error(
+        error?.response?.data?.message ||
+          "Failed to delete university"
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleCollegeClick = (university) => {
-    setSelectedUniversity(university);
-    setShowCollege(true);
+    const params = new URLSearchParams();
+    params.set("universityId", String(university.id));
+
+    const cityId = city?.id || searchParams.get("cityId");
+    const stateId = searchParams.get("stateId");
+    const countryId = searchParams.get("countryId");
+
+    if (cityId) params.set("cityId", String(cityId));
+    if (stateId) params.set("stateId", String(stateId));
+    if (countryId) params.set("countryId", String(countryId));
+
+    navigate(`/wayabroadadmin/admin/courses/college?${params.toString()}`);
   };
 
-  const handleBackFromCollege = () => {
-    setShowCollege(false);
-    setSelectedUniversity(null);
+  const getImageUrl = (url) => {
+    if (!url) return "";
+
+    if (
+      url.startsWith("data:image") ||
+      url.startsWith("http://") ||
+      url.startsWith("https://")
+    ) {
+      return url;
+    }
+
+    return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
   };
 
   const columns = [
-    { title: "University Name", dataIndex: "universityName", key: "universityName" },
+    {
+      title: "University Name",
+      dataIndex: "universityName",
+      key: "universityName",
+      render: (name) => (
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 500,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {name || "N/A"}
+        </Typography>
+      ),
+    },
     {
       title: "Image",
       dataIndex: "imageUrl",
       key: "imageUrl",
+      width: 130,
       render: (url, record) =>
         url ? (
-          <img 
-            src={url.startsWith('data:image') || url.startsWith('http') ? url : `${import.meta.env.VITE_API_URL || ''}${url}`} 
-            alt={record.universityName || 'university'} 
-            style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} 
+          <img
+            src={getImageUrl(url)}
+            alt={record.universityName || "University"}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+            style={{
+              width: 40,
+              height: 40,
+              objectFit: "cover",
+              borderRadius: 4,
+            }}
           />
         ) : (
-          <div style={{
-            width: 40,
-            height: 40,
-            backgroundColor: '#f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 4
-          }}>
-            No Image
-          </div>
+          <Box
+            sx={{
+              width: 60,
+              height: 40,
+              backgroundColor: "#f0f0f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 1,
+            }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              No Image
+            </Typography>
+          </Box>
         ),
     },
     {
       title: "Actions",
       key: "actions",
+      width: 230,
       render: (_, record) => (
-        <Stack direction="row" spacing={1}>
-          {/* <IconButton onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton> */}
-          <Popconfirm title="Delete this university?" onConfirm={() => handleDelete(record.id)}>
-            <IconButton><DeleteOutlined /></IconButton>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Popconfirm
+            title="Delete this university?"
+            description="This action cannot be undone."
+            onConfirm={() => handleDelete(record.id)}
+            okText="Delete"
+            cancelText="Cancel"
+          >
+            <IconButton
+              color="error"
+              size="small"
+              aria-label="Delete university"
+              disabled={loading}
+            >
+              <DeleteOutlined />
+            </IconButton>
           </Popconfirm>
+
           <Button
             size="small"
             variant="outlined"
             onClick={() => handleCollegeClick(record)}
-            sx={{ ml: 1 }}
           >
             Manage Colleges
           </Button>
@@ -198,44 +389,85 @@ export default function University({ country, city, branchCode, role, email, onB
     },
   ];
 
-  if (showCollege && selectedUniversity) {
-    return (
-      <College
-        university={selectedUniversity}
-        onBack={handleBackFromCollege}
-      />
-    );
-  }
+  const totalRecords = filteredUniversities.length;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalRecords / pageSize)
+  );
+
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const startIndex =
+    totalRecords === 0 ? 0 : (safeCurrentPage - 1) * pageSize;
+
+  const endIndex = Math.min(startIndex + pageSize, totalRecords);
 
   return (
-    <div>
+    <Box sx={{ width: "100%", minWidth: 0 }}>
       <LoadingOverlay loading={apiLoading} />
-      <Stack direction="row" spacing={2} alignItems="center" mb={2}>
+
+      {/* Top Toolbar */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        alignItems={{ xs: "stretch", sm: "center" }}
+        justifyContent="space-between"
+        sx={{ mb: 2, width: "100%" }}
+      >
         <Button
           variant="outlined"
           startIcon={<ArrowBackIcon />}
           onClick={onBack}
+          sx={{
+            alignSelf: { xs: "flex-start", sm: "center" },
+            whiteSpace: "nowrap",
+          }}
         >
-          Back to {city ? 'City' : 'Country'}
+          Back to {city ? "City" : "Country"}
         </Button>
-        <Input.Search
-          placeholder="Search universities"
-          allowClear
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ width: 250 }}
-        />
-        <Button
-          variant="contained"
-          startIcon={<PlusOutlined />}
-          onClick={() => handleOpenDialog()}
+
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          alignItems={{ xs: "stretch", sm: "center" }}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
         >
-          Add University
-        </Button>
+          <Input.Search
+            placeholder="Search universities"
+            allowClear
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{
+              width: "100%",
+              maxWidth: 320,
+            }}
+          />
+
+          <Button
+            variant="contained"
+            startIcon={<PlusOutlined />}
+            onClick={() => handleOpenDialog()}
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            Add University
+          </Button>
+        </Stack>
       </Stack>
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>{editing ? "Update University" : "Add University"}</DialogTitle>
+      {/* Add / Update University Dialog */}
+      <Dialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          {editing !== null && editing !== undefined
+            ? "Update University"
+            : "Add University"}
+        </DialogTitle>
+
         <DialogContent>
           <TextField
             label="University Name"
@@ -245,37 +477,145 @@ export default function University({ country, city, branchCode, role, email, onB
             fullWidth
             margin="normal"
             required
+            autoFocus
           />
-          <Button variant="contained" component="label" sx={{ mt: 2 }}>
+
+          <Button
+            variant="contained"
+            component="label"
+            sx={{ mt: 2 }}
+            disabled={loading}
+          >
             Upload Image
-            <input type="file" name="photo" accept="image/*" hidden onChange={handleChange} />
+            <input
+              type="file"
+              name="photo"
+              accept="image/*"
+              hidden
+              onChange={handleChange}
+            />
           </Button>
+
           {universitiesData.photo && (
-            <Typography variant="body2" sx={{ mt: 1 }}>{universitiesData.photo.name}</Typography>
+            <Typography
+              variant="body2"
+              sx={{ mt: 1, overflowWrap: "anywhere" }}
+            >
+              Selected image: {universitiesData.photo.name}
+            </Typography>
           )}
         </DialogContent>
+
         <DialogActions>
-          <Button onClick={handleCloseDialog} disabled={loading}>Cancel</Button>
+          <Button onClick={handleCloseDialog} disabled={loading}>
+            Cancel
+          </Button>
+
           <Button
             onClick={handleSave}
             variant="contained"
-            color="primary"
             disabled={loading}
-            startIcon={loading ? <CircularProgress size={18} /> : null}
+            startIcon={
+              loading ? <CircularProgress size={18} /> : null
+            }
           >
-            {editing ? "Update" : "Create"}
+            {editing !== null && editing !== undefined
+              ? "Update"
+              : "Create"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Table
-        columns={columns}
-        dataSource={universities}
-        rowKey="id"
-        loading={tableLoading}
-        pagination={{ pageSize: 8 }}
-        style={{ marginTop: 24 }}
-      />
-    </div>
+      {/* Universities Table */}
+      <Box
+        sx={{
+          width: "100%",
+          minWidth: 0,
+          mt: 2,
+          "& .ant-table": {
+            fontSize: "14px",
+          },
+          "& .ant-table-thead > tr > th": {
+            whiteSpace: "nowrap",
+            backgroundColor: "#fafafa",
+          },
+          "& .ant-table-cell": {
+            verticalAlign: "middle",
+          },
+        }}
+      >
+        <Table
+          columns={columns}
+          dataSource={filteredUniversities}
+          rowKey={(record) => record.id}
+          loading={tableLoading}
+          pagination={{
+            current: safeCurrentPage,
+            pageSize,
+            total: totalRecords,
+            showSizeChanger: false,
+            showQuickJumper: false,
+            position: ["bottomCenter"],
+            onChange: (page) => setCurrentPage(page),
+          }}
+          locale={{
+            emptyText: search.trim()
+              ? "No universities match your search"
+              : "No universities found",
+          }}
+          tableLayout="auto"
+        />
+      </Box>
+
+      {/* Record Count and Page Size */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        justifyContent="space-between"
+        sx={{
+          mt: 2,
+          mb: 1,
+          width: "100%",
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          Showing {startIndex + (totalRecords > 0 ? 1 : 0)}–{endIndex} of{" "}
+          {totalRecords} items
+        </Typography>
+
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            Rows per page:
+          </Typography>
+
+          <TextField
+            select
+            size="small"
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+            sx={{
+              width: 100,
+              "& .MuiSelect-select": {
+                py: 1,
+              },
+            }}
+            inputProps={{
+              "aria-label": "Rows per page",
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <MenuItem key={size} value={size}>
+                {size}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+      </Stack>
+    </Box>
   );
 }

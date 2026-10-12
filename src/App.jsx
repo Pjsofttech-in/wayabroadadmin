@@ -18,6 +18,7 @@ import AbroadInquiryDashboard from "./Components/InquiryManagement/Pages/AbroadI
 import AbroadInquiryQR from "./Components/InquiryManagement/Pages/AbroadInquiryQR.jsx";
 import SettingSidebar from "./Components/Settings/SettingSidebar.jsx";
 import ContinentRelation from "./Components/Courses/Continent/ContinentRelation.jsx";
+import CourseEntityRoute from "./Components/Courses/Continent/CourseEntityRoute.jsx";
 import StreamManagement from "./Components/Settings/StreamManagement";
 import CourseManagement from "./Components/Settings/CourseManagement";
 import ConductByManagement from "./Components/Settings/ConductByManagement.jsx";
@@ -111,7 +112,15 @@ const App = () => {
 
             {/* Courses Section */}
             <Route path="courses">
-              <Route index element={<ContinentRelation />} />
+              <Route index element={<Navigate to="continent" replace />} />
+              <Route path="continent" element={<ContinentRelation />} />
+              <Route path="country" element={<CourseEntityRoute entity="country" />} />
+              <Route path="state" element={<CourseEntityRoute entity="state" />} />
+              <Route path="city" element={<CourseEntityRoute entity="city" />} />
+              <Route path="university" element={<CourseEntityRoute entity="university" />} />
+              <Route path="college" element={<CourseEntityRoute entity="college" />} />
+              <Route path="stream" element={<CourseEntityRoute entity="stream" />} />
+              <Route path="course" element={<CourseEntityRoute entity="course" />} />
             </Route>
             <Route path="application" element={<ApplicationSidebar />}>
               <Route index element={<ApplicationDashboard />} />
