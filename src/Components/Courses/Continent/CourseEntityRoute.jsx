@@ -66,7 +66,7 @@ const entityConfigs = {
   stream: {
     title: "Stream Management",
     param: "collegeId",
-    label: "College context",
+    label: "College (optional filter)",
     load: ({ role, email, branchCode }) => getAllColleges({ role, email, branchCode }),
     display: (item) => item.collegeName || item.college || item.name || `College ${item.id}`,
     render: (parent, back, a) => <Stream college={parent} role={a.role} email={a.email} branchCode={a.branchCode} onBack={back} />,
@@ -187,6 +187,8 @@ export default function CourseEntityRoute({ entity }) {
 
   if (!entityConfigs[entity]) return <Alert severity="error">Unknown course entity route.</Alert>;
 
+  const canRenderWithoutParent = entity === "stream";
+
   return (
     <Box sx={{ width: "100%", minWidth: 0, p: { xs: 1, sm: 2 } }}>
       <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>{config.title}</Typography>
@@ -215,8 +217,8 @@ export default function CourseEntityRoute({ entity }) {
       </Stack>
       {loading && <CircularProgress size={24} />}
       {!!loadError && <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>}
-      {!loading && !loadError && !selectedParent && <Alert severity="info">Select a {config.label.replace(" (required by API)", "")} above to load this page. You can also provide its ID in the URL query string, for example <strong>?{config.param}=123</strong>.</Alert>}
-      {!loading && selectedParent && (entity !== "course" || selectedCollege) && config.render(selectedParent, goBack, credentials, selectedCollege?.id)}
+      {!loading && !loadError && !selectedParent && !canRenderWithoutParent && <Alert severity="info">Select a {config.label.replace(" (required by API)", "")} above to load this page. You can also provide its ID in the URL query string, for example <strong>?{config.param}=123</strong>.</Alert>}
+      {!loading && (selectedParent || canRenderWithoutParent) && (!loadError || canRenderWithoutParent) && (entity !== "course" || selectedCollege) && config.render(selectedParent, goBack, credentials, selectedCollege?.id)}
       {entity === "course" && selectedParent && !selectedCollege && <Alert severity="info" sx={{ mt: 1 }}>Select the college as well. The backend create-course endpoint requires a collegeId.</Alert>}
     </Box>
   );

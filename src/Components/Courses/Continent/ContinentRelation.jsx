@@ -92,7 +92,9 @@ export default function ContinentRelation() {
     return continents.filter((continent) => {
       const searchableValues = [
         continent.continentname,
-        continent.code,
+        continent.createdByEmail,
+        continent.created_by_email,
+        continent.role,
       ];
 
       return searchableValues.some((value) =>
@@ -139,7 +141,7 @@ export default function ContinentRelation() {
 
         setContinentData({
           continentname: continent.continentname,
-          photo: continent.photo || null,
+          photo: continent.image || continent.photo || null,
         });
 
         setEditing(record.id);
@@ -181,13 +183,18 @@ export default function ContinentRelation() {
   };
 
   const handleSave = async () => {
+    if (!continentData.continentname?.trim()) {
+      message.error("Continent name is required");
+      return;
+    }
+
     setLoading(true);
     setApiLoading(true);
 
     try {
       const data = {
         continent: {
-          continentname: continentData.continentname,
+          continentname: continentData.continentname.trim(),
         },
         image: continentData.photo,
       };
@@ -283,40 +290,56 @@ export default function ContinentRelation() {
 
   const columns = [
     {
+      title: "ID",
+      dataIndex: "id",
+      key: "id",
+      width: 80,
+      render: (value) => value ?? "-",
+    },
+    {
       title: "Continent Name",
       dataIndex: "continentname",
       key: "continentname",
-    },
-    {
-      title: "Code",
-      dataIndex: "code",
-      key: "code",
+      sorter: (a, b) => String(a.continentname || "").localeCompare(String(b.continentname || "")),
+      render: (value) => value || "-",
     },
     {
       title: "Image",
       dataIndex: "image",
       key: "image",
-      render: (url) =>
-        url ? (
-          <img
-            src={url}
-            alt="continent"
-            style={{
-              width: 40,
-              height: 40,
-              objectFit: "cover",
-              borderRadius: 4,
-            }}
-          />
-        ) : (
-          "No Image"
-        ),
+      width: 120,
+      render: (url, record) => {
+        const imageUrl = url || record.imageUrl;
+        const src = imageUrl
+          ? imageUrl.startsWith("data:image") || /^https?:\/\//i.test(imageUrl)
+            ? imageUrl
+            : `${import.meta.env.VITE_API_URL || ""}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`
+          : null;
+        return src ? (
+          <img src={src} alt={record.continentname || "Continent"} loading="lazy" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />
+        ) : "-";
+      },
+    },
+    {
+      title: "Created By Email",
+      key: "createdByEmail",
+      render: (_, record) => record.createdByEmail || record.created_by_email || "-",
+    },
+    {
+      title: "Role",
+      dataIndex: "role",
+      key: "role",
+      render: (value) => value || "-",
     },
     {
       title: "Actions",
       key: "actions",
+      width: 260,
       render: (_, record) => (
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+          <IconButton aria-label={`Edit ${record.continentname || "continent"}`} size="small" disabled={loading} onClick={() => handleOpenDialog(record)}>
+            <EditOutlined />
+          </IconButton>
           <Popconfirm
             title="Delete this continent?"
             description="Are you sure you want to delete this continent?"
@@ -324,22 +347,12 @@ export default function ContinentRelation() {
             okText="Delete"
             cancelText="Cancel"
           >
-            <IconButton
-              aria-label="Delete continent"
-              color="default"
-              size="small"
-            >
+            <IconButton aria-label={`Delete ${record.continentname || "continent"}`} color="default" size="small" disabled={loading}>
               <DeleteOutlined />
             </IconButton>
           </Popconfirm>
-
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() => handleViewCountry(record)}
-            sx={{ ml: 1 }}
-          >
-            Add Country
+          <Button size="small" variant="outlined" onClick={() => handleViewCountry(record)}>
+            Manage Countries
           </Button>
         </Stack>
       ),

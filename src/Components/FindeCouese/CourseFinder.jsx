@@ -165,14 +165,15 @@ export default function CourseFinder() {
       },
     },
     '& .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'rgba(0, 0, 0, 0.23) !important',
+      borderColor: '#d6deea !important',
     },
     '&:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'rgba(0, 0, 0, 0.87) !important',
+      borderColor: 'primary.main !important',
     },
+    '& .MuiInputAdornment-root': { color: 'text.secondary' },
     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
       borderColor: 'primary.main !important',
-      borderWidth: '1px !important',
+      borderWidth: '1.5px !important',
     },
   };
 
@@ -416,24 +417,33 @@ export default function CourseFinder() {
 
         // Fetch all data in parallel
         const [
-          allCoursesData, 
+          allCoursesData,
           streamsData,
-          countriesData
+          countriesData,
+          statesData,
+          citiesData,
+          universitiesData,
+          collegesData
         ] = await Promise.all([
           getAllCourses({ email, role }),
           getAllStreams({ email, role }),
-          getAllCountries({ email, role, branchCode })
+          getAllCountries({ email, role, branchCode }),
+          getAllStates({ email, role }),
+          getAllCities({ email, role }),
+          getAllUniversities({ email, role, branchCode }),
+          getAllColleges({ email, role, branchCode })
         ]);
 
-        // Set all data independently
+        // Load each dropdown's options independently; selections do not control
+        // which options are fetched for another dropdown.
         setAllCourses(normalizeOptionList(allCoursesData));
         setCourses(normalizeOptionList(allCoursesData));
         setStreams(normalizeOptionList(streamsData));
         setCountries(normalizeOptionList(countriesData));
-        setStates([]);
-        setCity([]);
-        setUniversities([]);
-        setColleges([]);
+        setStates(normalizeOptionList(statesData));
+        setCity(normalizeOptionList(citiesData));
+        setUniversities(normalizeOptionList(universitiesData));
+        setColleges(normalizeOptionList(collegesData));
 
         // Fetch initial filtered data
         await fetchFilteredData();
@@ -449,153 +459,8 @@ export default function CourseFinder() {
     fetchAllData();
   }, []);
 
-  // Fetch states only for the selected countries
-  useEffect(() => {
-    const fetchStatesByCountries = async () => {
-      if (!filters.countryId.length) {
-        setStates([]);
-        setCity([]);
-        setUniversities([]);
-        setColleges([]);
-        return;
-      }
-
-      try {
-        const { email, role } = getUserCredentials();
-        const stateResponses = await Promise.all(
-          filters.countryId.map((countryId) =>
-            getAllStates({ email, role, countryId })
-          )
-        );
-
-        const stateMap = new Map();
-        stateResponses.flatMap(normalizeOptionList).forEach((state) => {
-          if (state?.id != null) stateMap.set(state.id, state);
-        });
-
-        setStates(Array.from(stateMap.values()));
-      } catch (err) {
-        console.error("Error fetching states:", err);
-        setStates([]);
-      }
-    };
-
-    fetchStatesByCountries();
-  }, [filters.countryId]);
-
-  // Fetch cities only for the selected states
-  useEffect(() => {
-    const fetchCitiesByStates = async () => {
-      if (!filters.stateId.length) {
-        setCity([]);
-        setUniversities([]);
-        setColleges([]);
-        return;
-      }
-
-      try {
-        const { email, role } = getUserCredentials();
-        const cityResponses = await Promise.all(
-          filters.stateId.map((stateId) =>
-            getAllCities({ email, role, stateId })
-          )
-        );
-
-        const cityMap = new Map();
-        cityResponses.flatMap(normalizeOptionList).forEach((city) => {
-          if (city?.id != null) cityMap.set(city.id, city);
-        });
-
-        setCity(Array.from(cityMap.values()));
-      } catch (err) {
-        console.error("Error fetching cities:", err);
-        setCity([]);
-      }
-    };
-
-    fetchCitiesByStates();
-  }, [filters.stateId]);
-
-  // Fetch universities only for the selected cities
-  // Fetch universities only for the selected cities
-useEffect(() => {
-  const fetchUniversitiesByCities = async () => {
-    if (!filters.cityId.length) {
-      setUniversities([]);
-      setColleges([]);
-      return;
-    }
-
-    try {
-      const { email, role } = getUserCredentials();
-
-      const universityResponses = await Promise.all(
-        filters.cityId.map((cityId) =>
-          getAllUniversities({
-            email,
-            role,
-            cityId
-          })
-        )
-      );
-
-      const universityMap = new Map();
-
-      universityResponses.flatMap(normalizeOptionList).forEach((university) => {
-        if (university?.id != null) {
-          universityMap.set(university.id, university);
-        }
-      });
-
-      setUniversities(Array.from(universityMap.values()));
-    } catch (err) {
-      console.error("Error fetching universities:", err);
-      setUniversities([]);
-      setColleges([]);
-    }
-  };
-
-  fetchUniversitiesByCities();
-}, [filters.cityId]);
-
-  // Fetch colleges only for the selected universities
-  useEffect(() => {
-    const fetchCollegesByUniversities = async () => {
-      if (!filters.universityId.length) {
-        setColleges([]);
-        return;
-      }
-
-      try {
-        const { email, role } = getUserCredentials();
-
-        const collegeResponses = await Promise.all(
-          filters.universityId.map((universityId) =>
-            getAllColleges({
-              email,
-              role,
-              universityId
-            })
-          )
-        );
-
-        const collegeMap = new Map();
-
-        collegeResponses.flatMap(normalizeOptionList).forEach((college) => {
-          if (college?.id != null) {
-            collegeMap.set(college.id, college);
-          }
-        });
-
-        setColleges(Array.from(collegeMap.values()));
-      } catch (err) {
-        console.error("Error fetching colleges:", err);
-        setColleges([]);
-      }
-    };
-
-    fetchCollegesByUniversities();
-  }, [filters.universityId]);
+  // All top-level dropdown option lists are loaded independently on mount.
+  // Changing one filter must not reload or clear another filter's options.
 
   // Define which filters are multiple select
   const multipleSelectFilters = [
@@ -615,29 +480,6 @@ useEffect(() => {
         updatedFilters[filterName] = value || '';
       }
 
-      // Reset child selections when their parent selection changes
-      if (filterName === 'countryId') {
-        updatedFilters.stateId = [];
-        updatedFilters.cityId = [];
-        updatedFilters.universityId = [];
-        updatedFilters.collegeId = [];
-      }
-
-      if (filterName === 'stateId') {
-        updatedFilters.cityId = [];
-        updatedFilters.universityId = [];
-        updatedFilters.collegeId = [];
-      }
-
-      if (filterName === 'cityId') {
-        updatedFilters.universityId = [];
-        updatedFilters.collegeId = [];
-      }
-
-      if (filterName === 'universityId') {
-        updatedFilters.collegeId = [];
-      }
-      
       return updatedFilters;
     });
   };
@@ -657,7 +499,7 @@ useEffect(() => {
   // Clear all filters
   const clearAllFilters = () => {
     setGlobalSearch("");
-    setSearchTexts({ country: '', state: '', city: '', university: '', college: '', stream: '' });
+    setSearchTexts({ country: '', state: '', city: '', university: '', college: '', stream: '', course: '' });
     setFilters({
         countryId: [],
       stateId: [],
@@ -827,15 +669,21 @@ useEffect(() => {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
+          borderColor: '#e0e7f0',
+          borderRadius: 2,
+          backgroundColor: '#ffffff',
           '&:hover': {
             borderColor: 'primary.main',
-            backgroundColor: 'action.hover'
+            backgroundColor: '#f8fbff',
+            boxShadow: '0 3px 12px rgba(31, 65, 114, 0.07)'
           },
-          transition: 'all 0.2s ease-in-out'
+          '&:focus-within': { outline: '2px solid', outlineColor: 'primary.light', outlineOffset: 1 },
+          transition: 'all 0.2s ease-in-out',
+          '@media (prefers-reduced-motion: reduce)': { transition: 'none' }
         }}
       >
         <CardContent sx={{ flexGrow: 1 }}>
-          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ color: 'primary.dark', lineHeight: 1.4 }} >
             {course.courseName || 'Course Name N/A'}
           </Typography>
           
@@ -1130,10 +978,11 @@ useEffect(() => {
             sx={{
               width: '100%',
               backgroundColor: '#fff',
-              border: '1px solid #e5e7eb',
+              border: '1px solid #dbe4f0',
               borderRadius: '12px',
               p: { xs: 0.75, sm: 1 },
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+              boxShadow: '0 3px 12px rgba(31, 65, 114, 0.06)',
+              backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)'
             }}
           >
             <Box
@@ -1155,15 +1004,17 @@ useEffect(() => {
                 '& .MuiInputBase-root': {
                   height: '31px',
                   minHeight: '31px',
-                  borderRadius: '4px',
+                  borderRadius: '7px',
                   backgroundColor: '#fff',
-                  fontSize: '11px'
+                  fontSize: '11px',
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main', borderWidth: 1.5 }
                 },
                 '& .MuiInputLabel-root': { fontSize: '11px', transform: 'translate(14px, 9px) scale(1)' },
                 '& .MuiInputLabel-root.MuiInputLabel-shrink': { transform: 'translate(14px, -7px) scale(0.78)' },
                 '& .MuiSelect-select': { py: '5px !important', px: '9px', minHeight: 'unset !important', lineHeight: 1.3 },
                 '& .MuiSelect-icon': { fontSize: '18px', right: '5px' },
-                '& .MuiOutlinedInput-notchedOutline': { borderRadius: '4px' },
+                '& .MuiOutlinedInput-notchedOutline': { borderRadius: '7px', borderColor: '#d6deea' },
                 '& .MuiMenuItem-root': { minHeight: '30px', py: '4px', px: 1.25, fontSize: '11px', lineHeight: 1.35 },
                 '& .MuiCheckbox-root': { p: 0.5 },
                 '& .MuiListItemText-primary': { fontSize: '11px' }
@@ -1286,7 +1137,7 @@ useEffect(() => {
               value={filters.stateId}
               onChange={(e) => handleFilterChange('stateId', e.target.value)}
               label="State"
-              disabled={!filters.countryId.length || loading}
+              disabled={loading}
               renderValue={(selected) => {
                 if (!selected.length) return <em>All States</em>;
                 return states
@@ -1311,7 +1162,7 @@ useEffect(() => {
                   onChange={(e) => handleFilterTextChange('state', e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  disabled={!filters.countryId.length}
+                  disabled={loading}
                   sx={searchFieldStyles}
                   InputProps={{
                     startAdornment: (
@@ -1358,7 +1209,7 @@ useEffect(() => {
               value={filters.cityId}
               onChange={(e) => handleFilterChange('cityId', e.target.value)}
               label="City"
-              disabled={!filters.stateId.length || loading}
+              disabled={loading}
               renderValue={(selected) => {
                 if (!selected.length) return <em>All Cities</em>;
                 return cities
@@ -1383,7 +1234,7 @@ useEffect(() => {
                   onChange={(e) => handleFilterTextChange('city', e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  disabled={!filters.stateId.length}
+                  disabled={loading}
                   sx={searchFieldStyles}
                   InputProps={{
                     startAdornment: (
@@ -1430,7 +1281,7 @@ useEffect(() => {
               value={filters.universityId}
               onChange={(e) => handleFilterChange('universityId', e.target.value)}
               label="University"
-              disabled={!filters.cityId.length || loading}
+              disabled={loading}
               renderValue={(selected) => {
                 if (!selected.length) return <em>All Universities</em>;
                 return universities
@@ -1455,7 +1306,7 @@ useEffect(() => {
                   onChange={(e) => handleFilterTextChange('university', e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  disabled={!filters.cityId.length}
+                  disabled={loading}
                   sx={searchFieldStyles}
                   InputProps={{
                     startAdornment: (
@@ -1506,7 +1357,7 @@ useEffect(() => {
               value={filters.collegeId}
               onChange={(e) => handleFilterChange('collegeId', e.target.value)}
               label="College"
-              disabled={!filters.universityId.length || loading}
+              disabled={loading}
               renderValue={(selected) => {
                 if (!selected.length) return <em>All Colleges</em>;
                 return colleges
@@ -1531,7 +1382,7 @@ useEffect(() => {
                   onChange={(e) => handleFilterTextChange('college', e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  disabled={!filters.universityId.length}
+                  disabled={loading}
                   sx={searchFieldStyles}
                   InputProps={{
                     startAdornment: (
@@ -1747,17 +1598,18 @@ useEffect(() => {
                     sx={{
                       height: '34px',
                       borderRadius: '7px',
-                      borderColor: '#f97316',
-                      color: '#f97316',
+                      fontWeight: 600,
+                      borderColor: '#fdba74',
+                      color: '#9a3412',
                       backgroundColor: '#fff7ed',
                       fontWeight: 500,
                       '& .MuiChip-deleteIcon': {
-                        color: '#f97316',
+                        color: '#c2410c',
                         fontSize: '18px'
                       },
                       '&:hover': {
                         backgroundColor: '#fff7ed',
-                        borderColor: '#ea580c'
+                        borderColor: '#c2410c'
                       }
                     }}
                   />
@@ -1769,8 +1621,8 @@ useEffect(() => {
                   disabled={loading}
                   sx={{
                     textTransform: 'none',
-                    color: '#f97316',
-                    fontWeight: 600,
+                    color: '#c2410c',
+                    fontWeight: 700,
                     minWidth: 'auto',
                     ml: 0.5,
                     '&:hover': {
@@ -1807,11 +1659,11 @@ useEffect(() => {
           <Box sx={{
             width: '100%', minWidth: 0, boxSizing: 'border-box', overflow: 'hidden',
             display: 'flex', flexDirection: 'column', backgroundColor: '#fff',
-            border: '1px solid #e5e7eb', borderRadius: '12px',
-            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.06)',
+            border: '1px solid #dbe4f0', borderRadius: '12px',
+            boxShadow: '0 5px 18px rgba(31, 65, 114, 0.07)',
             position: 'relative'
           }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 1.5, py: 1.25, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 1.5, py: 1.25, borderBottom: '1px solid #e3eaf4', backgroundColor: '#f8fbff', flexShrink: 0 }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
                 More Filters
@@ -1821,7 +1673,7 @@ useEffect(() => {
               </Typography>
             </Box>
             <Tooltip title="Close filters">
-              <IconButton onClick={() => setFiltersExpanded(false)} aria-label="Close filters" size="small" sx={{ border: '1px solid #e5e7eb', borderRadius: 2, flexShrink: 0 }}>
+              <IconButton onClick={() => setFiltersExpanded(false)} aria-label="Close filters" size="small" sx={{ border: '1px solid #d5dfed', borderRadius: 2, color: 'primary.main', flexShrink: 0, '&:hover': { bgcolor: '#edf4ff', borderColor: 'primary.main' } }}>
                 <CloseIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -2092,75 +1944,253 @@ useEffect(() => {
           ) : (
             <Box>
               {paginatedUniversityItems.length > 0 ? (
-                paginatedUniversityItems.map(({ continent, country, state, city, university, uniIndex }) => (
-                          <Card key={`${continent.id}-${country.id}-${state.id}-${city.id}-${university.id}-${uniIndex}`} sx={{ 
-                            mb: 2, 
-                            borderRadius: 2,
-                            boxShadow: 3,
-                            '&:hover': {
-                              boxShadow: 6,
-                            },
-                            transition: 'box-shadow 0.3s ease-in-out'
-                          }}>
-                            <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } }, minWidth: 0 }}>
-                              {/* University Header */}
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, pb: 2, borderBottom: '1px solid #eee', minWidth: 0, '& > *': { minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' } }}> 
-                                <Box>
-                                  <Typography variant="h5" color="primary" fontWeight="bold" sx={{ fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }, overflowWrap: 'anywhere', minWidth: 0 }}> 
-                                    {university.universityName}
-                                  </Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    {city.city}, {state.state}, {country.country}
-                                  </Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    ID: {university.id} | Courses: {university.abroadColleges?.reduce((total, college) => total + (college.abroadCourses?.length || 0), 0) || 0}
-                                  </Typography>
-                                </Box>
-                              </Box>
+                paginatedUniversityItems.map(({ continent, country, state, city, university, uniIndex }) => {
+                  const collegesForUniversity = Array.isArray(university.abroadColleges)
+                    ? university.abroadColleges
+                    : [];
+                  const universityCourseCount = collegesForUniversity.reduce(
+                    (total, college) => total + (college.abroadCourses?.length || 0),
+                    0
+                  );
 
-                              {/* Colleges and Courses */}
-                              <Box sx={{ ml: { xs: 0, sm: 2 }, minWidth: 0, width: '100%' }}>
-                                {university.abroadColleges?.map((college, colIndex) => (
-                                  <Box key={`${university.id}-college-${colIndex}`} sx={{ mb: 3 }}>
-                                    <Typography variant="h6" sx={{ mb: 1, color: 'secondary.main' }}>
-                                      {college.collegeName}
-                                    </Typography>
-                                      
-                                    {/* Courses Grid */}
-                                    <Grid container spacing={2}>
-                                      {college.abroadCourses?.map((course, courseIndex) => {
-                                        const courseKey = `${university.id}-${colIndex}-${courseIndex}`;
-                                        return (
-                                          <Grid item xs={12} sm={12} md={6} lg={4} key={courseKey} sx={{ minWidth: 0 }}>
-                                            {renderCourseDetails(course, courseKey)}
-                                          </Grid>
-                                        );
-                                      })}
-                                    </Grid>
-                                    
-                                    {(!college.abroadCourses || college.abroadCourses.length === 0) && (
-                                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                        No courses available for this college
+                  return (
+                    <Card
+                      key={`${continent.id}-${country.id}-${state.id}-${city.id}-${university.id}-${uniIndex}`}
+                      variant="outlined"
+                      sx={{
+                        mb: 2,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        borderRadius: 2.5,
+                        borderColor: '#dce5f0',
+                        backgroundColor: '#ffffff',
+                        boxShadow: '0 3px 10px rgba(31, 65, 114, 0.045)',
+                        transition: 'border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease',
+                        '&:hover': {
+                          borderColor: 'primary.main',
+                          boxShadow: '0 7px 20px rgba(31, 65, 114, 0.09)',
+                        },
+                        '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+                      }}
+                    >
+                      <CardContent
+                        sx={{
+                          p: { xs: 1.5, sm: 2 },
+                          '&:last-child': { pb: { xs: 1.5, sm: 2 } },
+                          minWidth: 0,
+                        }}
+                      >
+                        {/* University identity and key metadata */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: { xs: 1.25, sm: 1.75 },
+                            minWidth: 0,
+                            pb: 1.5,
+                            mb: 1.5,
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: { xs: 42, sm: 48 },
+                              height: { xs: 42, sm: 48 },
+                              flex: '0 0 auto',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: 2,
+                              color: 'primary.main',
+                              bgcolor: '#edf4ff',
+                              border: '1px solid',
+                              borderColor: '#d7e5fb',
+                            }}
+                          >
+                            <AccountBalanceIcon sx={{ fontSize: { xs: 23, sm: 26 } }} />
+                          </Box>
+
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                              component="h2"
+                              variant="h6"
+                              sx={{
+                                color: 'text.primary',
+                                fontWeight: 700,
+                                fontSize: { xs: '0.98rem', sm: '1.08rem' },
+                                lineHeight: 1.35,
+                                overflowWrap: 'anywhere',
+                                mb: 0.65,
+                              }}
+                            >
+                              {university.universityName || 'University name unavailable'}
+                            </Typography>
+
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 0.65,
+                                color: 'text.secondary',
+                                minWidth: 0,
+                                mb: 1,
+                              }}
+                            >
+                              <LocationCityIcon sx={{ fontSize: 17, mt: '2px', flex: '0 0 auto' }} />
+                              <Typography
+                                variant="body2"
+                                sx={{ fontSize: '0.78rem', lineHeight: 1.5, overflowWrap: 'anywhere' }}
+                              >
+                                {[city?.city, state?.state, country?.country].filter(Boolean).join(', ') || 'Location not available'}
+                              </Typography>
+                            </Box>
+
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                              <Chip
+                                size="small"
+                                variant="outlined"
+                                label={`University ID: ${university.id ?? 'N/A'}`}
+                                sx={{ height: 25, maxWidth: '100%', '& .MuiChip-label': { px: 1, fontSize: '0.7rem' } }}
+                              />
+                              <Chip
+                                size="small"
+                                variant="outlined"
+                                icon={<SchoolIcon sx={{ fontSize: '15px !important' }} />}
+                                label={`${universityCourseCount} ${universityCourseCount === 1 ? 'course' : 'courses'}`}
+                                sx={{ height: 25, maxWidth: '100%', '& .MuiChip-label': { px: 1, fontSize: '0.7rem' } }}
+                              />
+                              <Chip
+                                size="small"
+                                variant="outlined"
+                                icon={<AccountBalanceIcon sx={{ fontSize: '15px !important' }} />}
+                                label={`${collegesForUniversity.length} ${collegesForUniversity.length === 1 ? 'college' : 'colleges'}`}
+                                sx={{ height: 25, maxWidth: '100%', '& .MuiChip-label': { px: 1, fontSize: '0.7rem' } }}
+                              />
+                            </Box>
+                          </Box>
+                        </Box>
+
+                        {/* Associated colleges and their existing course cards */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 0 }}>
+                          {collegesForUniversity.map((college, colIndex) => {
+                            const collegeCourses = Array.isArray(college.abroadCourses)
+                              ? college.abroadCourses
+                              : [];
+
+                            return (
+                              <Paper
+                                key={`${university.id}-college-${colIndex}`}
+                                variant="outlined"
+                                sx={{
+                                  p: { xs: 1.25, sm: 1.5 },
+                                  minWidth: 0,
+                                  borderRadius: 2,
+                                  borderColor: '#e1e8f2',
+                                  bgcolor: '#fcfdff',
+                                  boxShadow: '0 1px 4px rgba(31, 65, 114, 0.035)',
+                                  transition: 'border-color 160ms ease, background-color 160ms ease',
+                                  '&:hover': { borderColor: '#b9cdec', bgcolor: '#ffffff' },
+                                }}
+                              >
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    justifyContent: 'space-between',
+                                    gap: 1,
+                                    flexWrap: 'wrap',
+                                    minWidth: 0,
+                                    mb: collegeCourses.length ? 1.25 : 0,
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0, flex: '1 1 180px' }}>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: 32,
+                                        height: 32,
+                                        flex: '0 0 auto',
+                                        borderRadius: 1.5,
+                                        color: 'primary.main',
+                                        bgcolor: '#edf4ff',
+                                        border: '1px solid',
+                                        borderColor: '#d7e5fb',
+                                      }}
+                                    >
+                                      <SchoolIcon fontSize="small" />
+                                    </Box>
+                                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                                      <Typography
+                                        component="h3"
+                                        variant="subtitle1"
+                                        sx={{
+                                          fontWeight: 700,
+                                          color: 'text.primary',
+                                          fontSize: { xs: '0.88rem', sm: '0.94rem' },
+                                          lineHeight: 1.4,
+                                          overflowWrap: 'anywhere',
+                                        }}
+                                      >
+                                        {college.collegeName || 'College name unavailable'}
                                       </Typography>
-                                    )}
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                        Associated with {university.universityName || 'this university'}
+                                      </Typography>
+                                    </Box>
                                   </Box>
-                                ))}
-                                
-                                {(!university.abroadColleges || university.abroadColleges.length === 0) && (
-                                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                    No colleges available for this university
+                                  <Chip
+                                    size="small"
+                                    label={`${collegeCourses.length} ${collegeCourses.length === 1 ? 'course' : 'courses'}`}
+                                    sx={{
+                                      height: 24,
+                                      flexShrink: 0,
+                                      bgcolor: '#eef4fb',
+                                      color: '#38516f',
+                                      border: '1px solid #dce7f4',
+                                      '& .MuiChip-label': { px: 1, fontSize: '0.7rem', fontWeight: 600 },
+                                    }}
+                                  />
+                                </Box>
+
+                                {collegeCourses.length > 0 ? (
+                                  <Grid container spacing={{ xs: 1, sm: 1.5 }}>
+                                    {collegeCourses.map((course, courseIndex) => {
+                                      const courseKey = `${university.id}-${colIndex}-${courseIndex}`;
+                                      return (
+                                        <Grid item xs={12} sm={12} md={6} lg={4} key={courseKey} sx={{ minWidth: 0 }}>
+                                          {renderCourseDetails(course, courseKey)}
+                                        </Grid>
+                                      );
+                                    })}
+                                  </Grid>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontSize: '0.78rem' }}>
+                                    No courses available for this college
                                   </Typography>
                                 )}
-                              </Box>
-                            </CardContent>
-                          </Card>
-                ))
+                              </Paper>
+                            );
+                          })}
+
+                          {collegesForUniversity.length === 0 && (
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontSize: '0.8rem' }}>
+                              No colleges available for this university
+                            </Typography>
+                          )}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  );
+                })
               ) : (
                 // Custom no data messages for specific filters
                 <Paper
                   variant="outlined"
                   role="status"
-                  sx={{ textAlign: 'center', my: { xs: 2, sm: 3 }, mx: 'auto', width: '100%', maxWidth: 560, minWidth: 0, boxSizing: 'border-box', p: { xs: 2.5, sm: 4 }, borderRadius: 3 }}
+                  sx={{ textAlign: 'center', my: { xs: 2, sm: 3 }, mx: 'auto', width: '100%', maxWidth: 560, minWidth: 0, boxSizing: 'border-box', p: { xs: 2.5, sm: 4 }, borderRadius: 3, border: '1px solid #dce7f4', bgcolor: '#fbfdff', boxShadow: '0 4px 16px rgba(31, 65, 114, 0.045)' }}
                 >
                   <SchoolIcon sx={{ fontSize: 38, color: 'text.disabled', mb: 1 }} />
                   <Typography variant="h6" sx={{ mb: 0.75, fontWeight: 700 }}>

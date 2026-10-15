@@ -29,14 +29,14 @@ const sidebarStyles = `
   background: linear-gradient(180deg, #3498db 0%, #2980b9 100%);
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   height: calc(100% - 64px);
-  width: 220px;
+  width: 210px;
   overflow: hidden;
   z-index: 1200;
 }
 
   
   .sidebar-container.open {
-    width: 220px;
+    width: 210px;
   }
   
   .sidebar-container.closed {
@@ -65,20 +65,53 @@ const sidebarStyles = `
   
   .sidebar-item {
     color: #fff;
-    border-radius: 30px;
+    border-radius: 10px;
     font-family: 'Poppins', sans-serif;
-    transition: all 0.3s ease;
-    padding: 8px 14px;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    min-height: 40px;
+    box-sizing: border-box;
+    padding: 6px 12px;
+    margin: 2px 6px;
+    width: calc(100% - 12px);
   }
   
   .sidebar-item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    transform: translateX(5px);
+    background-color: rgba(255, 255, 255, 0.12);
+    transform: translateX(2px);
   }
-  
+
   .sidebar-item.active {
-    color: black;
-    background-color: white;
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .sidebar-item.active .MuiListItemIcon-root {
+    color: #fff;
+  }
+
+  .sidebar-item .MuiListItemIcon-root {
+    min-width: 34px;
+  }
+
+  .sidebar-container.closed .sidebar-item {
+    width: 40px;
+    margin: 2px 5px;
+    padding: 6px 0;
+    justify-content: center;
+  }
+
+  .sidebar-container.closed .sidebar-item .MuiListItemIcon-root {
+    margin: 0;
+    justify-content: center;
+  }
+
+  @media (max-width: 600px) {
+    .sidebar-item {
+      min-height: 38px;
+      padding: 5px 10px;
+      margin: 2px 4px;
+      width: calc(100% - 8px);
+    }
   }
   
   .toggle-button-container {
@@ -104,15 +137,36 @@ const sidebarStyles = `
 
 const MotionListItem = motion(ListItem);
 
+// Normalize paths without changing case-sensitive route semantics.
+// Query strings are not part of location.pathname; this also handles trailing slashes.
+const normalizePath = (path = "") => {
+  const trimmedPath = path.trim();
+  if (!trimmedPath) return "/";
+  const withoutTrailingSlashes = trimmedPath.replace(/\/+$/, "");
+  return withoutTrailingSlashes || "/";
+};
+
+// Match a route itself or one of its nested routes, but not a similarly-prefixed route.
+const isRouteActive = (pathname, route) => {
+  const currentPath = normalizePath(pathname);
+  const targetPath = normalizePath(route);
+  return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
+};
+
 const Sidebar = memo(({ open, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const userRole = sessionStorage.getItem("role");
-  const [coursesExpanded, setCoursesExpanded] = useState(location.pathname.startsWith("/wayabroadadmin/admin/courses"));
+  const coursesRoute = "/wayabroadadmin/admin/courses";
+  const isCoursesRouteActive = isRouteActive(location.pathname, coursesRoute);
+  const [coursesExpanded, setCoursesExpanded] = useState(() =>
+    isRouteActive(location.pathname, coursesRoute)
+  );
 
   useEffect(() => {
-    if (location.pathname.startsWith("/wayabroadadmin/admin/courses")) setCoursesExpanded(true);
-  }, [location.pathname]);
+    // Keep the submenu open on direct URL access, refresh, and Back/Forward navigation.
+    if (isCoursesRouteActive) setCoursesExpanded(true);
+  }, [isCoursesRouteActive]);
 
   // Filter navigation items by the current user's role.
   const filteredNavigation = NAVIGATION.filter((item) =>
@@ -132,16 +186,16 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
       <Box
         className={`sidebar-container ${open ? "open" : "closed"}`}
         component={motion.div}
-        initial={{ width: open ? "220px" : "50px" }}
-        animate={{ width: open ? "220px" : "50px" }}
+        initial={{ width: open ? "210px" : "50px" }}
+        animate={{ width: open ? "210px" : "50px" }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
         <List className="sidebar-list">
           {filteredNavigation.map((item, idx) => {
             const hasChildren = Array.isArray(item.children) && item.children.length > 0;
             const isActive = hasChildren
-              ? location.pathname.startsWith("/wayabroadadmin/admin/courses")
-              : location.pathname === item.segment;
+              ? isCoursesRouteActive
+              : isRouteActive(location.pathname, item.segment);
             return (
               <React.Fragment key={item.segment + idx}>
                 <Tooltip
@@ -167,7 +221,7 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <ListItemIcon sx={{ color: isActive ? "black" : "white", minWidth: 38 }}>
+                    <ListItemIcon sx={{ color: "white", minWidth: 34 }}>
                       {item.icon}
                     </ListItemIcon>
                     {open && (
@@ -190,7 +244,7 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                   <Collapse in={coursesExpanded} timeout="auto" unmountOnExit>
                     <List component="div" disablePadding>
                       {item.children.map((child) => {
-                        const childActive = location.pathname === child.segment;
+                        const childActive = normalizePath(location.pathname) === normalizePath(child.segment);
                         return (
                           <ListItem
                             key={child.segment}
@@ -201,8 +255,13 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                               py: 0.7,
                               color: "white",
                               borderRadius: 2,
-                              backgroundColor: childActive ? "rgba(255,255,255,0.95)" : "transparent",
-                              "&:hover": { backgroundColor: childActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.13)" },
+                              backgroundColor: childActive ? "rgba(255,255,255,0.2)" : "transparent",
+                              borderRadius: 1.5,
+                              mx: 0.75,
+                              my: 0.25,
+                              width: "calc(100% - 12px)",
+                              py: 0.55,
+                              "&:hover": { backgroundColor: childActive ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.12)" },
                             }}
                           >
                             <ListItemText
@@ -210,7 +269,7 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                               primaryTypographyProps={{
                                 fontSize: "12px",
                                 fontWeight: childActive ? 700 : 400,
-                                color: childActive ? "#17202a" : "white",
+                                color: "white",
                                 noWrap: true,
                               }}
                             />
@@ -228,10 +287,10 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
       {/* Toggle button */}
       <Box
         className="toggle-button-container"
-        sx={{ left: open ? "215px" : "50px" }}
+        sx={{ left: open ? "205px" : "50px" }}
         component={motion.div}
-        initial={{ left: open ? "215px" : "50px" }}
-        animate={{ left: open ? "215px" : "50px" }}
+        initial={{ left: open ? "205px" : "50px" }}
+        animate={{ left: open ? "205px" : "50px" }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
         <Tooltip

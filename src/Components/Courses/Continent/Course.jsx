@@ -18,7 +18,11 @@ const initialCourse = {
 
   tutionFees: "",
 
+  tutionFeesinr: "",
+
   applicationFees: "",
+
+  feesinr: "",
 
   description: "",
 
@@ -77,6 +81,17 @@ const academicRequirementOptions = ["50%", "55%", "60%", "70%", "80%", "90%"];
 const examTypeOptions = ["TOEFL", "IELTS", "DUOLINGO", "GRE", "GMAT", "PTE"];
 
 const yesNoOptions = ["Yes", "No"];
+
+const readCourseField = (record, ...keys) => {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return null;
+};
+
+const displayCourseField = (value) => value === undefined || value === null || value === "" ? "-" : String(value);
+
 
 export default function Course({ stream, collegeId: collegeIdProp, branchCode, role, email, onBack }) {
 
@@ -218,13 +233,19 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
         // Map backend fields to frontend state
 
-        courseName: record.courseName || "",
+        courseName: record.courseName || record.course_name || "",
 
         description: record.description || "",
 
-        tutionFees: record.tutionFees || "",
+        tutionFees: record.tutionFees ?? record.tution_fees ?? "",
 
-        applicationFees: record.applicationFees || "",
+        tutionFeesinr: record.tutionFeesinr ?? record.tution_feesinr ?? "",
+
+        applicationFees: record.applicationFees ?? record.application_fees ?? "",
+
+        feesinr: record.feesinr ?? record.feesInr ?? record.fees_inr ?? "",
+
+        date: record.date || "",
 
         duration: record.duration || "",
 
@@ -254,11 +275,11 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
         applicationLink: record.applicationLink || "",
 
-        courseDetials: record.courseDetials || "",
+        courseDetials: record.courseDetials || record.courseDetails || record.course_detials || record.course_details || "",
 
-        contractType: record.contractType || "",
+        contractType: record.contractType || record.contract_type || "",
 
-        streamName: record.streamName || "",
+        streamName: record.streamName || record.stream_name || "",
 
         streamId: record.streamId || null,
 
@@ -354,6 +375,11 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
   const handleSave = async () => {
 
+    if (!String(courseData.courseName || "").trim()) {
+      message.error("Course name is required");
+      return;
+    }
+
     setLoading(true);
 
     setApiLoading(true);
@@ -374,7 +400,13 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
         tutionFees: courseData.tutionFees ? parseFloat(courseData.tutionFees) : 0,
 
+        tutionFeesinr: courseData.tutionFeesinr || "",
+
         applicationFees: courseData.applicationFees ? parseFloat(courseData.applicationFees) : 0,
+
+        feesinr: courseData.feesinr || "",
+
+        date: courseData.date || null,
 
         duration: courseData.duration || "",
 
@@ -414,9 +446,14 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
       };
 
-      // The standalone course route supplies the selected college separately.
-      // Keep the existing stream.id fallback for the legacy nested College flow.
-      const collegeId = collegeIdProp ?? stream?.id;
+      // The selected College ID is a separate required API argument; a stream ID
+      // must never be sent as a college ID because these are different entities.
+      const collegeId = collegeIdProp ?? stream?.collegeId ?? stream?.college_id ?? stream?.college?.id;
+
+      if (!editing && (collegeId === undefined || collegeId === null || collegeId === "")) {
+        message.error("Select a college before creating a course");
+        return;
+      }
 
       if (editing) {
 
@@ -512,8 +549,11 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
     return courses.filter((course) => {
       const searchableValues = [
-        course.courseName,
-        course.streamName,
+        course.courseName || course.course_name,
+        course.streamName || course.stream_name,
+        course.createdByEmail || course.created_by_email,
+        course.contractType || course.contract_type,
+        course.role,
         course.intake,
         course.location,
         course.city,
@@ -537,309 +577,82 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
   }, [search, pageSize]);
 
   const columns = [
-
-    { 
-
-      title: "Course Name", 
-
-      dataIndex: "courseName", 
-
-      key: "courseName",
-
-      render: text => text || '-',
-
-      width: 150
-
-    },
-
-    { 
-
-      title: "Tution", 
-
-      dataIndex: "tutionFees", 
-
-      key: "tutionFees",
-
-      render: (text, record) => record.tutionFees !== null ? `$${record.tutionFees}` : '-',
-
-      width: 120
-
-    },
-
-    { 
-
-      title: "Application", 
-
-      dataIndex: "applicationFees", 
-
-      key: "applicationFees",
-
-      render: (text, record) => record.applicationFees !== null ? `$${record.applicationFees}` : '-',
-
-      width: 140
-
-    },
-
-    { 
-
-      title: "Date", 
-
-      dataIndex: "date", 
-
-      key: "date",
-
-      render: (text, record) => record.date || '-',
-
-      width: 120
-
-    },
-
-    { 
-
-      title: "Institute Rank", 
-
-      dataIndex: "instituteRank", 
-
-      key: "instituteRank",
-
-      render: (text, record) => record.instituteRank || '-',
-
-      width: 120
-
-    },
-
-    { 
-
-      title: "Intake", 
-
-      dataIndex: "intake", 
-
-      key: "intake",
-
-      render: (text, record) => record.intake || '-',
-
-      width: 100
-
-    },
-
-    { 
-
-      title: "University", 
-
-      dataIndex: "websiteLink", 
-
-      key: "websiteLink",
-
-      render: (text, record) => record.websiteLink ? (
-
-        <a 
-
-          href={record.websiteLink.startsWith('http') ? record.websiteLink : `https://${record.websiteLink}`} 
-
-          target="_blank" 
-
-          rel="noopener noreferrer"
-
-          style={{ whiteSpace: 'nowrap' }}
-
-          title="Visit University Website"
-
-        >
-
-          University
-
-        </a>
-
-      ) : '-',
-
-      width: 120
-
-    },
-
-    { 
-
-      title: "Application", 
-
-      dataIndex: "applicationLink", 
-
-      key: "applicationLink",
-
-      render: (text, record) => record.applicationLink ? (
-
-        <a 
-
-          href={record.applicationLink.startsWith('http') ? record.applicationLink : `https://${record.applicationLink}`} 
-
-          target="_blank" 
-
-          rel="noopener noreferrer"
-
-          style={{ whiteSpace: 'nowrap' }}
-
-          title="Go to Application"
-
-        >
-
-          Apply Now
-
-        </a>
-
-      ) : '-',
-
-      width: 120
-
-    },
-
-    { 
-
-      title: "Academic", 
-
-      dataIndex: "academicRequirements", 
-
-      key: "academicRequirements",
-
-      render: (text, record) => record.academicRequirements || '-',
-
-      width: 120
-
-    },
-
-    { 
-
-      title: "English", 
-
-      dataIndex: "englishExamRequirements", 
-
-      key: "englishExamRequirements",
-
-      render: (text, record) => record.englishExamRequirements || 'No',
-
-      width: 100
-
-    },
-
-    { 
-
-      title: "Score", 
-
-      dataIndex: "examScore", 
-
-      key: "examScore",
-
-      render: (text, record) => record.examScore || '-',
-
-      width: 100
-
-    },
-
-    { 
-
-      title: "State", 
-
-      dataIndex: "city", 
-
-      key: "city",
-
-      render: (text, record) => record.city || '-',
-
-      width: 100
-
-    },
-
-    { 
-
-      title: "City", 
-
-      dataIndex: "location", 
-
-      key: "location",
-
-      render: (text, record) => record.location || '-',
-
-      width: 100
-
-    },
-
-    { 
-
-      title: "Duration", 
-
-      dataIndex: "duration", 
-
-      key: "duration",
-
-      render: (text, record) => record.duration ? `${record.duration} ${record.duration === '1' ? 'Year' : 'Years'}` : '-',
-
-      width: 100
-
-    },
-
-    { 
-
-      title: "Description", 
-
-      dataIndex: "description", 
-
-      key: "description",
-
-      render: (text, record) => record.description ? (record.description.length > 30 ? `${record.description.substring(0, 30)}...` : record.description) : '-',
-
-      width: 200
-
-    },
-
+    { title: "ID", dataIndex: "id", key: "id", width: 80, render: (value) => value ?? "-" },
     {
-
-      title: "Thumbnail",
-
-      dataIndex: "thumbnail",
-
-      key: "thumbnail",
-
-      render: (url) =>
-
-        url ? <img src={url} alt="thumbnail" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "No Image",
-
+      title: "Course Name", dataIndex: "courseName", key: "courseName", width: 180,
+      sorter: (a, b) => String(readCourseField(a, "courseName", "course_name") || "").localeCompare(String(readCourseField(b, "courseName", "course_name") || "")),
+      render: (_, record) => <Typography variant="body2" fontWeight={600}>{displayCourseField(readCourseField(record, "courseName", "course_name"))}</Typography>,
     },
-
+    { title: "College ID", key: "collegeId", width: 100, render: (_, record) => displayCourseField(readCourseField(record, "collegeId", "college_id") ?? collegeIdProp) },
+    { title: "Stream Name", key: "streamName", width: 150, render: (_, record) => displayCourseField(readCourseField(record, "streamName", "stream_name") ?? stream?.name) },
+    { title: "Tuition Fees", key: "tutionFees", width: 120, render: (_, record) => { const value = readCourseField(record, "tutionFees", "tution_fees"); return value == null ? "-" : `$${value}`; } },
+    { title: "Tuition Fees (INR)", key: "tutionFeesinr", width: 135, render: (_, record) => displayCourseField(readCourseField(record, "tutionFeesinr", "tution_feesinr")) },
+    { title: "Application Fees", key: "applicationFees", width: 135, render: (_, record) => { const value = readCourseField(record, "applicationFees", "application_fees"); return value == null ? "-" : `$${value}`; } },
+    { title: "Fees (INR)", key: "feesinr", width: 110, render: (_, record) => displayCourseField(readCourseField(record, "feesinr", "feesInr", "fees_inr")) },
+    { title: "Date", key: "date", width: 120, render: (_, record) => displayCourseField(readCourseField(record, "date")) },
+    { title: "Institute Rank", key: "instituteRank", width: 120, render: (_, record) => displayCourseField(readCourseField(record, "instituteRank", "institute_rank")) },
+    { title: "Intake", key: "intake", width: 100, render: (_, record) => displayCourseField(readCourseField(record, "intake")) },
+    { title: "Contract Type", key: "contractType", width: 120, render: (_, record) => displayCourseField(readCourseField(record, "contractType", "contract_type")) },
+    { title: "Academic Requirements", key: "academicRequirements", width: 180, render: (_, record) => displayCourseField(readCourseField(record, "academicRequirements", "academic_requirements")) },
+    { title: "Additional Requirements", key: "additionalRequirements", width: 200, render: (_, record) => displayCourseField(readCourseField(record, "additionalRequirements", "additional_requirements")) },
+    { title: "English Exam Requirements", key: "englishExamRequirements", width: 190, render: (_, record) => displayCourseField(readCourseField(record, "englishExamRequirements", "english_exam_requirements")) },
+    { title: "Exam Type", key: "examType", width: 110, render: (_, record) => displayCourseField(readCourseField(record, "examType", "exam_type")) },
+    { title: "Exam Score", key: "examScore", width: 100, render: (_, record) => displayCourseField(readCourseField(record, "examScore", "exam_score")) },
+    { title: "Scholarship", key: "scholarship", width: 160, render: (_, record) => displayCourseField(readCourseField(record, "scholarship")) },
+    { title: "Hostel", key: "hostel", width: 90, render: (_, record) => displayCourseField(readCourseField(record, "hostel")) },
+    { title: "Hostel Fees", key: "hostelFees", width: 120, render: (_, record) => displayCourseField(readCourseField(record, "hostelFees", "hostel_fees")) },
+    { title: "City", key: "city", width: 120, render: (_, record) => displayCourseField(readCourseField(record, "city")) },
+    { title: "Location", key: "location", width: 150, render: (_, record) => displayCourseField(readCourseField(record, "location")) },
+    { title: "Duration", key: "duration", width: 100, render: (_, record) => { const value = readCourseField(record, "duration"); return value == null ? "-" : `${value} ${String(value) === "1" ? "Year" : "Years"}`; } },
     {
-
-      title: "Image",
-
-      dataIndex: "image",
-
-      key: "image",
-
-      render: (url) =>
-
-        url ? <img src={url} alt="course" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "No Image",
-
+      title: "Website Link", key: "websiteLink", width: 130,
+      render: (_, record) => {
+        const value = readCourseField(record, "websiteLink", "website_link");
+        if (!value) return "-";
+        const url = /^https?:\/\//i.test(String(value)) ? String(value) : `https://${value}`;
+        return <a href={url} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap" }}>Open Website</a>;
+      },
     },
-
     {
-
-      title: "Actions",
-
-      key: "actions",
-
+      title: "Application Link", key: "applicationLink", width: 140,
+      render: (_, record) => {
+        const value = readCourseField(record, "applicationLink", "application_link");
+        if (!value) return "-";
+        const url = /^https?:\/\//i.test(String(value)) ? String(value) : `https://${value}`;
+        return <a href={url} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap" }}>Apply Now</a>;
+      },
+    },
+    { title: "Description", key: "description", width: 220, render: (_, record) => { const value = readCourseField(record, "description"); return value == null ? "-" : <span title={String(value)}>{String(value).length > 50 ? `${String(value).slice(0, 50)}…` : String(value)}</span>; } },
+    { title: "Course Details", key: "courseDetials", width: 220, render: (_, record) => { const value = readCourseField(record, "courseDetials", "courseDetails", "course_detials", "course_details"); return value == null ? "-" : <span title={String(value)}>{String(value).length > 50 ? `${String(value).slice(0, 50)}…` : String(value)}</span>; } },
+    { title: "Created By Email", key: "createdByEmail", width: 190, render: (_, record) => displayCourseField(readCourseField(record, "createdByEmail", "created_by_email")) },
+    { title: "Role", key: "role", width: 110, render: (_, record) => displayCourseField(readCourseField(record, "role")) },
+    {
+      title: "Thumbnail", key: "thumbnail", width: 110,
+      render: (_, record) => {
+        const value = readCourseField(record, "thumbnail");
+        const url = value ? (/^(data:image|https?:\/\/)/i.test(String(value)) ? String(value) : `${import.meta.env.VITE_API_URL || ""}${String(value).startsWith("/") ? "" : "/"}${value}`) : null;
+        return url ? <img src={url} alt="Course thumbnail" loading="lazy" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "-";
+      },
+    },
+    {
+      title: "Image", key: "image", width: 100,
+      render: (_, record) => {
+        const value = readCourseField(record, "image");
+        const url = value ? (/^(data:image|https?:\/\/)/i.test(String(value)) ? String(value) : `${import.meta.env.VITE_API_URL || ""}${String(value).startsWith("/") ? "" : "/"}${value}`) : null;
+        return url ? <img src={url} alt={readCourseField(record, "courseName", "course_name") || "Course"} loading="lazy" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "-";
+      },
+    },
+    {
+      title: "Actions", key: "actions", width: 110,
       render: (_, record) => (
-
-        <Stack direction="row" spacing={1}>
-
-          {/* <IconButton onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton> */}
-
-          <Popconfirm title="Delete this course?" onConfirm={() => handleDelete(record.id)}>
-
-            <IconButton><DeleteOutlined /></IconButton>
-
+        <Stack direction="row" spacing={1} alignItems="center">
+          <IconButton aria-label={`Edit ${record.courseName || record.course_name || "course"}`} onClick={() => handleOpenDialog(record)} disabled={loading} size="small"><EditOutlined /></IconButton>
+          <Popconfirm title="Delete this course?" description="This action cannot be undone." onConfirm={() => handleDelete(record.id)} okText="Delete" cancelText="Cancel">
+            <IconButton aria-label={`Delete ${record.courseName || record.course_name || "course"}`} disabled={loading} size="small"><DeleteOutlined /></IconButton>
           </Popconfirm>
-
         </Stack>
-
       ),
-
     },
-
   ];
 
   return (
@@ -1118,6 +931,43 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
               </Grid>
 
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="Tuition Fees (INR)"
+                  name="tutionFeesinr"
+                  value={courseData.tutionFeesinr || ""}
+                  onChange={handleChange}
+                  fullWidth
+                  margin="normal"
+                  type="number"
+                  InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="Fees (INR)"
+                  name="feesinr"
+                  value={courseData.feesinr || ""}
+                  onChange={handleChange}
+                  fullWidth
+                  margin="normal"
+                  type="number"
+                  InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="Date"
+                  name="date"
+                  value={courseData.date || ""}
+                  onChange={handleChange}
+                  fullWidth
+                  margin="normal"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+
               {/* Row 2: Duration and Intake */}
 
               <Grid item xs={12} sm={6} md={4}>
@@ -1194,6 +1044,17 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
                 </TextField>
 
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="Contract Type"
+                  name="contractType"
+                  value={courseData.contractType || ""}
+                  onChange={handleChange}
+                  fullWidth
+                  margin="normal"
+                />
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
@@ -1304,7 +1165,7 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
                 <TextField
 
-                  label="University Rank"
+                  label="City"
 
                   name="city"
 
@@ -1316,7 +1177,7 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
                   margin="normal"
 
-                  placeholder="Enter university rank"
+                  placeholder="Enter city"
 
                 />
 
@@ -1326,7 +1187,7 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
                 <TextField
 
-                  label="State Rank"
+                  label="Location"
 
                   name="location"
 
@@ -1338,7 +1199,7 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
                   margin="normal"
 
-                  placeholder="Enter state rank"
+                  placeholder="Enter location"
 
                 />
 
@@ -1562,7 +1423,7 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
                 <TextField
 
-                  label="Course Details (Description)"
+                  label="Description"
 
                   name="description"
 
@@ -1580,6 +1441,19 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
                 />
 
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  label="Course Details"
+                  name="courseDetials"
+                  value={courseData.courseDetials || ""}
+                  onChange={handleChange}
+                  fullWidth
+                  margin="normal"
+                  multiline
+                  rows={3}
+                />
               </Grid>
 
               <Grid item xs={12}>
@@ -1746,6 +1620,8 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
 
           loading={tableLoading}
 
+          scroll={{ x: "max-content" }}
+
           pagination={{
 
             current: Math.min(currentPage, Math.max(1, Math.ceil(filteredCourses.length / pageSize))),
@@ -1837,4 +1713,3 @@ export default function Course({ stream, collegeId: collegeIdProp, branchCode, r
   );
 
 }
-
