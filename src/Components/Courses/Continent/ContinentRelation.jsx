@@ -27,6 +27,7 @@ import {
   getContinentById,
 } from "./ContinentService";
 import LoadingOverlay from "../../Common/LoadingOverlay";
+import CourseBreadcrumb from "./CourseBreadcrumb";
 import {
   FirstPage,
   LastPage,
@@ -362,6 +363,10 @@ export default function ContinentRelation() {
   return (
     <Box sx={{ width: "100%", minWidth: 0 }}>
       <LoadingOverlay loading={apiLoading} />
+      <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>
+        Continent Management
+      </Typography>
+      <CourseBreadcrumb currentLabel="Continent Management" />
 
       {/* Search and Add Continent */}
       <Stack

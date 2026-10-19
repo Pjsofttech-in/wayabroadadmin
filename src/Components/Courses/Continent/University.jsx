@@ -272,10 +272,12 @@ export default function University({
     const cityId = city?.id || searchParams.get("cityId");
     const stateId = searchParams.get("stateId");
     const countryId = searchParams.get("countryId");
+    const continentId = searchParams.get("continentId");
 
     if (cityId) params.set("cityId", String(cityId));
     if (stateId) params.set("stateId", String(stateId));
     if (countryId) params.set("countryId", String(countryId));
+    if (continentId) params.set("continentId", String(continentId));
 
     navigate(`/wayabroadadmin/admin/courses/college?${params.toString()}`);
   };

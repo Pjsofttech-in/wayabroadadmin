@@ -270,7 +270,7 @@ export default function City({ state, onBack }) {
           <Popconfirm title="Delete this city?" description="This action cannot be undone." onConfirm={() => handleDelete(record.id)} okText="Delete" cancelText="Cancel">
             <IconButton size="small" aria-label={`Delete ${record.city || "city"}`} disabled={loading}><DeleteOutlined /></IconButton>
           </Popconfirm>
-          <Button size="small" variant="outlined" onClick={() => { const params = new URLSearchParams(); params.set("cityId", String(record.id)); if (state?.id != null) params.set("stateId", String(state.id)); const countryId = searchParams.get("countryId") || state?.country?.id; if (countryId != null && countryId !== "") params.set("countryId", String(countryId)); navigate(`/wayabroadadmin/admin/courses/university?${params.toString()}`); }}>Manage Universities</Button>
+          <Button size="small" variant="outlined" onClick={() => { const params = new URLSearchParams(); params.set("cityId", String(record.id)); if (state?.id != null) params.set("stateId", String(state.id)); const countryId = searchParams.get("countryId") || state?.country?.id; if (countryId != null && countryId !== "") params.set("countryId", String(countryId)); const continentId = searchParams.get("continentId"); if (continentId) params.set("continentId", continentId); navigate(`/wayabroadadmin/admin/courses/university?${params.toString()}`); }}>Manage Universities</Button>
         </Stack>
       ),
     },
