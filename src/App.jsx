@@ -56,6 +56,11 @@ import ScholarshipList from "./Components/ScholarShip/ScholarshipList.jsx";
 import ScholarshipLeadForm from "./Components/ScholarShip/ScholarshipLeadForm.jsx";
 import ScholarshipLeadList from "./Components/ScholarShip/ScholarshipLeadList.jsx";
 import ScholarshipSettings from "./Components/ScholarShip/ScholarshipSettings.jsx";
+import JobsSidebar from "./Components/Jobs/JobsSidebar.jsx";
+import JobForm from "./Components/Jobs/JobForm.jsx";
+import JobList from "./Components/Jobs/JobList.jsx";
+import JobApplications from "./Components/Jobs/JobApplications.jsx";
+import JobSettings from "./Components/Jobs/JobSettings.jsx";
 
 // Lazy-loaded components
 const SidebarLoginContainer = lazy(
@@ -187,6 +192,15 @@ const App = () => {
                 path="registrationweblist"
                 element={<RegistrationWebList />}
               />
+            </Route>
+
+            {/* Jobs Management */}
+            <Route path="jobs" element={<JobsSidebar />}>
+              <Route index element={<Navigate to="create" replace />} />
+              <Route path="create" element={<JobForm />} />
+              <Route path="list" element={<JobList />} />
+              <Route path="applications" element={<JobApplications />} />
+              <Route path="settings" element={<JobSettings />} />
             </Route>
 
             {/* Scholarship Section */}

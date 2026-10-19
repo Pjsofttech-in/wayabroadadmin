@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Table, message, Modal, Form, Button, List, Typography } from "antd";
 import { DownloadOutlined, FilePdfOutlined, FileWordOutlined, FileImageOutlined, FileOutlined } from '@ant-design/icons';
-import { getAllEnquiries, deleteEnquiry, updateEnquiry, filterEnquiries } from "./AbroadInquiryService";
+import { getAllEnquiries, deleteEnquiry, updateEnquiry } from "./AbroadInquiryService";
 import { getBranchCodeNameMap } from "../../AllLogin/LoginService";
 import InquiryDetailsModal from "./InquiryDetailsModal";
 import InquiryFilter from "./InquiryFilter";
 import Box from "@mui/material/Box";
 import { InquiryInfoDailog } from "./InquiryInfoDailog";
 import "../../Common/Design.css";
+import "./InquiryManagementFont.css";
 
 const { Text } = Typography;
 
@@ -46,20 +47,18 @@ export default function AbroadInquiryList() {
     pageSizeOptions: ['25', '50', '100', '500', '1000']
   });
   const [filters, setFilters] = useState({
-    continent: null,
     country: null,
-    state: null,
     city: null,
     university: null,
     college: null,
     stream: null,
     branchCode: null,
     course: null,
-    status: null,
+    hasPassport: null,
     year: null,
     applyFor: null,
-    conductedBy: null,
-    staffName: null
+    staffName: null,
+    status: null
   });
   
   const [filteredData, setFilteredData] = useState([]);
@@ -67,6 +66,7 @@ export default function AbroadInquiryList() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [staffOptions, setStaffOptions] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
+  const [countRefresh, setCountRefresh] = useState(0);
 
   // Fetch staff options for filtering
   const fetchStaffOptions = async () => {
@@ -115,156 +115,79 @@ export default function AbroadInquiryList() {
     }
   };
 
-  const handleFilterChange = (filteredData) => {
-    setFilteredData(filteredData);
+  // A single source of truth: the role-scoped enquiry collection returned by the
+  // existing endpoint. Never overwrite the table from a second filtering request.
+  const normalize = (value) => String(value ?? '').trim().toLowerCase();
+  const normalizeStatus = (value) => normalize(value).replace(/[\s_-]/g, '');
+  const matches = (record, keys, value) => !value || keys.some((key) =>
+    normalize(record?.[key]) === normalize(value)
+  );
+
+  const matchingData = useMemo(() => {
+    const term = normalize(search);
+    return allFilteredData.filter((item) => {
+      if (term && ![item.name, item.email, item.phone_no].some((value) => normalize(value).includes(term))) return false;
+      if (!matches(item, ['country'], filters.country)) return false;
+      if (!matches(item, ['city'], filters.city)) return false;
+      if (!matches(item, ['university'], filters.university)) return false;
+      if (!matches(item, ['collage', 'college'], filters.college)) return false;
+      if (!matches(item, ['stream'], filters.stream)) return false;
+      if (!matches(item, ['course', 'courseName'], filters.course)) return false;
+      if (!matches(item, ['passoutYear', 'year'], filters.year)) return false;
+      if (!matches(item, ['applyFor'], filters.applyFor)) return false;
+      if (!matches(item, ['staffName', 'staff_email', 'staffEmail', 'createdByEmail'], filters.staffName)) return false;
+      if (filters.hasPassport && !matches(item, ['hasPassport'], filters.hasPassport)) return false;
+      if (filters.status && normalizeStatus(item.status) !== normalizeStatus(filters.status)) return false;
+      return true;
+    });
+  }, [allFilteredData, filters, search]);
+
+  const handleTableChange = (nextPagination) => {
+    setPagination((previous) => ({ ...previous, current: nextPagination.current, pageSize: nextPagination.pageSize }));
   };
 
-  const handleTableChange = (newPagination, filters, sorter) => {
-    fetchInquiries(newPagination.current, newPagination.pageSize);
-  };
-
-  const fetchInquiries = async (page = pagination.current, pageSize = pagination.pageSize) => {
+  const fetchInquiries = async () => {
     setLoading(true);
     try {
-      const role = sessionStorage.getItem("role");
-      const email = sessionStorage.getItem("email");
-      
-      console.log('Fetching inquiries with role:', role, 'email:', email);
-      
-      // Check if we have valid session data
+      const role = sessionStorage.getItem('role');
+      const email = sessionStorage.getItem('email');
       if (!role || !email) {
-        console.error('Missing role or email in session storage');
         message.error('Authentication data missing. Please login again.');
-        setData([]);
-        setFilteredData([]);
+        setAllFilteredData([]);
         return;
       }
-
-      // Use single API with role-based parameters
-      let result;
-      let responseData = []; // Declare responseData at function level
-      console.log('Current role:', role, 'email:', email);
-
-      // For staff users, don't pass branchCode to get only personal inquiries
+      const branchCode = role === 'superAdmin' ? (filters.branchCode || 'All') :
+        (role === 'staff' ? undefined : (sessionStorage.getItem('branchCode') || 'All'));
+      const result = await getAllEnquiries(role, email, branchCode);
+      let records = Array.isArray(result) ? result : (Array.isArray(result?.content) ? result.content : []);
       if (role === 'staff') {
-        console.log('Fetching personal inquiries for staff user:', email);
-        result = await getAllEnquiries(role, email);
-
-        // Apply client-side filtering for staff users to ensure only their inquiries
-        if (Array.isArray(result)) {
-          responseData = result;
-        } else if (result && Array.isArray(result.content)) {
-          responseData = result.content;
-        }
-
-        // Filter to only show inquiries created by this staff user
-        responseData = responseData.filter(inquiry =>
-          inquiry.createdByEmail === email ||
-          inquiry.email === email // fallback to email field if createdByEmail doesn't exist
-        );
-
-        console.log(`Filtered ${responseData.length} personal inquiries for staff user: ${email}`);
-
-      } else {
-        // For non-staff users, use branch-based filtering
-        let branchCodeToUse = 'All';
-        if (role !== 'superAdmin') {
-          branchCodeToUse = sessionStorage.getItem('branchCode') || 'All';
-        } else if (filters.branchCode) {
-          branchCodeToUse = filters.branchCode;
-        }
-
-        console.log('Using getAllEnquiries API with branchCode:', branchCodeToUse);
-        result = await getAllEnquiries(role, email, branchCodeToUse);
-
-        if (Array.isArray(result)) {
-          responseData = result;
-        } else if (result && Array.isArray(result.content)) {
-          responseData = result.content;
-        }
+        records = records.filter((item) => normalize(item.createdByEmail) === normalize(email) ||
+          normalize(item.email) === normalize(email));
       }
-
-      // Apply local filtering based on current filters and search
-      let filteredResponseData = responseData;
-
-      // Apply search filter
-      if (search && search.trim()) {
-        const searchLower = search.toLowerCase();
-        filteredResponseData = filteredResponseData.filter(item =>
-          (item.name && item.name.toLowerCase().includes(searchLower)) ||
-          (item.email && item.email.toLowerCase().includes(searchLower)) ||
-          (item.phone_no && item.phone_no.toString().includes(search))
-        );
+      setAllFilteredData(records);
+      setData(records);
+      if (!Array.isArray(result) && Array.isArray(result?.content) &&
+          Number(result.totalElements) > records.length) {
+        console.warn('Inquiry API returned a partial page. Client-side filters and totals cover only returned records.');
       }
-
-      // Apply other filters
-      if (filters.continent) {
-        filteredResponseData = filteredResponseData.filter(item => item.continent === filters.continent);
-      }
-      if (filters.country) {
-        filteredResponseData = filteredResponseData.filter(item => item.country === filters.country);
-      }
-      if (filters.state) {
-        filteredResponseData = filteredResponseData.filter(item => item.state === filters.state);
-      }
-      if (filters.city) {
-        filteredResponseData = filteredResponseData.filter(item => item.city === filters.city);
-      }
-      if (filters.university) {
-        filteredResponseData = filteredResponseData.filter(item => item.university === filters.university);
-      }
-      if (filters.college) {
-        filteredResponseData = filteredResponseData.filter(item => item.collage === filters.college);
-      }
-      if (filters.stream) {
-        filteredResponseData = filteredResponseData.filter(item => item.stream === filters.stream);
-      }
-      if (filters.course) {
-        filteredResponseData = filteredResponseData.filter(item => item.course === filters.course || item.courseName === filters.course);
-      }
-      if (filters.status) {
-        filteredResponseData = filteredResponseData.filter(item => item.status === filters.status);
-      }
-      if (filters.applyFor) {
-        filteredResponseData = filteredResponseData.filter(item => item.applyFor === filters.applyFor);
-      }
-      if (filters.staffName) {
-        filteredResponseData = filteredResponseData.filter(item =>
-          item.staffName === filters.staffName ||
-          item.staff_email === filters.staffName ||
-          item.staffEmail === filters.staffName ||
-          item.createdByEmail === filters.staffName
-        );
-      }
-
-      // Handle pagination locally
-      const totalItems = filteredResponseData.length;
-      const startIndex = (page - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      const paginatedData = filteredResponseData.slice(startIndex, endIndex);
-
-      // Update the data and filtered data states
-      setData(paginatedData);
-      setFilteredData(paginatedData);
-
-      // Update pagination state
-      setPagination(prev => ({
-        ...prev,
-        current: page,
-        pageSize: pageSize,
-        total: totalItems,
-        showTotal: (total, range) => {
-          return `${range[0]}-${range[1]} of ${total} items`;
-        }
-      }));
     } catch (error) {
-      console.error("Error fetching inquiries:", error);
-      message.error("Failed to fetch inquiries");
-      setFilteredData([]);
+      console.error('Error fetching inquiries:', error);
+      message.error('Failed to fetch inquiries');
+      setAllFilteredData([]);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, current: 1, total: matchingData.length }));
+  }, [matchingData]);
+
+  useEffect(() => {
+    fetchInquiries();
+    // Re-fetch only when the backend query scope changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.branchCode]);
 
   // Debug effect to log data structure
   useEffect(() => {
@@ -272,59 +195,10 @@ export default function AbroadInquiryList() {
       console.log('First 3 data items structure:', 
         data.slice(0, 3).map(item => ({
           id: item.id,
-          conductedBy: item.conductedBy,
-          conductBy: item.conductBy,
-          // Add other fields you want to check
         }))
       );
     }
   }, [data]);
-
-  // Fetch all filtered data for dropdowns when filters/search change
-  useEffect(() => {
-    const fetchAllFilterOptions = async () => {
-      const role = sessionStorage.getItem("role");
-      const email = sessionStorage.getItem("email");
-      try {
-        // Use single API with role-based parameters for filter options
-        if (role === 'staff') {
-          // For staff users, don't pass branchCode to get only personal inquiries
-          const result = await getAllEnquiries(role, email);
-
-          let responseData = [];
-          if (Array.isArray(result)) {
-            responseData = result;
-          } else if (result && Array.isArray(result.content)) {
-            responseData = result.content;
-          }
-
-          // Filter to only show inquiries created by this staff user
-          responseData = responseData.filter(inquiry =>
-            inquiry.createdByEmail === email ||
-            inquiry.email === email // fallback to email field if createdByEmail doesn't exist
-          );
-
-          setAllFilteredData(responseData);
-        } else {
-          // For non-staff users, use branch-based filtering
-          let branchCodeToUse = 'All';
-          if (role !== 'superAdmin') {
-            branchCodeToUse = sessionStorage.getItem('branchCode') || 'All';
-          } else if (filters.branchCode) {
-            branchCodeToUse = filters.branchCode;
-          }
-
-          const result = await getAllEnquiries(role, email, branchCodeToUse);
-          const responseData = Array.isArray(result) ? result : (result?.content || []);
-          setAllFilteredData(responseData);
-        }
-      } catch (err) {
-        setAllFilteredData([]);
-      }
-    };
-    fetchAllFilterOptions();
-    // eslint-disable-next-line
-  }, [filters, search]);
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -356,7 +230,6 @@ export default function AbroadInquiryList() {
       }
     };
 
-    fetchInquiries();
     fetchBranches();
     fetchStaffOptions();
     // eslint-disable-next-line
@@ -413,12 +286,13 @@ export default function AbroadInquiryList() {
         )
       );
       
-      setFilteredData(prev =>
+      setAllFilteredData(prev =>
         prev.map(item =>
           item.id === selectedInquiry.id ? { ...item, ...values } : item
         )
       );
       
+      setCountRefresh((v) => v + 1);
       message.success("Enquiry updated");
       setDetailsModalVisible(false);
       setSelectedInquiry(prev => ({
@@ -437,6 +311,7 @@ export default function AbroadInquiryList() {
     const email = sessionStorage.getItem("email");
     try {
       await deleteEnquiry(selectedInquiry.id, role, email);
+      setCountRefresh((v) => v + 1);
       message.success("Enquiry deleted");
       setDetailsModalVisible(false);
       setSelectedInquiry(null);
@@ -474,7 +349,7 @@ export default function AbroadInquiryList() {
         )
       );
       
-      setFilteredData(prev =>
+      setAllFilteredData(prev =>
         prev.map(item =>
           item.id === selectedInquiry.id ? updatedInquiry : item
         )
@@ -483,6 +358,7 @@ export default function AbroadInquiryList() {
       // Update the selectedInquiry to reflect the change
       setSelectedInquiry(updatedInquiry);
       
+      setCountRefresh((v) => v + 1);
       message.success('Status updated successfully');
     } catch (error) {
       console.error('Error updating status:', error);
@@ -545,55 +421,103 @@ export default function AbroadInquiryList() {
   };
 
   const columns = [
-    // ID
-    { title: "ID", dataIndex: "id", key: "id" },
-    
-    // Name
-    { 
-      title: "Name", 
-      dataIndex: "name", 
+    // 1. Name
+    {
+      title: "Name",
+      dataIndex: "name",
       key: "name",
       render: (_, record) => (
-        <a onClick={() => handleNameClick(record)}>{record.name}</a>
+        <a onClick={() => handleNameClick(record)}>{record.name || "-"}</a>
       )
     },
-    
-    // Phone
-    { 
-      title: "Phone", 
-      dataIndex: "phone_no", 
-      key: "phone_no" 
+
+    // 2. Phone
+    {
+      title: "Phone",
+      dataIndex: "phone_no",
+      key: "phone_no",
+      render: (value) => value ?? "-"
     },
-    
-    // Email
-    { 
-      title: "Email", 
-      dataIndex: "email", 
-      key: "email" 
+
+    // 3. Email
+    {
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
+      render: (value) => value || "-"
     },
-    
-    // Enquiry Date
-    { 
-      title: "Enquiry Date", 
-      dataIndex: "enquiry_date", 
-      key: "enquiry_date" 
+
+    // 4. Inquiry Date
+    {
+      title: "Inquiry Date",
+      dataIndex: "enquiry_date",
+      key: "enquiry_date",
+      render: (value) => value || "-"
     },
-    
-    // Apply For
-    { 
-      title: "Apply For", 
-      dataIndex: "applyFor", 
-      key: "applyFor" 
+
+    // 5. Apply For
+    {
+      title: "Apply For",
+      dataIndex: "applyFor",
+      key: "applyFor",
+      render: (value) => value || "-"
     },
-    
-    // Course
-    { 
-      title: "Course", 
-      dataIndex: "courseName", 
+
+    // 6. Stream
+    {
+      title: "Stream",
+      dataIndex: "stream",
+      key: "stream",
+      render: (value) => value || "-"
+    },
+
+    // 7. Course
+    {
+      title: "Course",
+      dataIndex: "courseName",
       key: "courseName",
+      render: (value, record) => value || record.course || "-"
     },
-    
-    // Status
+
+    // 8. Country
+    {
+      title: "Country",
+      dataIndex: "country",
+      key: "country",
+      render: (value) => value || "-"
+    },
+
+    // 9. University
+    {
+      title: "University",
+      dataIndex: "university",
+      key: "university",
+      render: (value) => value || "-"
+    },
+
+    // 10. Staff Name
+    {
+      title: "Staff Name",
+      key: "staffName",
+      render: (_, record) => getStaffNameFromEmail(record) || "-"
+    },
+
+    // 11. Branch
+    {
+      title: "Branch",
+      key: "branch",
+      render: (_, record) => getBranchName(record.branchCode) || "-"
+    },
+
+    // 12. Remark
+    {
+      title: "Remark",
+      dataIndex: "remark",
+      key: "remark",
+      render: (value) => value || "-"
+    },
+
+    // 13. Status
     { 
       title: "Status", 
       dataIndex: "status", 
@@ -660,97 +584,13 @@ export default function AbroadInquiryList() {
         );
       }
     },
-    
-    // Country
-    { 
-      title: "Country", 
-      dataIndex: "country", 
-      key: "country" 
-    },
-    
-    // State
-    { 
-      title: "State", 
-      dataIndex: "state", 
-      key: "state" 
-    },
-    
-    // City
-    { 
-      title: "City", 
-      dataIndex: "city", 
-      key: "city" 
-    },
-    
-    // University
-    { 
-      title: "University", 
-      dataIndex: "university", 
-      key: "university" 
-    },
-    
-    // College
-    { 
-      title: "College", 
-      dataIndex: "collage", 
-      key: "collage" 
-    },
-    
-    // Stream
-    { 
-      title: "Stream", 
-      dataIndex: "stream", 
-      key: "stream" 
-    },
-    
-    // Course column has been moved up in the sequence
-    
-    // Conducted By
-    // { 
-    //   title: "Conducted By", 
-    //   dataIndex: "conductBy", 
-    //   key: "conductBy" 
-    // },
-    // Staff Name (after Conducted By)
+
+    // 14. Year: intended study/travel year (API field: year), not passoutYear
     {
-      title: "Staff Name",
-      key: "staffName",
-      render: (_, record) => getStaffNameFromEmail(record)
-    },
-    
-    // Branch
-    { 
-      title: "Branch", 
-      key: "branch",
-      render: (_, record) => getBranchName(record.branchCode)
-    },
-    
-    // Passout Year
-    { 
-      title: "Passout Year", 
-      dataIndex: "passoutYear", 
-      key: "passoutYear" 
-    },
-    
-    // Documents (moved to the end as per requested sequence)
-    {
-      title: "Documents",
-      key: "documents",
-      width: 150,
-      render: (_, record) => {
-        const hasDocuments = record.document1 || record.document2;
-        const documentCount = (record.document1 ? 1 : 0) + (record.document2 ? 1 : 0);
-        
-        return (
-          <Button 
-            type="link" 
-            onClick={() => showDocumentsModal([record.document1, record.document2].filter(Boolean))}
-            disabled={!hasDocuments}
-          >
-            {hasDocuments ? `View (${documentCount})` : 'No Documents'}
-          </Button>
-        );
-      }
+      title: "Year",
+      dataIndex: "year",
+      key: "year",
+      render: (value) => value || "-"
     }
   ];
 
@@ -769,69 +609,104 @@ export default function AbroadInquiryList() {
   );
 
   // Get the count of filtered records
-  const filteredCount = filteredData.length;
+  const filteredCount = matchingData.length;
 
   return (
-    <>
+    <div className="inquiry-management-page">
       <InquiryFilter
         filters={filters}
         onChange={setFilters}
-        onFilterChange={handleFilterChange}
+        search={search}
+        setSearch={setSearch}
+        onFilterChange={() => {}}
         data={Array.isArray(allFilteredData) ? allFilteredData : []}
-        continents={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "continent")}
         countries={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "country")}
-        states={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "state")}
         cities={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "city")}
         universities={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "university")}
-        colleges={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "collage")}
+        colleges={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "collage").concat(getUnique(allFilteredData, "college")).filter((v, i, a) => a.indexOf(v) === i)}
         streams={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "stream")}
         branches={Array.isArray(branches) ? branches : []}
-        courses={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "course")}
+        courses={getUnique(allFilteredData, "course").concat(getUnique(allFilteredData, "courseName")).filter((v, i, a) => a.indexOf(v) === i)}
         role={sessionStorage.getItem("role")}
         email={sessionStorage.getItem("email")}
-        statuses={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "status")}
-        years={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "passoutYear")}
+        years={getUnique(allFilteredData, "passoutYear").concat(getUnique(allFilteredData, "year")).filter((v, i, a) => a.indexOf(v) === i)}
         staffOptions={staffOptions}
+        refreshTrigger={countRefresh}
         loadingStaff={loadingStaff}
       />
+{/* Record count and filter match info */}
+<div
+  style={{
+    margin: '16px 0',
+    padding: '12px 16px',
+    backgroundColor: '#fafafa',
+    borderRadius: '8px',
+    border: '1px solid #f0f0f0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '16px',
+    flexWrap: 'wrap',
+  }}
+>
+  {/* Left side: Record count */}
+  <div style={{ fontWeight: 500 }}>
+    Showing{' '}
+    {pagination.total === 0
+      ? 0
+      : (pagination.current - 1) * pagination.pageSize + 1}
+    -
+    {Math.min(
+      pagination.current * pagination.pageSize,
+      pagination.total
+    )}{' '}
+    of {pagination.total} records
+  </div>
+
+  {/* Right side: Rows per page */}
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+    }}
+  >
+    <span style={{ color: '#555', fontSize: 13 }}>
+      Rows per page
+    </span>
+
+    <select
+      aria-label="Rows per page"
+      value={pagination.pageSize}
+      onChange={(event) =>
+        handleTableChange({
+          current: 1,
+          pageSize: Number(event.target.value),
+        })
+      }
+      style={{
+        padding: '5px 8px',
+        border: '1px solid #d9d9d9',
+        borderRadius: 4,
+        background: '#fff',
+      }}
+    >
+      {pagination.pageSizeOptions.map((size) => (
+        <option key={size} value={size}>
+          {size}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
       
-      {/* Record count and filter match info */}
-      <div style={{ 
-        margin: '16px 0',
-        padding: '12px 16px',
-        backgroundColor: '#fafafa',
-        borderRadius: '8px',
-        border: '1px solid #f0f0f0',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px'
-      }}>
-        <div style={{ fontWeight: 500 }}>
-          Showing {pagination.current * pagination.pageSize - pagination.pageSize + 1}-
-          {Math.min(pagination.current * pagination.pageSize, pagination.total)} of {pagination.total} records
-        </div>
-        {isFilterActive && (
-          <div style={{ 
-            color: '#1890ff', 
-            fontWeight: 500,
-            backgroundColor: '#e6f7ff',
-            padding: '4px 12px',
-            borderRadius: '4px',
-            border: '1px solid #91d5ff',
-            fontSize: '14px'
-          }}>
-            {filteredCount} Course{filteredCount !== 1 ? 's' : ''} Found
-          </div>
-        )}
-      </div>
-      
-      <Table
+      <div className="way-inquiry-table"><Table
         columns={columns}
-        dataSource={filteredData}
+        dataSource={matchingData}
         rowKey="id"
         pagination={{
           ...pagination,
-          showSizeChanger: true,
+          showSizeChanger: false,
           pageSizeOptions: ['25', '50', '100', '500', '1000'],
           showTotal: (total, range) => `Showing ${range[0]}-${range[1]} of ${total} items`
         }}
@@ -839,10 +714,12 @@ export default function AbroadInquiryList() {
         onChange={handleTableChange}
         scroll={{ x: "max-content" }}
         bordered
+        size="middle"
         locale={{
           emptyText: 'No data found'
         }}
     />
+    </div>
     <InquiryInfoDailog
       open={detailsModalVisible}
       onClose={() => { setDetailsModalVisible(false); setSelectedInquiry(null); setIsEditing(false); }}
@@ -908,6 +785,12 @@ export default function AbroadInquiryList() {
         )}
       />
     </Modal>
-    </>
+      <style>{`
+        .way-inquiry-table .ant-table-thead > tr > th { background: #f7f9fc; color: #334155; font-weight: 650; border-bottom: 1px solid #dce3eb; }
+        .way-inquiry-table .ant-table-tbody > tr > td { border-bottom-color: #edf0f4; }
+        .way-inquiry-table .ant-table-tbody > tr:hover > td { background: #f8fbff !important; }
+        .way-inquiry-table .ant-table { border-radius: 8px; overflow: hidden; }
+      `}</style>
+    </div>
   );
 }

@@ -158,15 +158,21 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
   const navigate = useNavigate();
   const userRole = sessionStorage.getItem("role");
   const coursesRoute = "/wayabroadadmin/admin/courses";
+  const jobsRoute = "/wayabroadadmin/admin/jobs";
   const isCoursesRouteActive = isRouteActive(location.pathname, coursesRoute);
+  const isJobsRouteActive = isRouteActive(location.pathname, jobsRoute);
   const [coursesExpanded, setCoursesExpanded] = useState(() =>
     isRouteActive(location.pathname, coursesRoute)
   );
+  const [jobsExpanded, setJobsExpanded] = useState(() =>
+    isRouteActive(location.pathname, jobsRoute)
+  );
 
   useEffect(() => {
-    // Keep the submenu open on direct URL access, refresh, and Back/Forward navigation.
+    // Keep the relevant submenu open on direct URL access and browser navigation.
     if (isCoursesRouteActive) setCoursesExpanded(true);
-  }, [isCoursesRouteActive]);
+    if (isJobsRouteActive) setJobsExpanded(true);
+  }, [isCoursesRouteActive, isJobsRouteActive]);
 
   // Filter navigation items by the current user's role.
   const filteredNavigation = NAVIGATION.filter((item) =>
@@ -193,9 +199,16 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
         <List className="sidebar-list">
           {filteredNavigation.map((item, idx) => {
             const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+            const isJobsSection = item.title === "Jobs Management";
+            const isCoursesSection = item.title === "Courses";
             const isActive = hasChildren
-              ? isCoursesRouteActive
+              ? (isCoursesSection ? isCoursesRouteActive : isJobsSection ? isJobsRouteActive : isRouteActive(location.pathname, item.segment))
               : isRouteActive(location.pathname, item.segment);
+            const sectionExpanded = isCoursesSection
+              ? coursesExpanded
+              : isJobsSection
+                ? jobsExpanded
+                : false;
             return (
               <React.Fragment key={item.segment + idx}>
                 <Tooltip
@@ -210,7 +223,8 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                     className={`sidebar-item ${isActive ? "active" : ""}`}
                     onClick={() => {
                       if (hasChildren) {
-                        setCoursesExpanded((previous) => !previous);
+                        if (isCoursesSection) setCoursesExpanded((previous) => !previous);
+                        else if (isJobsSection) setJobsExpanded((previous) => !previous);
                         navigate(item.segment);
                       } else {
                         handleNavigation(item.segment);
@@ -237,11 +251,11 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                         sx={{ opacity: 1, marginLeft: "-10px" }}
                       />
                     )}
-                    {open && hasChildren && (coursesExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
+                    {open && hasChildren && (sectionExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
                   </MotionListItem>
                 </Tooltip>
                 {hasChildren && open && (
-                  <Collapse in={coursesExpanded} timeout="auto" unmountOnExit>
+                  <Collapse in={sectionExpanded} timeout="auto" unmountOnExit>
                     <List component="div" disablePadding>
                       {item.children.map((child) => {
                         const childActive = normalizePath(location.pathname) === normalizePath(child.segment);

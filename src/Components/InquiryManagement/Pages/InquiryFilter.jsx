@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Grid, TextField, MenuItem, CircularProgress, Button, Box } from "@mui/material";
-import { filterEnquiries } from "./AbroadInquiryService";
 import { getBranchCodeNameMap } from "../../AllLogin/LoginService";
-import { getAllConductBy } from "./formService";
 import { getAllStaff } from "../../Branch/StaffService";
 import axiosInstance from "../../Common/axiosConfig";
 import PropTypes from 'prop-types';
@@ -58,28 +56,26 @@ export default function InquiryFilter({
 }) {
   const [branchOptions, setBranchOptions] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(true);
-  const [conductByOptions, setConductByOptions] = useState([]);
   const [staffOptions, setStaffOptions] = useState([]);
-  const [loadingConductBy, setLoadingConductBy] = useState(false);
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [loadingCounts, setLoadingCounts] = useState(false);
   const [inquiryCount, setInquiryCount] = useState(0);
   const [statusCounts, setStatusCounts] = useState({});
   const [error, setError] = useState(null);
   
-  const textFieldStyle = { width: '100%' };
+  const textFieldStyle = { width: '100%', background: '#fff' };
   
   // Status options configuration
   const statusOptions = [
-    { value: 'pending', label: 'INTERESTED', color: 'green' },
-    { value: 'approved', label: 'NOT INTERESTED', color: 'red' },
-    { value: 'connecting', label: 'CONNECTING', color: 'orange' },
-    { value: 'ringing', label: 'RINGING', color: 'gold' },
-    { value: 'callBack', label: 'CALL BACK', color: 'lightgreen' },
-    { value: 'office_visit', label: 'OFFICE VISIT', color: '#9c27b0' },
-    { value: 'processing', label: 'PROCESSING', color: 'blue' },
-    { value: 'application', label: 'APPLICATION', color: 'maroon' },
-    { value: 'CNI', label: 'CNI', color: 'pink' },
+    { value: 'pending', label: 'INTERESTED', color: '#2f8062' },
+    { value: 'approved', label: 'NOT INTERESTED', color: '#bd6262' },
+    { value: 'connecting', label: 'CONNECTING', color: '#b77b38' },
+    { value: 'ringing', label: 'RINGING', color: '#9c8035' },
+    { value: 'callBack', label: 'CALL BACK', color: '#478d79' },
+    { value: 'office_visit', label: 'OFFICE VISIT', color: '#8565a7' },
+    { value: 'processing', label: 'PROCESSING', color: '#4779ad' },
+    { value: 'application', label: 'APPLICATION', color: '#a65c77' },
+    { value: 'CNI', label: 'CNI', color: '#947a91' },
   ];
 
   // Fetch total count from backend
@@ -213,71 +209,8 @@ const fetchStatusCounts = async (branchCode) => {
     fetchCounts(branchCode);
   }, [role, filters.branchCode, refreshTrigger]); // Include refreshTrigger for manual refresh
 
-  const handleFilter = async (newFilters = filters) => {
-    try {
-      // Determine branch code based on role
-      let branchCodeToUse;
-      if (role === 'superAdmin') {
-        branchCodeToUse = newFilters.branchCode || 'All';
-      } else {
-        branchCodeToUse = sessionStorage.getItem('branchCode') || 'All';
-        if (branchCodeToUse !== newFilters.branchCode) {
-          onChange({ ...filters, branchCode: branchCodeToUse });
-        }
-      }
-      
-      // Fetch filtered data
-      const result = await filterEnquiries(
-        newFilters.continent || null,
-        newFilters.country || null,
-          newFilters.state || null,
-  newFilters.city || null,
-  newFilters.college || null,
-  newFilters.university || null,
-  newFilters.year || null, 
-        newFilters.stream || null,
-        newFilters.course || null,
-        newFilters.status || null,
-        search || '',
-        null,
-        null,
-        null,
-        branchCodeToUse,
-        role,
-        email,
-        0,
-        10,
-        newFilters.applyFor || null,
-        newFilters.conductBy || null,
-        newFilters.staffName || null
-      );
-      
-      const inquiries = Array.isArray(result) ? result : (result?.content || []);
-      
-      // After filter changes, refresh counts from backend
-      await fetchCounts(branchCodeToUse);
-      
-      // Call the parent callback
-      if (onFilterChange) {
-        onFilterChange(inquiries);
-      }
-    } catch (error) {
-      console.error('Error in handleFilter:', error);
-      
-      if (onFilterChange) {
-        onFilterChange([]);
-      }
-    }
-  };
-
-  // Handle filter changes with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      handleFilter(filters);
-    }, 300);
-    
-    return () => clearTimeout(timer);
-  }, [filters, search]);
+  // Filtering is performed once by the parent from the scoped enquiry data.
+  // Do not issue a competing paginated /filter request here.
 
   // Set branch code from session storage on mount
   useEffect(() => {
@@ -290,29 +223,8 @@ const fetchStatusCounts = async (branchCode) => {
     }
   }, [role]);
 
-  // Fetch conducted by options
+  // Fetch staff options
   useEffect(() => {
-    const fetchConductByOptions = async () => {
-      setLoadingConductBy(true);
-      try {
-        const response = await getAllConductBy();
-        const options = Array.isArray(response) 
-          ? response
-              .map(item => item?.conductBy)
-              .filter(Boolean)
-              .filter((value, index, self) => self.indexOf(value) === index)
-              .sort((a, b) => a.localeCompare(b))
-          : [];
-        
-        setConductByOptions(options);
-      } catch (error) {
-        console.error('Error fetching conducted by options:', error);
-        setConductByOptions([]);
-      } finally {
-        setLoadingConductBy(false);
-      }
-    };
-
 const fetchStaffOptions = async () => {
   setLoadingStaff(true);
   try {
@@ -355,7 +267,6 @@ const fetchStaffOptions = async () => {
 };
 
 
-    fetchConductByOptions();
     fetchStaffOptions();
   }, [role, filters.branchCode]);
 
@@ -397,7 +308,7 @@ const fetchStaffOptions = async () => {
   }, [role]);
 
   return (
-    <Grid container spacing={1} alignItems="center" style={{ marginBottom: 16 }}>
+    <Grid container spacing={1.5} alignItems="center" sx={{ mb: 2, p: { xs: 1.25, md: 1.75 }, border: '1px solid #e4e9ef', borderRadius: 2, backgroundColor: '#fbfcfe' }}>
       <Grid item xs={12} sm={4} md={2}>
         <TextField
           type="search"
@@ -420,22 +331,6 @@ const fetchStaffOptions = async () => {
       <Grid item xs={12} sm={4} md={2}>
         <TextField
           select
-          label="Select Continent"
-          value={filters.continent || ""}
-          onChange={e => onChange({ ...filters, continent: e.target.value || null })}
-          size="small"
-          style={textFieldStyle}
-        >
-          <MenuItem value="">All</MenuItem>
-          {continents.map(cont => (
-            <MenuItem key={cont} value={cont}>{cont}</MenuItem>
-          ))}
-        </TextField>
-      </Grid>
-
-      <Grid item xs={12} sm={4} md={2}>
-        <TextField
-          select
           label="Select Country"
           value={filters.country || ""}
           onChange={e => onChange({ ...filters, country: e.target.value || null })}
@@ -445,22 +340,6 @@ const fetchStaffOptions = async () => {
           <MenuItem value="">All</MenuItem>
           {countries.map(c => (
             <MenuItem key={c} value={c}>{c}</MenuItem>
-          ))}
-        </TextField>
-      </Grid>
-
-      <Grid item xs={12} sm={4} md={2}>
-        <TextField
-          select
-          label="Select State"
-          value={filters.state || ""}
-          onChange={e => onChange({ ...filters, state: e.target.value || null })}
-          size="small"
-          style={textFieldStyle}
-        >
-          <MenuItem value="">All</MenuItem>
-          {states.map(s => (
-            <MenuItem key={s} value={s}>{s}</MenuItem>
           ))}
         </TextField>
       </Grid>
@@ -584,24 +463,15 @@ const fetchStaffOptions = async () => {
       <Grid item xs={12} sm={4} md={2}>
         <TextField
           select
-          label="Status"
-          value={filters.status || ""}
-          onChange={e => onChange({ ...filters, status: e.target.value || null })}
+          label="Passport"
+          value={filters.hasPassport ?? ""}
+          onChange={e => onChange({ ...filters, hasPassport: e.target.value || null })}
           size="small"
           style={textFieldStyle}
         >
-          <MenuItem value="">
-            <em>All Status</em>
-          </MenuItem>
-          <MenuItem value="pending" style={{ color: 'green' }}>INTERESTED</MenuItem>
-          <MenuItem value="approved" style={{ color: 'red' }}>NOT INTERESTED</MenuItem>
-          <MenuItem value="connecting" style={{ color: 'orange' }}>CONNECTING</MenuItem>
-          <MenuItem value="ringing" style={{ color: 'gold' }}>RINGING</MenuItem>
-          <MenuItem value="callBack" style={{ color: 'lightgreen' }}>CALL BACK</MenuItem>
-          <MenuItem value="office_visit" style={{ color: '#9c27b0' }}>OFFICE VISIT</MenuItem>
-          <MenuItem value="processing" style={{ color: 'blue' }}>PROCESSING</MenuItem>
-          <MenuItem value="application" style={{ color: 'maroon' }}>APPLICATION</MenuItem>
-          <MenuItem value="CNI" style={{ color: 'pink' }}>CNI</MenuItem>
+          <MenuItem value="">All</MenuItem>
+          <MenuItem value="Yes">Yes</MenuItem>
+          <MenuItem value="No">No</MenuItem>
         </TextField>
       </Grid>
 
@@ -637,32 +507,6 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
-        <TextField
-          select
-          fullWidth
-          label="Conducted By"
-          value={filters.conductBy || ""}
-          onChange={e => onChange({ ...filters, conductBy: e.target.value || null })}
-          size="small"
-          style={textFieldStyle}
-          disabled={loadingConductBy}
-        >
-          <MenuItem value="">All</MenuItem>
-          {loadingConductBy ? (
-            <MenuItem disabled>
-              <CircularProgress size={20} style={{ marginRight: 8 }} />
-              Loading...
-            </MenuItem>
-          ) : (
-            conductByOptions.map(option => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))
-          )}
-        </TextField>
-      </Grid>
 
       <Grid item xs={12} sm={4} md={2}>
         <TextField
@@ -684,7 +528,7 @@ const fetchStaffOptions = async () => {
           ) : (
             staffOptions.length > 0 ? (
               staffOptions.map(staff => (
-                <MenuItem key={staff.id} value={staff.name}>
+                <MenuItem key={staff.id} value={staff.email || staff.name}>
                   {staff.name}
                 </MenuItem>
               ))
@@ -699,79 +543,44 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      {/* Status Counts Row */}
+      {/* Compact, keyboard-accessible status navigation; API-backed branch counts. */}
       <Grid item xs={12}>
-        <Box sx={{ 
-          display: 'flex', 
-          flexDirection: 'row', 
-          alignItems: 'center', 
-          gap: 2, 
-          p: 1.5, 
-          bgcolor: 'background.paper', 
-          borderRadius: 1, 
-          boxShadow: 1,
-          mb: 2,
-          flexWrap: 'wrap',
-          border: '1px solid #e0e0e0'
-        }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center',
-            bgcolor: 'primary.main',
-            color: 'white',
-            px: 2,
-            py: 0.75,
-            borderRadius: 1,
-            fontWeight: 'bold',
-            fontSize: '0.95rem',
-            minWidth: '120px',
-            justifyContent: 'center'
+        <Box sx={{ mt: 0.75, p: 0.75, border: '1px solid #e2e8f0', borderRadius: 2, background: '#f5f7fa' }}>
+          <Box role="group" aria-label="Filter inquiries by status" sx={{
+            display: 'flex', gap: 0.6, overflowX: 'auto', pb: 0.25,
+            '&::-webkit-scrollbar': { height: 4 },
+            '&::-webkit-scrollbar-thumb': { backgroundColor: '#cbd5e1', borderRadius: 4 }
           }}>
-            Total: {loadingCounts ? <CircularProgress size={18} color="inherit" sx={{ ml: 1 }} /> : inquiryCount}
-          </Box>
-          
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            {statusOptions.map((status) => (
-              <Box
-                key={status.value}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: `2px solid ${status.color}`,
-                  color: status.color,
-                  minWidth: '140px',
-                  backgroundColor: 'transparent',
-                  fontWeight: '600',
-                  fontSize: '0.85rem'
-                }}
-              >
-                <span>{status.label}</span>
-                <Box 
+            {statusOptions.map((status) => {
+              const active = filters.status === status.value;
+              const count = role === 'staff'
+                ? data.filter((item) => String(item.status ?? '').toLowerCase().replace(/[\s_-]/g, '') === status.value.toLowerCase().replace(/[\s_-]/g, '')).length
+                : (statusCounts[status.value] ?? 0);
+              return (
+                <Box key={status.value} component="button" type="button" aria-pressed={active}
+                  onClick={() => onChange({ ...filters, status: active ? null : status.value })}
                   sx={{
-                    backgroundColor: status.color,
-                    color: '#fff',
-                    borderRadius: '50%',
-                    width: '24px',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.8rem',
-                    fontWeight: 'bold',
-                    marginLeft: '8px'
-                  }}
-                >
-                  {loadingCounts ? (
-                    <CircularProgress size={14} color="inherit" />
-                  ) : (
-                    statusCounts[status.value] || 0
-                  )}
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 0.65,
+                    flex: '1 0 auto', whiteSpace: 'nowrap', minHeight: 36, px: { xs: 1.2, lg: 0.85 },
+                    border: '1px solid', borderColor: active ? status.color : '#e2e8f0',
+                    borderRadius: 1.5, backgroundColor: active ? '#fff' : 'transparent',
+                    boxShadow: active ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
+                    color: active ? status.color : '#475569', cursor: 'pointer',
+                    fontSize: { xs: '0.72rem', lg: '0.67rem' }, fontWeight: active ? 750 : 600,
+                    transition: 'background-color 120ms ease, border-color 120ms ease',
+                    '&:hover': { backgroundColor: '#fff', borderColor: status.color },
+                    '&:focus-visible': { outline: `2px solid ${status.color}`, outlineOffset: 2 }
+                  }}>
+                  <Box component="span" sx={{ width: 5, height: 5, borderRadius: '50%', background: status.color, flexShrink: 0 }} />
+                  {status.label}
+                  <Box component="span" sx={{ borderRadius: 1, minWidth: 19, px: 0.55, py: 0.2,
+                    backgroundColor: active ? '#eef2f7' : '#e9edf2', color: '#475569',
+                    fontSize: '0.67rem', fontWeight: 700, textAlign: 'center' }}>
+                    {loadingCounts && role !== 'staff' ? '…' : count}
+                  </Box>
                 </Box>
-              </Box>
-            ))}
+              );
+            })}
           </Box>
         </Box>
       </Grid>

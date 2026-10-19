@@ -1,0 +1,17 @@
+/* Inquiry List only: match the MUI filter controls' existing Roboto font. */
+.inquiry-management-page,
+.inquiry-management-page * {
+  font-family: "Roboto", sans-serif !important;
+}
+
+/* Keep the same font in Ant Design overlays opened from this page. */
+body:has(.inquiry-management-page) .ant-modal,
+body:has(.inquiry-management-page) .ant-modal *,
+body:has(.inquiry-management-page) .ant-message,
+body:has(.inquiry-management-page) .ant-message *,
+body:has(.inquiry-management-page) .MuiPopover-root,
+body:has(.inquiry-management-page) .MuiPopover-root *,
+body:has(.inquiry-management-page) .MuiMenu-root,
+body:has(.inquiry-management-page) .MuiMenu-root * {
+  font-family: "Roboto", sans-serif !important;
+}
