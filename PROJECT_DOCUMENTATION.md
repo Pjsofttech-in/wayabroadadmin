@@ -2,7 +2,7 @@
 
 > **Document purpose:** Technical reference for onboarding, maintenance, debugging, and future frontend development.
 >
-> **Documentation status:** Prepared from the frontend source excerpts and project files available for review on 12 October 2026. This is a source-grounded working reference, not a claim that every module or backend contract has been exhaustively audited. Verify the items listed in [Missing Information and Verification Checklist](#missing-information-and-verification-checklist) against the current repository before treating this document as a release specification.
+> **Documentation status:** Initially prepared from frontend source excerpts available on 12 October 2026, then updated on 19 October 2026 with the documented Day 3 Jobs Management and Day 4 Inquiry List UI changes. This remains a source-grounded working reference, not a claim that every module or backend contract has been exhaustively audited. Day 5 Job form-field changes are intentionally excluded from this update. Verify the items listed in [Missing Information and Verification Checklist](#missing-information-and-verification-checklist) against the current repository before treating this document as a release specification.
 
 ## Table of Contents
 
@@ -148,6 +148,13 @@ project-root/
     │   │       ├── AbroadInquiryFeedback.jsx
     │   │       ├── AbroadInquiryDashboard.jsx
     │   │       └── AbroadInquiryQR.jsx
+    │   ├── Jobs/
+    │   │   ├── JobService.js
+    │   │   ├── JobsSidebar.jsx
+    │   │   ├── JobForm.jsx
+    │   │   ├── JobList.jsx
+    │   │   ├── JobApplications.jsx
+    │   │   └── JobSettings.jsx
     │   ├── Courses/
     │   │   └── Continent/
     │   │       ├── ContinentRelation.jsx
@@ -252,12 +259,13 @@ This section lists modules proven by `App.jsx` route imports and route definitio
 | Income & Expense | `/wayabroadadmin/admin/incomeexpense` | `IncomeExpense` | Route exists; financial calculations and APIs need inspection. |
 | Course Finder | `/wayabroadadmin/admin/CourceFinder` | `CourseFinder` | Route config uses this spelling. Sidebar configuration contains a trailing space in the segment; see routing limitations. |
 | Partner Details | `/wayabroadadmin/admin/partner` | `PartnerSidebar`, nested `AddPartner`, `PartnerList`, `PartnerWebList` | Parent and nested routes exist. |
-| Inquiry Management | `/wayabroadadmin/admin/abroadinquiry` | `InquirySidebar`, dashboard/form/list/todo/feedback/QR pages | Nested routes are explicitly configured. |
+| Inquiry Management | `/wayabroadadmin/admin/abroadinquiry` | `InquirySidebar`, dashboard/form/list/todo/feedback/QR pages | Nested routes are explicitly configured. The Day 4 update changes the Inquiry List filters, status tabs, record count and page-size control; see section 5.5. |
 | Application Management | `/wayabroadadmin/admin/application` | `ApplicationSidebar`, `ApplicationDashboard`, `AppicationCreate`, `ApplicationList` | Index redirects/rendering are configured. `AppicationCreate` is the actual imported spelling. |
 | Registration Management | `/wayabroadadmin/admin/registration` | `RegistrationSidebar`, `RegisterForm`, `RegisterList`, `RegistrationQRForm` | Create/list/edit/QR paths exist. |
 | Contact Us | `/wayabroadadmin/admin/ContactUs` | `ContactUsSidebar`, `ContactUsList`, `ContactUsForm` | Route exists, but its sidebar navigation entry is commented out in the reviewed navigation config. |
 | Marketing | `/wayabroadadmin/admin/Marketing` | Both `BlogManagement` and `MarketingSideBar` are declared for the same parent path | **Route conflict risk:** duplicate parent route declarations exist in `App.jsx`; verify intended behavior and consolidate carefully. |
 | Courses | `/wayabroadadmin/admin/courses/*` | `ContinentRelation`, `CourseEntityRoute` | Entity routes exist for continent through course. Details in sections 6–8. |
+| Jobs Management | `/wayabroadadmin/admin/jobs/*` | `JobsSidebar`, `JobForm`, `JobList`, `JobApplications`, `JobSettings` | Added for `superAdmin` navigation; create/list/applications/settings subroutes and API service are documented in section 5.4. |
 | Settings | `/wayabroadadmin/admin/settings` | `SettingSidebar`, stream/course/blog category/conduct-by pages | Nested settings routes exist. |
 | Scholarship | `/wayabroadadmin/admin/scholarship` | `ScholarshipSidebar`, form/list/lead-list/settings | Lead-form route is commented out. |
 | Blog Management | `/wayabroadadmin/admin/blog` | `BlogManagement` | Parent route and index route render `BlogManagement`; outlet behavior needs inspection. |
@@ -299,6 +307,65 @@ The route wrapper renders a parent selector before rendering the corresponding e
 
 These behaviors should not be assumed for every module without reviewing its component code.
 
+### 5.4 Jobs Management — Day 3 implementation
+
+The Jobs Management frontend was added as a separate admin section and uses the existing React Router/admin sidebar architecture. The Jobs navigation entry is intended for the `superAdmin` role. The addition should preserve existing Courses navigation behavior.
+
+**Files added**
+- `src/Components/Jobs/JobService.js` — centralizes job CRUD/search, job-settings and application API calls.
+- `src/Components/Jobs/JobsSidebar.jsx` — nested navigation for Jobs Management subpages.
+- `src/Components/Jobs/JobForm.jsx` — Create Job / Edit Job form.
+- `src/Components/Jobs/JobList.jsx` — searchable/filterable job listing, pagination and supported actions.
+- `src/Components/Jobs/JobApplications.jsx` — application listing, details and supported status management.
+- `src/Components/Jobs/JobSettings.jsx` — master-data management for the six existing settings resources.
+
+**Files modified**
+- `src/App.jsx` — adds nested Jobs routes.
+- `src/Components/Layouts/SidebarNavigation.jsx` — adds Jobs Management navigation for `superAdmin`.
+- `src/Components/Layouts/Sidebar.jsx` — maintains Jobs submenu active/expanded state separately while preserving Courses submenu behavior.
+
+**Routes**
+
+| Route under `/wayabroadadmin` | Component / behavior |
+|---|---|
+| `/admin/jobs` | `JobsSidebar`; index redirects to `jobs/create` |
+| `/admin/jobs/create` | `JobForm` |
+| `/admin/jobs/list` | `JobList` |
+| `/admin/jobs/applications` | `JobApplications` |
+| `/admin/jobs/settings` | `JobSettings` |
+
+**API integration documented for this implementation**
+
+- Jobs: `POST /admin/jobs`, `GET /admin/jobs/{id}`, `PUT /admin/jobs/{id}`, `DELETE /admin/jobs/{id}`, and `GET /admin/jobs/search`.
+- Applications: `GET /job-applications/admin/search`, `GET /job-applications/admin/{id}`, `PUT /job-applications/admin/{id}/status`, and `DELETE /job-applications/admin/{id}`. The delete operation deactivates an application according to the documented backend behavior.
+- Job Settings: `/admin/job-settings/education`, `/sector`, `/role`, `/currency`, `/job-type`, and `/location`. The current documented relationships are Education → Sector → Role; Sector options are filtered by Education and Role options by Sector.
+- The originally documented Job payload uses `jobTitle`, `educationId`, `sectorId`, `jobRoleId`, `skill`, `openings`, `locationId`, `salary`, `currencyId`, `jobTypeId`, `description`, and `active`. Country/free-text Location, multi-select Skills, Work Type and Experience Level changes discussed for Day 5 are not represented as implemented in this document.
+- The currently documented application statuses are `PENDING`, `SHORTLISTED`, `REJECTED`, and `HIRED`. The application search parameters documented for this implementation are `jobId`, `status`, `applicantEmail`, `page`, and `size`.
+
+**Verification status and cautions**
+
+The original frontend source package used for the Jobs implementation did not include `package.json` or a lockfile, and no live backend was available. Implementation notes record JSX/JavaScript syntax checks and relative-import checks, but not a full Vite build or live API CRUD verification. Validate Jobs workflows against the actual repository and an authorized test account before release. The shared Axios configuration was separately noted to contain a hardcoded JWT fallback and token logging; this was not modified as part of the Jobs work and should be addressed before production deployment.
+
+### 5.5 Inquiry List UI — Day 4 implementation
+
+The Day 4 update is limited to the Inquiry List UI; no backend/API contract changes were made.
+
+**Files modified**
+- `src/Components/InquiryManagement/Pages/AbroadInquiryList.jsx`
+- `src/Components/InquiryManagement/Pages/InquiryFilter.jsx`
+
+**Changes**
+- Removed the Continent, State and Status dropdown filters from the filter area.
+- Added a Passport Yes/No dropdown using the existing `hasPassport` field.
+- Removed the Total count card and reworked the nine existing status counters as selectable tabs. Selecting a tab applies the existing status filter; clicking the selected tab again clears it.
+- Made status tabs fit across desktop width and scroll horizontally on smaller screens.
+- Added a page-size selector next to the record-count label while retaining the existing page-size options.
+- Corrected the zero-results range so the UI does not display a misleading `1-0` count.
+
+**API and test notes**
+
+The Passport filter is applied client-side to records returned by the existing inquiry filtering API. If the API returns only a server-paginated subset, Passport results and counts are limited to that subset; complete-dataset filtering would require backend support. The Day 4 implementation notes report JSX syntax checks passing for both modified files, but a full Vite build, browser interaction tests and live API tests were not run.
+
 ---
 
 ## 6. Routing and Navigation
@@ -331,6 +398,11 @@ These behaviors should not be assumed for every module without reviewing its com
 | `/wayabroadadmin/admin/registration` | `RegistrationSidebar` index → `RegisterForm` |
 | `/wayabroadadmin/admin/ContactUs` | `ContactUsSidebar` index → `ContactUsList` |
 | `/wayabroadadmin/admin/Marketing` | Duplicate route definitions; see limitations |
+| `/wayabroadadmin/admin/jobs` | `JobsSidebar` parent; redirects to `jobs/create` |
+| `/wayabroadadmin/admin/jobs/create` | `JobForm` (create/edit; edit ID is passed through `?editId=<id>`) |
+| `/wayabroadadmin/admin/jobs/list` | `JobList` |
+| `/wayabroadadmin/admin/jobs/applications` | `JobApplications` |
+| `/wayabroadadmin/admin/jobs/settings` | `JobSettings` |
 | `/wayabroadadmin/admin/courses` | Redirects to `courses/continent` |
 | `/wayabroadadmin/admin/courses/continent` | `ContinentRelation` |
 | `/wayabroadadmin/admin/courses/country` | `CourseEntityRoute entity="country"` |
@@ -671,11 +743,13 @@ Never commit credentials, private keys, tokens, passwords, or production secrets
 4. Confirm public registration route loads if its backend dependencies are available.
 5. Log in with an authorized test account provided through the team's approved process.
 6. Confirm the admin layout and role-filtered sidebar render.
-7. Open each route family relevant to the current change.
-8. Test loading, empty, success, and API-error states.
-9. Run `npm run lint`.
-10. Run `npm run build`.
-11. Run `npm run preview` and repeat critical navigation checks against the built output.
+7. Open each route family relevant to the current change, including Jobs Management (`create`, `list`, `applications`, `settings`) and Inquiry List.
+8. For Jobs, verify authorized sidebar visibility, create/edit prefill, job search and filters, pagination, delete confirmation, application details/status updates, and each Job Settings CRUD flow against a test backend.
+9. For Inquiry List, verify the Passport Yes/No filter, each status tab and clear behavior, responsive horizontal scrolling, page-size changes, and the zero-results count.
+10. Test loading, empty, success, and API-error states.
+11. Run `npm run lint`.
+12. Run `npm run build`.
+13. Run `npm run preview` and repeat critical navigation checks against the built output.
 
 ### 11.2 Hierarchy regression checklist
 
@@ -925,3 +999,4 @@ To turn this into a fully audited, release-grade reference, inspect or obtain:
 | Date | Update |
 |---|---|
 | 12 October 2026 | Initial documentation generated from available `App.jsx`, `Sidebar.jsx`, navigation/package excerpts, and education hierarchy components. Forward and backward hierarchy navigation was reported working by the project owner. Full backend and repository audit remains pending. |
+| 19 October 2026 | Updated the module directory, route table, test checklist and module documentation with the Day 3 Jobs Management frontend and Day 4 Inquiry List UI changes. Day 5 Job form-field changes are intentionally not included. Build and live API validation remain pending in the actual project environment. |
