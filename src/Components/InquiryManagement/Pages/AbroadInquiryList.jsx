@@ -136,7 +136,14 @@ export default function AbroadInquiryList() {
       if (!matches(item, ['passoutYear', 'year'], filters.year)) return false;
       if (!matches(item, ['applyFor'], filters.applyFor)) return false;
       if (!matches(item, ['staffName', 'staff_email', 'staffEmail', 'createdByEmail'], filters.staffName)) return false;
-      if (filters.hasPassport && !matches(item, ['hasPassport'], filters.hasPassport)) return false;
+      if (filters.hasPassport) {
+        const passportValue = item?.hasPassport;
+        const passportNormalized = normalize(passportValue);
+        const hasPassport = passportValue === true || ['yes', 'true', '1'].includes(passportNormalized);
+        const passportMatches = filters.hasPassport === 'Yes' ? hasPassport : !hasPassport;
+        if (passportValue === undefined || passportValue === null || passportNormalized === '') return false;
+        if (!passportMatches) return false;
+      }
       if (filters.status && normalizeStatus(item.status) !== normalizeStatus(filters.status)) return false;
       return true;
     });
@@ -144,6 +151,25 @@ export default function AbroadInquiryList() {
 
   const handleTableChange = (nextPagination) => {
     setPagination((previous) => ({ ...previous, current: nextPagination.current, pageSize: nextPagination.pageSize }));
+  };
+
+  const handleClearFilters = () => {
+    setFilters((previous) => ({
+      country: null,
+      city: null,
+      university: null,
+      college: null,
+      stream: null,
+      branchCode: previous.branchCode,
+      course: null,
+      hasPassport: null,
+      year: null,
+      applyFor: null,
+      staffName: null,
+      status: null
+    }));
+    setSearch('');
+    setPagination((previous) => ({ ...previous, current: 1 }));
   };
 
   const fetchInquiries = async () => {
@@ -188,17 +214,6 @@ export default function AbroadInquiryList() {
     // Re-fetch only when the backend query scope changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.branchCode]);
-
-  // Debug effect to log data structure
-  useEffect(() => {
-    if (data.length > 0) {
-      console.log('First 3 data items structure:', 
-        data.slice(0, 3).map(item => ({
-          id: item.id,
-        }))
-      );
-    }
-  }, [data]);
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -495,29 +510,7 @@ export default function AbroadInquiryList() {
       render: (value) => value || "-"
     },
 
-    // 10. Staff Name
-    {
-      title: "Staff Name",
-      key: "staffName",
-      render: (_, record) => getStaffNameFromEmail(record) || "-"
-    },
-
-    // 11. Branch
-    {
-      title: "Branch",
-      key: "branch",
-      render: (_, record) => getBranchName(record.branchCode) || "-"
-    },
-
-    // 12. Remark
-    {
-      title: "Remark",
-      dataIndex: "remark",
-      key: "remark",
-      render: (value) => value || "-"
-    },
-
-    // 13. Status
+    // 10. Status — moved into the former Staff Name column position
     { 
       title: "Status", 
       dataIndex: "status", 
@@ -585,6 +578,28 @@ export default function AbroadInquiryList() {
       }
     },
 
+    // 11. Remark — moved into the former Branch column position
+    {
+      title: "Remark",
+      dataIndex: "remark",
+      key: "remark",
+      render: (value) => value || "-"
+    },
+
+    // 12. Staff Name
+    {
+      title: "Staff Name",
+      key: "staffName",
+      render: (_, record) => getStaffNameFromEmail(record) || "-"
+    },
+
+    // 13. Branch
+    {
+      title: "Branch",
+      key: "branch",
+      render: (_, record) => getBranchName(record.branchCode) || "-"
+    },
+
     // 14. Year: intended study/travel year (API field: year), not passoutYear
     {
       title: "Year",
@@ -618,6 +633,7 @@ export default function AbroadInquiryList() {
         onChange={setFilters}
         search={search}
         setSearch={setSearch}
+        onClearFilters={handleClearFilters}
         onFilterChange={() => {}}
         data={Array.isArray(allFilteredData) ? allFilteredData : []}
         countries={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "country")}

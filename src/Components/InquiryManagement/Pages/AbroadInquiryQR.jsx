@@ -1,87 +1,149 @@
-import React, { useEffect, useRef, useState } from 'react';
-import QRCode from 'qrcode';
-import { Box, Paper, Typography, Button } from '@mui/material';
-import { Download } from '@mui/icons-material';
+import React, { useEffect, useState } from "react";
+import QRCode from "qrcode";
+import {
+  Alert,
+  Box,
+  Button,
+  Paper,
+  Typography,
+} from "@mui/material";
+import { Download } from "@mui/icons-material";
 
 const AbroadInquiryQR = () => {
-  const [qrCode, setQrCode] = useState('');
-  const email = sessionStorage.getItem("email") || "staff@gmail.com";
-  const role = sessionStorage.getItem("role") || "staff";
-  const qrRef = useRef(null);
+  const [qrCode, setQrCode] = useState("");
+  const [registrationUrl, setRegistrationUrl] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (role && email) {
-      // Generate contact URL with user data pointing to wayabroad.in
-      const contactUrl = `https://wayabroad.in/contact?email=${encodeURIComponent(email)}&role=${encodeURIComponent(role)}`;
-      
-      // Generate QR code with the contact URL
-      QRCode.toDataURL(contactUrl, {
-        width: 400,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      }, (err, url) => {
-        if (err) {
-          console.error('Error generating QR code:', err);
-          return;
-        }
-        setQrCode(url);
-      });
+    let active = true;
+
+    const email = sessionStorage.getItem("email") || "";
+    const role = sessionStorage.getItem("role") || "";
+    const branchCode = sessionStorage.getItem("branchCode") || "";
+
+    if (!email || !role || !branchCode) {
+      setError(
+        "Your login is missing email, role, or branch code. Please sign in again or contact your administrator."
+      );
+      setQrCode("");
+      setRegistrationUrl("");
+
+      return () => {
+        active = false;
+      };
     }
-  }, [role, email]);
+
+    const url = new URL(
+      "/wayabroadadmin/public-inquiry",
+      window.location.origin
+    );
+
+    url.searchParams.set("email", email);
+    url.searchParams.set("role", role);
+    url.searchParams.set("branchCode", branchCode);
+
+    setRegistrationUrl(url.toString());
+    setError("");
+
+    QRCode.toDataURL(url.toString(), {
+      width: 500,
+      margin: 2,
+      errorCorrectionLevel: "H",
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF",
+      },
+    })
+      .then((dataUrl) => {
+        if (active) setQrCode(dataUrl);
+      })
+      .catch((err) => {
+        console.error("Error generating inquiry QR code:", err);
+
+        if (active) {
+          setError("Could not generate the QR code. Please try again.");
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleDownload = () => {
     if (!qrCode) return;
-    
-    const link = document.createElement('a');
+
+    const link = document.createElement("a");
     link.href = qrCode;
-    link.download = `contact-qr-${email}.png`;
+    link.download = `branch-inquiry-qr-${
+      sessionStorage.getItem("branchCode") || "branch"
+    }.png`;
+
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
   };
 
   return (
-    <>
-      {/* CSS for print-only content */}
-      <style>
-        {`
-          @media print {
-            body * {
-              visibility: hidden;
-            }
-            #qr-print-section, #qr-print-section * {
-              visibility: visible;
-            }
-          }
-        `}
-      </style>
-      <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
-        <Typography color={'primary'} variant="h5" gutterBottom>
-          Abroad Inquiry Contact QR Code
-        </Typography>
-        <Paper elevation={3} sx={{ p: 3 }} ref={qrRef} id="qr-print-section">
-          {qrCode ? (
-            <img src={qrCode} alt="QR Code" style={{ width: 200, height: 200 }} />
-          ) : (
-            <Typography>Generating QR Code...</Typography>
-          )}
-        </Paper>
-        {qrCode && (
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      gap={2}
+      mt={3}
+      px={2}
+    >
+      <Typography
+        color="primary"
+        variant="h5"
+        fontWeight={700}
+        textAlign="center"
+      >
+      Inquiry QR Code
+      </Typography>
+
+      <Typography color="text.secondary" textAlign="center" maxWidth={520}>
+        Students can scan this QR code, fill in the inquiry form on their
+        phone, and submit their details to the Inquiry List.
+      </Typography>
+
+      {error && (
+        <Alert severity="warning" sx={{ width: "100%", maxWidth: 600 }}>
+          {error}
+        </Alert>
+      )}
+
+      {qrCode && (
+        <>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <img
+              src={qrCode}
+              alt="Branch inquiry QR code"
+              style={{
+                width: 240,
+                height: 240,
+                maxWidth: "100%",
+              }}
+            />
+          </Paper>
+
           <Button
             variant="contained"
-            color="primary"
-            sx={{ mt: 2 }}
             onClick={handleDownload}
             startIcon={<Download />}
           >
             Download QR Code
           </Button>
-        )}
-      </Box>
-    </>
+        </>
+      )}
+    </Box>
   );
 };
 

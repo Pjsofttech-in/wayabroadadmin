@@ -10,19 +10,27 @@ import {
 } from "./JobService";
 
 const TYPES = [
-  { key: "education", label: "Education", parentLabel: "" },
+  { key: "education", label: "Education" },
   { key: "sector", label: "Sector", parentLabel: "Education" },
   { key: "role", label: "Role", parentLabel: "Sector" },
-  { key: "currency", label: "Currency", parentLabel: "" },
-  { key: "jobType", label: "Job Type", parentLabel: "" },
-  { key: "location", label: "Location", parentLabel: "" },
+  { key: "currency", label: "Currency" },
+  { key: "jobType", label: "Job Type" },
+  { key: "country", label: "Country" },
+  { key: "location", label: "Location", parentLabel: "Country" },
+  { key: "workType", label: "Work Type" },
 ];
+
 const emptyForm = { name: "", active: true, parentId: "" };
-const getParentId = (type, record) => type === "sector"
-  ? record?.education?.id ?? record?.educationId ?? ""
-  : type === "role"
-    ? record?.sector?.id ?? record?.sectorId ?? ""
-    : "";
+const recordName = (type, record) => type === "location"
+  ? record?.location ?? record?.name ?? ""
+  : record?.name ?? record?.location ?? "";
+const recordCountryId = (record) => record?.countryId ?? record?.country?.id ?? "";
+const getParentId = (type, record) => {
+  if (type === "sector") return record?.education?.id ?? record?.educationId ?? "";
+  if (type === "role") return record?.sector?.id ?? record?.sectorId ?? "";
+  if (type === "location") return recordCountryId(record);
+  return "";
+};
 
 export default function JobSettings() {
   const [activeType, setActiveType] = useState("education");
@@ -38,7 +46,9 @@ export default function JobSettings() {
     setLoading(true);
     setError("");
     try {
-      const parentType = type === "sector" ? "education" : type === "role" ? "sector" : null;
+      const parentType = type === "sector" ? "education"
+        : type === "role" ? "sector"
+          : type === "location" ? "country" : null;
       const [data, parentData] = await Promise.all([
         getJobSettings(type),
         parentType ? getJobSettings(parentType) : Promise.resolve(null),
@@ -59,58 +69,80 @@ export default function JobSettings() {
 
   useEffect(() => { loadType(activeType); }, [activeType, loadType]);
 
-  const educationOptions = records.education || [];
-  const sectorOptions = records.sector || [];
   const parentOptions = useMemo(() => {
-    if (activeType === "sector") return educationOptions;
-    if (activeType === "role") return sectorOptions;
+    if (activeType === "sector") return records.education || [];
+    if (activeType === "role") return records.sector || [];
+    if (activeType === "location") return records.country || [];
     return [];
-  }, [activeType, educationOptions, sectorOptions]);
+  }, [activeType, records.education, records.sector, records.country]);
+
+  const ensureParentOptions = (type) => {
+    const parentType = type === "sector" ? "education"
+      : type === "role" ? "sector"
+        : type === "location" ? "country" : null;
+    if (parentType && !records[parentType]) {
+      getJobSettings(parentType)
+        .then((data) => setRecords((previous) => ({ ...previous, [parentType]: Array.isArray(data) ? data : [] })))
+        .catch((e) => console.error(`Failed to load ${parentType} options:`, e));
+    }
+  };
 
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
     setDialogOpen(true);
-    if (activeType === "sector" && !records.education) getJobSettings("education").then((data) => setRecords((p) => ({ ...p, education: data || [] }))).catch(() => {});
-    if (activeType === "role" && !records.sector) getJobSettings("sector").then((data) => setRecords((p) => ({ ...p, sector: data || [] }))).catch(() => {});
+    ensureParentOptions(activeType);
   };
 
   const openEdit = (record) => {
     setEditing(record);
-    setForm({ name: record.name || "", active: record.active !== false, parentId: String(getParentId(activeType, record) || "") });
+    setForm({
+      name: recordName(activeType, record),
+      active: record.active !== false,
+      parentId: String(getParentId(activeType, record) || ""),
+    });
     setDialogOpen(true);
-    if (activeType === "sector" && !records.education) getJobSettings("education").then((data) => setRecords((p) => ({ ...p, education: data || [] }))).catch(() => {});
-    if (activeType === "role" && !records.sector) getJobSettings("sector").then((data) => setRecords((p) => ({ ...p, sector: data || [] }))).catch(() => {});
+    ensureParentOptions(activeType);
   };
 
   const save = async (event) => {
     event.preventDefault();
-    if (!form.name.trim()) {
-      message.error("Name is required.");
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      message.error(`${currentLabel} name is required.`);
       return;
     }
-    if ((activeType === "sector" || activeType === "role") && !form.parentId) {
-      message.error(`${activeType === "sector" ? "Education" : "Sector"} is required.`);
+    const needsParent = ["sector", "role", "location"].includes(activeType);
+    if (needsParent && !form.parentId) {
+      message.error(`${activeType === "sector" ? "Education" : activeType === "role" ? "Sector" : "Country"} is required.`);
       return;
     }
-    const payload = { name: form.name.trim(), active: Boolean(form.active) };
+    const payload = activeType === "location"
+      ? {
+          // Backend entity maps AbroadJobLocation.name to JSON property "location".
+          location: trimmedName,
+          countryId: Number(form.parentId),
+          active: Boolean(form.active),
+        }
+      : { name: trimmedName, active: Boolean(form.active) };
     const extraParams = activeType === "sector"
       ? { educationId: Number(form.parentId) }
       : activeType === "role"
         ? { sectorId: Number(form.parentId) }
         : {};
+
     setSaving(true);
     try {
       if (editing) await updateJobSetting(activeType, editing.id, payload, extraParams);
       else await createJobSetting(activeType, payload, extraParams);
-      message.success(`${TYPES.find((item) => item.key === activeType)?.label} ${editing ? "updated" : "created"} successfully.`);
+      message.success(`${currentLabel} ${editing ? "updated" : "created"} successfully.`);
       setDialogOpen(false);
       setEditing(null);
       setForm(emptyForm);
       await loadType(activeType);
     } catch (e) {
-      console.error("Failed to save job setting:", e);
-      message.error(e?.response?.data?.message || "Could not save setting.");
+      console.error(`Failed to save ${activeType} setting:`, e);
+      message.error(e?.response?.data?.message || `Could not save ${currentLabel.toLowerCase()}.`);
     } finally {
       setSaving(false);
     }
@@ -119,36 +151,58 @@ export default function JobSettings() {
   const remove = async (record) => {
     try {
       await deleteJobSetting(activeType, record.id);
-      message.success("Setting deleted successfully.");
+      message.success(`${currentLabel} deleted successfully.`);
       await loadType(activeType);
     } catch (e) {
-      console.error("Failed to delete job setting:", e);
+      console.error(`Failed to delete ${activeType} setting:`, e);
       message.error(e?.response?.data?.message || "Could not delete setting. It may be used by existing jobs.");
     }
   };
 
-  const parentName = (record) => activeType === "sector"
-    ? record.education?.name || educationOptions.find((item) => item.id === (record.educationId ?? record.education?.id))?.name || "-"
-    : activeType === "role"
-      ? record.sector?.name || sectorOptions.find((item) => item.id === (record.sectorId ?? record.sector?.id))?.name || "-"
-      : "-";
+  const parentName = (record) => {
+    if (activeType === "sector") {
+      const id = record.educationId ?? record.education?.id;
+      return record.education?.name || (records.education || []).find((item) => String(item.id) === String(id))?.name || "-";
+    }
+    if (activeType === "role") {
+      const id = record.sectorId ?? record.sector?.id;
+      return record.sector?.name || (records.sector || []).find((item) => String(item.id) === String(id))?.name || "-";
+    }
+    if (activeType === "location") {
+      const id = recordCountryId(record);
+      return record.countryName || record.country?.name || (records.country || []).find((item) => String(item.id) === String(id))?.name || "-";
+    }
+    return "-";
+  };
 
   const columns = [
     { title: "ID", dataIndex: "id", key: "id", width: 80 },
-    { title: "Name", dataIndex: "name", key: "name", render: (value) => value || "-" },
-    ...(activeType === "sector" || activeType === "role" ? [{ title: activeType === "sector" ? "Education" : "Sector", key: "parent", render: (_, record) => parentName(record) }] : []),
-    { title: "Status", dataIndex: "active", key: "active", render: (value) => <Tag color={value ? "green" : "default"}>{value ? "Active" : "Inactive"}</Tag> },
-    { title: "Actions", key: "actions", width: 120, render: (_, record) => (
-      <Stack direction="row" spacing={0.5}>
-        <Button size="small" aria-label={`Edit ${record.name}`} onClick={() => openEdit(record)}><EditOutlined /></Button>
-        <Popconfirm title={`Delete ${record.name}?`} description="Existing jobs may depend on this setting." onConfirm={() => remove(record)} okText="Delete" cancelText="Cancel">
-          <Button size="small" color="error" aria-label={`Delete ${record.name}`}><DeleteOutlined /></Button>
-        </Popconfirm>
-      </Stack>
-    ) },
+    {
+      title: "Name", key: "name",
+      render: (_, record) => recordName(activeType, record) || "-",
+    },
+    ...(["sector", "role", "location"].includes(activeType)
+      ? [{ title: activeType === "sector" ? "Education" : activeType === "role" ? "Sector" : "Country", key: "parent", render: (_, record) => parentName(record) }]
+      : []),
+    {
+      title: "Status", dataIndex: "active", key: "active",
+      render: (value) => <Tag color={value ? "green" : "default"}>{value ? "Active" : "Inactive"}</Tag>,
+    },
+    {
+      title: "Actions", key: "actions", width: 120,
+      render: (_, record) => (
+        <Stack direction="row" spacing={0.5}>
+          <Button size="small" aria-label={`Edit ${recordName(activeType, record)}`} onClick={() => openEdit(record)}><EditOutlined /></Button>
+          <Popconfirm title={`Delete ${recordName(activeType, record)}?`} description="Existing jobs may depend on this setting." onConfirm={() => remove(record)} okText="Delete" cancelText="Cancel">
+            <Button size="small" color="error" aria-label={`Delete ${recordName(activeType, record)}`}><DeleteOutlined /></Button>
+          </Popconfirm>
+        </Stack>
+      ),
+    },
   ];
 
   const currentLabel = TYPES.find((item) => item.key === activeType)?.label || "Job Settings";
+  const parentLabel = activeType === "sector" ? "Education" : activeType === "role" ? "Sector" : "Country";
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, pb: 3 }}>
@@ -172,13 +226,30 @@ export default function JobSettings() {
           <DialogTitle>{editing ? "Edit" : "Add"} {currentLabel}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
-              <TextField autoFocus fullWidth required label={`${currentLabel} Name`} value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} inputProps={{ maxLength: 255 }} />
-              {(activeType === "sector" || activeType === "role") && (
-                <TextField select fullWidth required label={activeType === "sector" ? "Education" : "Sector"} value={form.parentId} onChange={(e) => setForm((p) => ({ ...p, parentId: e.target.value }))}>
-                  {parentOptions.map((item) => <MenuItem key={item.id} value={String(item.id)}>{item.name || `#${item.id}`}</MenuItem>)}
+              <TextField
+                autoFocus fullWidth required label={`${currentLabel} Name`}
+                value={form.name}
+                onChange={(e) => setForm((previous) => ({ ...previous, name: e.target.value }))}
+                inputProps={{ maxLength: 255 }}
+              />
+              {["sector", "role", "location"].includes(activeType) && (
+                <TextField
+                  select fullWidth required label={parentLabel}
+                  value={form.parentId}
+                  onChange={(e) => setForm((previous) => ({ ...previous, parentId: e.target.value }))}
+                >
+                  <MenuItem value="" disabled>Select {parentLabel}</MenuItem>
+                  {parentOptions.map((item) => (
+                    <MenuItem key={item.id} value={String(item.id)}>
+                      {item.name ?? item.location ?? item.countryName ?? `#${item.id}`}
+                    </MenuItem>
+                  ))}
                 </TextField>
               )}
-              <FormControlLabel control={<Switch checked={Boolean(form.active)} onChange={(e) => setForm((p) => ({ ...p, active: e.target.checked }))} />} label={form.active ? "Active" : "Inactive"} />
+              <FormControlLabel
+                control={<Switch checked={Boolean(form.active)} onChange={(e) => setForm((previous) => ({ ...previous, active: e.target.checked }))} />}
+                label={form.active ? "Active" : "Inactive"}
+              />
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>

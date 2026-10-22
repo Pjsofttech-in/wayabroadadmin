@@ -23,28 +23,23 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [apiLoading, setApiLoading] = useState(false);
-  const effectiveRole = role || sessionStorage.getItem("role") || localStorage.getItem("role") || "";
-  const effectiveEmail = email || sessionStorage.getItem("email") || localStorage.getItem("email") || "";
-  const effectiveBranchCode = branchCode || sessionStorage.getItem("branchCode") || localStorage.getItem("branchCode") || "";
 
   const fetchStreams = async () => {
     setTableLoading(true);
     setApiLoading(true);
     try {
-      const data = await getAllStreams({
-        search,
-        email: effectiveEmail,
-        role: effectiveRole,
-        branchCode: effectiveBranchCode,
-        // Optional: streams have no college_id column in the supplied SQL schema.
-        // Preserve this request filter when a college context is selected.
-        collegeId: college?.id,
+      const data = await getAllStreams({ 
+        search, 
+        email, 
+        role, 
+        branchCode, 
+        collegeId: college.id 
       });
       
-      const formattedData = (Array.isArray(data) ? data : []).map((streamItem) => ({
-        ...streamItem,
-        imageUrl: streamItem.image || null,
-      }));
+      const formattedData = data?.map(stream => ({
+        ...stream,
+        imageUrl: stream.image || null
+      })) || [];
       
       setStreams(formattedData);
     } catch (error) {
@@ -59,7 +54,7 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
   useEffect(() => {
     fetchStreams();
     // eslint-disable-next-line
-  }, [search, college?.id, effectiveEmail, effectiveRole, effectiveBranchCode]);
+  }, [search]);
 
   const handleOpenDialog = (record = null) => {
     if (record) {
@@ -88,26 +83,21 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
   };
 
   const handleSave = async () => {
-    if (!streamData.name?.trim()) {
-      message.error("Stream name is required");
-      return;
-    }
-
     setLoading(true);
     setApiLoading(true);
     try {
-      const payload = { name: streamData.name.trim() };
+      const payload = { name: streamData.name };
       if (editing) {
-        await updateStream(editing, payload, streamData.photo, effectiveEmail, effectiveRole, effectiveBranchCode);
+        await updateStream(editing, payload, streamData.photo, email, role);
         message.success("Stream updated successfully");
       } else {
         await createStream(
           payload, 
           streamData.photo, 
-          effectiveRole,
-          effectiveEmail,
-          college?.id,
-          effectiveBranchCode
+          role, 
+          email, 
+          college.id, 
+          branchCode
         );
         message.success("Stream created successfully");
       }
@@ -126,7 +116,7 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
     setLoading(true);
     setApiLoading(true);
     try {
-      await deleteStream(id, effectiveRole, effectiveEmail, effectiveBranchCode);
+      await deleteStream(id, role, email);
       message.success("Stream deleted");
       fetchStreams();
     } catch {
@@ -138,33 +128,56 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
   };
 
   const columns = [
-    { title: "ID", dataIndex: "id", key: "id", width: 80, render: (value) => value ?? "-" },
+    { title: "Stream Name", dataIndex: "name", key: "name" },
     {
-      title: "Stream Name", dataIndex: "name", key: "name",
-      sorter: (a, b) => String(a.name || "").localeCompare(String(b.name || "")),
-      render: (value) => value || "-",
+      title: "Image",
+      dataIndex: "imageUrl",
+      key: "imageUrl",
+      render: (url, record) =>
+        url ? (
+          <img 
+            src={url.startsWith('data:image') || url.startsWith('http') ? url : `${import.meta.env.VITE_API_URL || ''}${url}`} 
+            alt={record.name || 'stream'} 
+            style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} 
+          />
+        ) : (
+          <div style={{
+            width: 40,
+            height: 40,
+            backgroundColor: '#f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4
+          }}>
+            No Image
+          </div>
+        ),
     },
     {
-      title: "Image", dataIndex: "imageUrl", key: "imageUrl", width: 120,
-      render: (url, record) => {
-        const imageSrc = url ? (url.startsWith("data:image") || /^https?:\/\//i.test(url) ? url : `${import.meta.env.VITE_API_URL || ""}${url}`) : null;
-        return imageSrc ? <img src={imageSrc} alt={record.name || "Stream"} loading="lazy" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "-";
-      },
-    },
-    {
-      title: "Created By Email", key: "createdByEmail",
-      render: (_, record) => record.createdByEmail || record.created_by_email || "-",
-    },
-    { title: "Role", dataIndex: "role", key: "role", render: (value) => value || "-" },
-    {
-      title: "Actions", key: "actions", width: 230,
+      title: "Actions",
+      key: "actions",
       render: (_, record) => (
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <IconButton aria-label={`Edit ${record.name || "stream"}`} disabled={loading} onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton>
+        <Stack direction="row" spacing={1}>
+          <IconButton onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton>
           <Popconfirm title="Delete this stream?" onConfirm={() => handleDelete(record.id)}>
-            <IconButton size="small" aria-label={`Delete ${record.name || "stream"}`} disabled={loading}><DeleteOutlined /></IconButton>
+            <IconButton size="small">
+              <DeleteOutlined />
+            </IconButton>
           </Popconfirm>
-          <Button size="small" variant="outlined" onClick={() => { const params = new URLSearchParams(searchParams); params.set("streamId", String(record.id)); if (college?.id != null) params.set("collegeId", String(college.id)); else params.delete("collegeId"); navigate(`/wayabroadadmin/admin/courses/course?${params.toString()}`); }}>Manage Courses</Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => {
+              const params = new URLSearchParams(searchParams);
+              params.set("streamId", String(record.id));
+              if (college?.id != null) params.set("collegeId", String(college.id));
+              navigate(`/wayabroadadmin/admin/courses/course?${params.toString()}`);
+            }}
+            sx={{ ml: 1 }}
+          >
+            Manage Courses
+          </Button>
         </Stack>
       ),
     },
@@ -173,26 +186,44 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
   return (
     <div>
       <LoadingOverlay loading={apiLoading} />
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "stretch", sm: "center" }} mb={2}>
-        {onBack && (
-          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={onBack}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={2}
+        alignItems={{ xs: "stretch", sm: "center" }}
+        justifyContent="space-between"
+        sx={{ mb: 2, mt: 0.5, minWidth: 0 }}
+      >
+        <Box sx={{ display: "flex", flexShrink: 0 }}>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            onClick={onBack}
+          >
             Back to College
           </Button>
-        )}
-        <Input.Search
-          placeholder="Search streams"
-          allowClear
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ width: 250 }}
-        />
-        <Button
-          variant="contained"
-          startIcon={<PlusOutlined />}
-          onClick={() => handleOpenDialog()}
+        </Box>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          alignItems="center"
+          sx={{ minWidth: 0, width: { xs: "100%", sm: "auto" }, justifyContent: "flex-end" }}
         >
-          Add Stream
-        </Button>
+          <Input.Search
+            placeholder="Search streams"
+            allowClear
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: "min(250px, 100%)" }}
+          />
+          <Button
+            variant="contained"
+            startIcon={<PlusOutlined />}
+            onClick={() => handleOpenDialog()}
+            sx={{ whiteSpace: "nowrap", alignSelf: { xs: "stretch", sm: "auto" } }}
+          >
+            Add Stream
+          </Button>
+        </Stack>
       </Stack>
 
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="xs" fullWidth>
@@ -234,10 +265,10 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
         dataSource={streams}
         rowKey="id"
         loading={tableLoading}
-        scroll={{ x: "max-content" }}
         pagination={{ pageSize: 8 }}
         style={{ marginTop: 24 }}
       />
     </div>
   );
 }
+

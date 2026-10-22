@@ -1,16 +1,25 @@
 import React from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Box, Button, Paper, Stack } from "@mui/material";
 
-const items = [
-  { label: "Create Job", to: "/wayabroadadmin/admin/jobs/create" },
-  { label: "Job List", to: "/wayabroadadmin/admin/jobs/list" },
-  { label: "Job Applications", to: "/wayabroadadmin/admin/jobs/applications" },
-  { label: "Job Settings", to: "/wayabroadadmin/admin/jobs/settings" },
+const JOBS_BASE = "/wayabroadadmin/admin/jobs";
+const allItems = [
+  { label: "Create Job", to: `${JOBS_BASE}/create`, roles: ["superAdmin"] },
+  { label: "Job List", to: `${JOBS_BASE}/list`, roles: ["superAdmin", "branch"] },
+  { label: "Job Applications", to: `${JOBS_BASE}/applications`, roles: ["superAdmin", "branch"] },
+  { label: "Job Settings", to: `${JOBS_BASE}/settings`, roles: ["superAdmin"] },
 ];
 
 export default function JobsSidebar() {
   const { pathname } = useLocation();
+  const userRole = sessionStorage.getItem("role") || "";
+  const isBranch = userRole === "branch";
+  const items = allItems.filter((item) => item.roles.includes(userRole));
+
+  // Prevent Branch users from opening restricted Job Management routes directly.
+  if (isBranch && (pathname === JOBS_BASE || pathname === `${JOBS_BASE}/create` || pathname === `${JOBS_BASE}/settings`)) {
+    return <Navigate to={`${JOBS_BASE}/list`} replace />;
+  }
 
   return (
     <Box sx={{ width: "100%", minWidth: 0 }}>
@@ -27,10 +36,9 @@ export default function JobsSidebar() {
           overflowX: "auto",
         }}
       >
-        <Stack direction="row" spacing={1} sx={{ width: "100%", minWidth: 560 }}>
+        <Stack direction="row" spacing={1} sx={{ width: "100%", minWidth: isBranch ? 320 : 560 }}>
           {items.map((item) => {
-            const active = pathname === item.to ||
-              (item.to.endsWith("/create") && pathname === "/wayabroadadmin/admin/jobs");
+            const active = pathname === item.to || (item.to.endsWith("/create") && pathname === JOBS_BASE);
             return (
               <NavLink key={item.to} to={item.to} style={{ textDecoration: "none", flex: 1 }}>
                 <Button

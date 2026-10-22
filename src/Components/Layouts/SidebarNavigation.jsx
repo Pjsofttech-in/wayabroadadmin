@@ -134,12 +134,12 @@ export const NAVIGATION = [
       segment: "/wayabroadadmin/admin/jobs/create",
       icon: <WorkOutlineIcon />,
       description: "Manage job postings and applications",
-      roles: ["superAdmin"],
+      roles: ["superAdmin", "branch"],
       children: [
-        { title: "Create Job", segment: "/wayabroadadmin/admin/jobs/create" },
-        { title: "Job List", segment: "/wayabroadadmin/admin/jobs/list" },
-        { title: "Job Applications", segment: "/wayabroadadmin/admin/jobs/applications" },
-        { title: "Job Settings", segment: "/wayabroadadmin/admin/jobs/settings" },
+        { title: "Create Job", segment: "/wayabroadadmin/admin/jobs/create", roles: ["superAdmin"] },
+        { title: "Job List", segment: "/wayabroadadmin/admin/jobs/list", roles: ["superAdmin", "branch"] },
+        { title: "Job Applications", segment: "/wayabroadadmin/admin/jobs/applications", roles: ["superAdmin", "branch"] },
+        { title: "Job Settings", segment: "/wayabroadadmin/admin/jobs/settings", roles: ["superAdmin"] },
       ],
     },
     {

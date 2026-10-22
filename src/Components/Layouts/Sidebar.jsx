@@ -225,7 +225,9 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                       if (hasChildren) {
                         if (isCoursesSection) setCoursesExpanded((previous) => !previous);
                         else if (isJobsSection) setJobsExpanded((previous) => !previous);
-                        navigate(item.segment);
+                        navigate(isJobsSection && userRole === "branch"
+                          ? "/wayabroadadmin/admin/jobs/list"
+                          : item.segment);
                       } else {
                         handleNavigation(item.segment);
                       }
@@ -257,7 +259,7 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                 {hasChildren && open && (
                   <Collapse in={sectionExpanded} timeout="auto" unmountOnExit>
                     <List component="div" disablePadding>
-                      {item.children.map((child) => {
+                      {item.children.filter((child) => !child.roles || child.roles.includes(userRole)).map((child) => {
                         const childActive = normalizePath(location.pathname) === normalizePath(child.segment);
                         return (
                           <ListItem

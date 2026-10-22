@@ -16,7 +16,6 @@ import {
 } from "@mui/material";
 import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import EditOutlined from "@ant-design/icons/EditOutlined";
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
 import UploadIcon from "@mui/icons-material/Upload";
@@ -379,46 +378,102 @@ export default function College({ university, onBack }) {
 
   const columns = [
     {
-      title: "ID", dataIndex: "id", key: "id", width: 80,
-      render: (value) => value ?? "-",
+      title: "College Name",
+      dataIndex: "collegeName",
+      key: "collegeName",
+      sorter: (a, b) =>
+        (a.collegeName || "").localeCompare(b.collegeName || ""),
+      render: (name) => (
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 500,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {name || "N/A"}
+        </Typography>
+      ),
     },
     {
-      title: "College Name", dataIndex: "collegeName", key: "collegeName",
-      sorter: (a, b) => String(a.collegeName || "").localeCompare(String(b.collegeName || "")),
-      render: (name) => <Typography variant="body2" sx={{ fontWeight: 500, overflowWrap: "anywhere" }}>{name || "-"}</Typography>,
-    },
-    {
-      title: "University", key: "university",
-      render: (_, record) => {
-        const value = record.universityName || record.university_name || record.university?.universityName || record.abroadUniversity?.universityName || record.abroadUniversity?.university_name;
-        const selectedName = university?.universityName || university?.university_name || university?.name;
-        const relationId = record.universityId ?? record.university_id ?? record.abroadUniversity?.id;
-        return value || selectedName || (relationId != null ? `#${relationId}` : "-");
-      },
-    },
-    {
-      title: "Image", key: "image", width: 120,
+      title: "Image",
+      key: "image",
+      width: 120,
       render: (_, record) => {
         const imageUrl = getImageUrl(record);
-        return imageUrl ? <img src={imageUrl} alt={record.collegeName || "College"} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 4 }} /> : "-";
+
+        return imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={record.collegeName || "College"}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+            style={{
+              width: 50,
+              height: 50,
+              objectFit: "cover",
+              borderRadius: 4,
+            }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: 60,
+              height: 40,
+              backgroundColor: "#f0f0f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 1,
+              color: "#777",
+              fontSize: 10,
+              textAlign: "center",
+              p: 0.5,
+            }}
+          >
+            No Image
+          </Box>
+        );
       },
     },
     {
-      title: "Created By Email", key: "createdByEmail",
-      render: (_, record) => record.createdByEmail || record.created_by_email || "-",
-    },
-    {
-      title: "Role", dataIndex: "role", key: "role", render: (value) => value || "-",
-    },
-    {
-      title: "Actions", key: "actions", width: 280,
+      title: "Actions",
+      key: "actions",
+      width: 220,
       render: (_, record) => (
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <IconButton size="small" color="primary" aria-label={`Edit ${record.collegeName || "college"}`} disabled={loading} onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton>
-          <Popconfirm title="Delete this college?" description="This action cannot be undone." onConfirm={() => handleDelete(record.id)} okText="Delete" cancelText="Cancel">
-            <IconButton size="small" color="error" aria-label={`Delete ${record.collegeName || "college"}`} disabled={loading}><DeleteOutlined /></IconButton>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Popconfirm
+            title="Delete this college?"
+            description="This action cannot be undone."
+            onConfirm={() => handleDelete(record.id)}
+            okText="Delete"
+            cancelText="Cancel"
+          >
+            <IconButton
+              size="small"
+              color="error"
+              aria-label="Delete college"
+              disabled={loading}
+            >
+              <DeleteOutlined />
+            </IconButton>
           </Popconfirm>
-          <Button size="small" variant="outlined" onClick={() => handleManageCourses(record)} sx={{ whiteSpace: "nowrap" }}>Manage Courses</Button>
+
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => handleManageCourses(record)}
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            Manage Courses
+          </Button>
         </Stack>
       ),
     },
@@ -626,7 +681,6 @@ export default function College({ university, onBack }) {
           dataSource={colleges}
           rowKey="id"
           loading={tableLoading}
-          scroll={{ x: "max-content" }}
           pagination={{
             current: safeCurrentPage,
             pageSize,

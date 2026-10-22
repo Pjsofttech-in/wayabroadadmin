@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Container,
   Typography,
@@ -51,13 +51,7 @@ import {
   getAllUniversities,
   getAllColleges,
   getAllCourses,
-  getAllStreams,
-  searchUniversities,
-  searchStates,
-  searchCities,
-  searchColleges,
-  searchCountries,
-  searchStreams
+  getAllStreams
 } from "../../Admin/api/courseApi";
 
 export default function CourseFinder() {
@@ -111,7 +105,6 @@ export default function CourseFinder() {
   });
   const [universitiesPerPage, setUniversitiesPerPage] = useState(6);
   const [sortBy, setSortBy] = useState('default');
-  const searchRequestId = useRef(0);
 
   // Handle filter text change
   const handleFilterTextChange = (type, value) => {
@@ -141,7 +134,7 @@ export default function CourseFinder() {
         onKeyDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
         InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
-        sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.7rem' }, '& .MuiInputBase-input': { py: 0.5, px: 0.75 } }}
+        sx={{ '& .MuiInputBase-root': { height: 28, fontSize: '0.68rem' }, '& .MuiInputBase-input': { py: 0.4, px: 0.65 } }}
         inputProps={{ 'aria-label': placeholder }}
       />
     </MenuItem>
@@ -321,91 +314,8 @@ export default function CourseFinder() {
     }
   };
 
-  // Apply global search across entities and update filters
-  useEffect(() => {
-    const requestId = ++searchRequestId.current;
-    let cancelled = false;
-    const run = async () => {
-      const q = (globalSearch || "").trim();
-      if (!q) return;
-      try {
-        // Run all search APIs in parallel
-        const [
-          uniNames,
-          stateNames,
-          cityNames,
-          collegeNames,
-          countryNames,
-          streamNames
-        ] = await Promise.all([
-          searchUniversities(q),
-          searchStates(q),
-          searchCities(q),
-          searchColleges(q),
-          searchCountries(q),
-          searchStreams(q)
-        ]);
-
-        // Ignore responses from an older search so results cannot overwrite newer input.
-        if (cancelled || requestId !== searchRequestId.current) return;
-
-        // Helper: case-insensitive set for quick membership
-        const toSet = (arr) => new Set((Array.isArray(arr) ? arr : []).map((s) => String(s).toLowerCase()))
-        const uniSet = toSet(uniNames);
-        const stateSet = toSet(stateNames);
-        const citySet = toSet(cityNames);
-        const collegeSet = toSet(collegeNames);
-        const countrySet = toSet(countryNames);
-        const streamSet = toSet(streamNames);
-
-        // Derive IDs for each list based on returned names
-        const matchedCountryIds = countries
-          .filter((c) => countrySet.has(String(c.countryName || c.country || c.name).toLowerCase()))
-          .map((c) => c.id);
-
-        const matchedStateIds = states
-          .filter((s) => stateSet.has(String(s.stateName || s.state || s.name).toLowerCase()))
-          .map((s) => s.id);
-
-        const matchedCityIds = cities
-          .filter((c) => citySet.has(String(c.cityName || c.city || c.name).toLowerCase()))
-          .map((c) => c.id);
-
-        const matchedUniversityIds = universities
-          .filter((u) => uniSet.has(String(u.universityName || u.name || u.university).toLowerCase()))
-          .map((u) => u.id);
-
-        const matchedCollegeIds = colleges
-          .filter((c) => collegeSet.has(String(c.collegeName || c.name).toLowerCase()))
-          .map((c) => c.id);
-
-        const matchedStreamNames = streams
-          .map((s) => s.name || s.streamName)
-          .filter((n) => n && streamSet.has(String(n).toLowerCase()));
-
-        // Update filters in one go
-        setFilters((prev) => ({
-          ...prev,
-          countryId: matchedCountryIds,
-          stateId: matchedStateIds,
-          cityId: matchedCityIds,
-          universityId: matchedUniversityIds,
-          collegeId: matchedCollegeIds,
-          streamName: matchedStreamNames
-        }));
-      } catch (err) {
-        if (!cancelled && requestId === searchRequestId.current) {
-          console.error("Global search failed:", err);
-        }
-      }
-    };
-
-    const t = setTimeout(run, 400);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [globalSearch, countries, states, cities, universities, colleges, streams]);
+  // Global search filters the displayed hierarchy locally. It must not turn
+  // every matching entity into a selected filter or generate dozens of chips.
 
   // Fetch all data independently when component mounts
   useEffect(() => {
@@ -495,6 +405,10 @@ export default function CourseFinder() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filters]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [globalSearch]);
 
   // Clear all filters
   const clearAllFilters = () => {
@@ -929,7 +843,39 @@ export default function CourseFinder() {
     )
   );
 
-  const sortedUniversityItems = [...universityItems].sort((a, b) => {
+  const normalizedGlobalSearch = globalSearch.trim().toLowerCase();
+  const searchedUniversityItems = normalizedGlobalSearch
+    ? universityItems.filter(({ continent, country, state, city, university }) => {
+        const textMatches = [
+          continent?.continentName,
+          continent?.name,
+          country?.country,
+          country?.countryName,
+          state?.state,
+          state?.stateName,
+          city?.city,
+          city?.cityName,
+          university?.universityName,
+          university?.name,
+        ].some((value) => String(value || '').toLowerCase().includes(normalizedGlobalSearch));
+
+        const nestedMatches = (university?.abroadColleges || []).some((college) => {
+          if (String(college?.collegeName || college?.name || '').toLowerCase().includes(normalizedGlobalSearch)) {
+            return true;
+          }
+          return (college?.abroadCourses || []).some((course) =>
+            [course?.courseName, course?.name, course?.streamName, course?.stream,
+              course?.degree, course?.description].some((value) =>
+              String(value || '').toLowerCase().includes(normalizedGlobalSearch)
+            )
+          );
+        });
+
+        return textMatches || nestedMatches;
+      })
+    : universityItems;
+
+  const sortedUniversityItems = [...searchedUniversityItems].sort((a, b) => {
     if (sortBy === 'name-asc') {
       return String(a.university?.universityName || '').localeCompare(String(b.university?.universityName || ''));
     }
@@ -965,14 +911,29 @@ export default function CourseFinder() {
   const lastUniversityOnPage = Math.min(currentPage * universitiesPerPage, sortedUniversityItems.length);
 
   return (
-    <Container maxWidth="xl" sx={{ mt: { xs: 1, sm: 1.5, md: 2 }, mb: { xs: 1.5, sm: 2, md: 2.5 }, width: "100%", minWidth: 0, boxSizing: "border-box", overflowX: "clip" }}>
+    <Container maxWidth={false} disableGutters sx={{ mt: { xs: 1, sm: 1.5, md: 2 }, mb: { xs: 1.5, sm: 2, md: 2.5 }, width: "100%", maxWidth: "none", minWidth: 0, mx: 0, px: { xs: 1, sm: 1.25, md: 1.5 }, boxSizing: "border-box", overflowX: "clip" }}>
       {error && (
         <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
       {/* Search and primary filters remain in their existing location. */}
-      <Grid container spacing={1.25} sx={{ mb: 1.25 }}>
+      <Grid
+        container
+        spacing={1.25}
+        sx={{
+          mb: 1.25,
+          // Keep the compact single-row search/filter bar visible on desktop.
+          // On smaller screens the filters stack vertically, so they remain in
+          // normal flow rather than covering most of the results viewport.
+          position: { xs: 'static', lg: 'sticky' },
+          top: 0,
+          zIndex: 10,
+          backgroundColor: '#F8F9FA',
+          pt: 0.5,
+          pb: 0.5,
+        }}
+      >
         <Grid item xs={12}>
           <Box
             sx={{
@@ -1076,7 +1037,7 @@ export default function CourseFinder() {
               MenuProps={{
                 PaperProps: {
                   style: {
-                    maxHeight: 240,
+                    maxHeight: 200,
                   },
                 },
               }}
@@ -1148,7 +1109,7 @@ export default function CourseFinder() {
               MenuProps={{
                 PaperProps: {
                   style: {
-                    maxHeight: 240,
+                    maxHeight: 200,
                   },
                 },
               }}
@@ -1220,7 +1181,7 @@ export default function CourseFinder() {
               MenuProps={{
                 PaperProps: {
                   style: {
-                    maxHeight: 240,
+                    maxHeight: 200,
                   },
                 },
               }}
@@ -1292,7 +1253,7 @@ export default function CourseFinder() {
               MenuProps={{
                 PaperProps: {
                   style: {
-                    maxHeight: 240,
+                    maxHeight: 200,
                   },
                 },
               }}
@@ -1368,7 +1329,7 @@ export default function CourseFinder() {
               MenuProps={{
                 PaperProps: {
                   style: {
-                    maxHeight: 240,
+                    maxHeight: 200,
                   },
                 },
               }}
@@ -1437,7 +1398,7 @@ export default function CourseFinder() {
               MenuProps={{
                 PaperProps: {
                   style: {
-                    maxHeight: 240,
+                    maxHeight: 200,
                   },
                 },
               }}
@@ -1512,7 +1473,7 @@ export default function CourseFinder() {
               MenuProps={{
                 PaperProps: {
                   style: {
-                    maxHeight: 240,
+                    maxHeight: 200,
                   },
                 },
               }}
@@ -1659,16 +1620,16 @@ export default function CourseFinder() {
           <Box sx={{
             width: '100%', minWidth: 0, boxSizing: 'border-box', overflow: 'hidden',
             display: 'flex', flexDirection: 'column', backgroundColor: '#fff',
-            border: '1px solid #dbe4f0', borderRadius: '12px',
-            boxShadow: '0 5px 18px rgba(31, 65, 114, 0.07)',
+            border: '1px solid #d7e2f0', borderRadius: '14px',
+            boxShadow: '0 6px 20px rgba(31, 65, 114, 0.08)',
             position: 'relative'
           }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 1.5, py: 1.25, borderBottom: '1px solid #e3eaf4', backgroundColor: '#f8fbff', flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25, px: 1.5, py: 1.15, borderBottom: '1px solid #e3eaf4', background: 'linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%)', flexShrink: 0 }}>
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
+              <Typography variant="h6" sx={{ fontWeight: 750, fontSize: '0.92rem', letterSpacing: '-0.01em', color: '#17365f' }}>
                 More Filters
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.72rem', mt: 0.15 }}>
                 Refine your course results
               </Typography>
             </Box>
@@ -1678,19 +1639,19 @@ export default function CourseFinder() {
               </IconButton>
             </Tooltip>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', p: 1.25 }}>
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', p: { xs: 1, sm: 1.1 } }}>
             <Box
               sx={{
                 width: '100%',
                 backgroundColor: '#fff',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 1,
+                gap: 0.55,
                 minWidth: 0,
-                '& .MuiFormControl-root': { minWidth: 0, width: '100%', mb: '10px !important' },
-                '& .MuiInputBase-root': { minHeight: 38, borderRadius: '8px', backgroundColor: '#fff', fontSize: '0.8rem' },
-                '& .MuiInputLabel-root': { fontSize: '0.8rem' },
-                '& .MuiSelect-select': { py: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+                '& .MuiFormControl-root': { minWidth: 0, width: '100%', mb: '4px !important' },
+                '& .MuiInputBase-root': { minHeight: 34, borderRadius: '8px', backgroundColor: '#fff', fontSize: '0.76rem' },
+                '& .MuiInputLabel-root': { fontSize: '0.76rem' },
+                '& .MuiSelect-select': { py: '7px !important', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
               }}
             >
             <Box
@@ -1698,7 +1659,7 @@ export default function CourseFinder() {
                 sx={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.4,
+                  gap: 0.25,
                   width: '100%',
                   maxHeight: 'none',
                   overflowY: 'visible',
@@ -1708,20 +1669,26 @@ export default function CourseFinder() {
                     minWidth: 0,
                     width: '100%',
                     flex: '0 0 auto',
-                    mb: '6px !important'
+                    mb: '3px !important'
                   },
                   '& .MuiInputBase-root': {
-                    height: '36px',
+                    height: '34px',
+                    minHeight: '34px',
                     borderRadius: '8px',
                     backgroundColor: '#fff',
-                    fontSize: '0.8rem'
+                    fontSize: '0.76rem',
+                    transition: 'border-color 150ms ease, box-shadow 150ms ease',
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#8aaee0' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#3478c8', borderWidth: 1.5 }
                   },
                   '& .MuiInputLabel-root': {
-                    fontSize: '0.8rem'
+                    fontSize: '0.76rem'
                   },
                   '& .MuiSelect-select': {
-                    py: 0.75
-                  }
+                    py: '6px !important',
+                    minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                  },
+                  '& .MuiSelect-icon': { fontSize: '1.1rem' }
                 }}
               >
 
@@ -1733,7 +1700,7 @@ export default function CourseFinder() {
               onChange={(e) => handleFilterChange('scholarship', e.target.value)}
               label="Scholarship"
               disabled={loading}
-              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 300 } } }}
+              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 220, maxWidth: 'calc(100vw - 24px)', fontSize: '0.78rem', '& .MuiMenuItem-root': { minHeight: 32, py: 0.5, fontSize: '0.78rem' } } } }}
             >
               {renderAdvancedDropdownSearch('scholarship', 'Search scholarship...')}
               {['', 'Yes', 'No'].filter((value) => (value || 'Any').toLowerCase().includes((advancedSearchTexts.scholarship || '').trim().toLowerCase())).map((value) => (
@@ -1751,7 +1718,7 @@ export default function CourseFinder() {
               onChange={(e) => handleFilterChange('feesRange', e.target.value)}
               label="Fees Range"
               disabled={loading}
-              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 300 } } }}
+              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 220, maxWidth: 'calc(100vw - 24px)', fontSize: '0.78rem', '& .MuiMenuItem-root': { minHeight: 32, py: 0.5, fontSize: '0.78rem' } } } }}
             >
               {renderAdvancedDropdownSearch('feesRange', 'Search fees range...')}
               {['', '0-100000', '100000-1000000', '1000000-2000000', '2000000+'].filter((value) => (value || 'Any').toLowerCase().includes((advancedSearchTexts.feesRange || '').trim().toLowerCase())).map((value) => (
@@ -1770,7 +1737,7 @@ export default function CourseFinder() {
               onChange={(e) => handleFilterChange('examType', e.target.value)}
               label="Exam Type"
               disabled={loading}
-              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 300 } } }}
+              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 220, maxWidth: 'calc(100vw - 24px)', fontSize: '0.78rem', '& .MuiMenuItem-root': { minHeight: 32, py: 0.5, fontSize: '0.78rem' } } } }}
               renderValue={(selected) => {
                 if (!selected.length) return <em>All Exam Types</em>;
                 return selected.join(', ');
@@ -1795,7 +1762,7 @@ export default function CourseFinder() {
               onChange={(e) => handleFilterChange('englishExamRequirements', e.target.value)}
               label="English Required"
               disabled={loading}
-              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 300 } } }}
+              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 220, maxWidth: 'calc(100vw - 24px)', fontSize: '0.78rem', '& .MuiMenuItem-root': { minHeight: 32, py: 0.5, fontSize: '0.78rem' } } } }}
             >
               {renderAdvancedDropdownSearch('englishExamRequirements', 'Search requirement...')}
               {['', 'Yes', 'No'].filter((value) => (value || 'Any').toLowerCase().includes((advancedSearchTexts.englishExamRequirements || '').trim().toLowerCase())).map((value) => (
@@ -1814,7 +1781,7 @@ export default function CourseFinder() {
               onChange={(e) => handleFilterChange('academicRequirements', e.target.value)}
               label="Academic Requirements"
               disabled={loading}
-              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 300 } } }}
+              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 220, maxWidth: 'calc(100vw - 24px)', fontSize: '0.78rem', '& .MuiMenuItem-root': { minHeight: 32, py: 0.5, fontSize: '0.78rem' } } } }}
               renderValue={(selected) => {
                 if (!selected.length) return <em>Any</em>;
                 return selected.join(', ');
@@ -1845,7 +1812,7 @@ export default function CourseFinder() {
               onChange={(e) => handleFilterChange('intake', e.target.value)}
               label="Intake"
               disabled={loading}
-              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 300 } } }}
+              MenuProps={{ disablePortal: false, sx: { zIndex: 1401 }, PaperProps: { sx: { maxHeight: 220, maxWidth: 'calc(100vw - 24px)', fontSize: '0.78rem', '& .MuiMenuItem-root': { minHeight: 32, py: 0.5, fontSize: '0.78rem' } } } }}
               renderValue={(selected) => {
                 if (!selected.length) return <em>Any</em>;
                 return selected.join(', ');

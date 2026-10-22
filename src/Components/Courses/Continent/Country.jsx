@@ -17,7 +17,7 @@ import {
 import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
-import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   getAllCountries,
   createCountry,
@@ -225,46 +225,96 @@ export default function Country({ continent, onBack }) {
 
   const columns = [
     {
-      title: "ID", dataIndex: "id", key: "id", width: 80,
-      render: (value) => value ?? "-",
+      title: "Country Name",
+      dataIndex: "country",
+      key: "country",
+      render: (value, record) => (
+        <Typography variant="body2" fontWeight={500}>
+          {value || record.name || "-"}
+        </Typography>
+      ),
     },
     {
-      title: "Country Name", dataIndex: "country", key: "country",
-      sorter: (a, b) => String(a.country || a.name || "").localeCompare(String(b.country || b.name || "")),
-      render: (value, record) => <Typography variant="body2" fontWeight={500}>{value || record.name || "-"}</Typography>,
-    },
-    {
-      title: "Continent", key: "continent",
-      render: (_, record) => {
-        const value = record.continentName || record.continent_name || record.continent?.continentname || record.continent?.name;
-        const selectedName = continent?.continentname || continent?.continentName || continent?.name;
-        const relationId = record.continentId ?? record.continent_id;
-        return value || selectedName || (relationId != null ? `#${relationId}` : "-");
-      },
-    },
-    {
-      title: "Image", dataIndex: "imageUrl", key: "imageUrl", width: 120,
+      title: "Image",
+      dataIndex: "imageUrl",
+      key: "imageUrl",
+      width: 120,
       render: (url, record) => {
-        const imageSrc = url ? (url.startsWith("data:image") || /^https?:\/\//i.test(url) ? url : `${import.meta.env.VITE_API_URL || ""}${url}`) : null;
-        return imageSrc ? <img src={imageSrc} alt={record.country || record.name || "Country"} loading="lazy" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "-";
+        const imageSrc = url
+          ? url.startsWith("data:image") || url.startsWith("http")
+            ? url
+            : `${import.meta.env.VITE_API_URL || ""}${url}`
+          : null;
+
+        return imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={record.country || "Country"}
+            loading="lazy"
+            style={{
+              width: 40,
+              height: 40,
+              objectFit: "cover",
+              borderRadius: 4,
+            }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              bgcolor: "#f0f0f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 1,
+              fontSize: 10,
+              color: "text.secondary",
+            }}
+          >
+            No Image
+          </Box>
+        );
       },
     },
     {
-      title: "Created By Email", key: "createdByEmail",
-      render: (_, record) => record.createdByEmail || record.created_by_email || "-",
-    },
-    {
-      title: "Role", dataIndex: "role", key: "role", render: (value) => value || "-",
-    },
-    {
-      title: "Actions", key: "actions", width: 230,
+      title: "Actions",
+      key: "actions",
+      width: 190,
       render: (_, record) => (
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <IconButton size="small" aria-label={`Edit ${record.country || "country"}`} disabled={loading} onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton>
-          <Popconfirm title="Delete this country?" description="This action cannot be undone." onConfirm={() => handleDelete(record.id)} okText="Delete" cancelText="Cancel">
-            <IconButton size="small" aria-label={`Delete ${record.country || "country"}`} color="default" disabled={loading}><DeleteOutlined /></IconButton>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Popconfirm
+            title="Delete this country?"
+            description="This action cannot be undone."
+            onConfirm={() => handleDelete(record.id)}
+            okText="Delete"
+            cancelText="Cancel"
+          >
+            <IconButton
+              size="small"
+              aria-label={`Delete ${record.country || "country"}`}
+              color="default"
+            >
+              <DeleteOutlined />
+            </IconButton>
           </Popconfirm>
-          <Button size="small" variant="outlined" onClick={() => { setSelectedCountry(record); navigate(`/wayabroadadmin/admin/courses/state?countryId=${record.id}&continentId=${continent?.id || ""}`); }}>Manage States</Button>
+
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => {
+              setSelectedCountry(record);
+              navigate(`/wayabroadadmin/admin/courses/state?countryId=${record.id}&continentId=${continent?.id || ""}`);
+            }}
+          >
+            Add State
+          </Button>
         </Stack>
       ),
     },

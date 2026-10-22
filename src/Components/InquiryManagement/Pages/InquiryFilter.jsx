@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Grid, TextField, MenuItem, CircularProgress, Button, Box } from "@mui/material";
+import { Grid, TextField, MenuItem, CircularProgress, Button, Box, Chip } from "@mui/material";
+import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import { getBranchCodeNameMap } from "../../AllLogin/LoginService";
 import { getAllStaff } from "../../Branch/StaffService";
 import axiosInstance from "../../Common/axiosConfig";
@@ -27,6 +28,7 @@ InquiryFilter.propTypes = {
   years: PropTypes.array,
   applyForOptions: PropTypes.array,
   refreshTrigger: PropTypes.number,
+  onClearFilters: PropTypes.func,
   staffNames: PropTypes.array,
 };
 
@@ -52,7 +54,8 @@ export default function InquiryFilter({
   role = '',
   email = '',
   data = [],
-  refreshTrigger = 0
+  refreshTrigger = 0,
+  onClearFilters = () => {}
 }) {
   const [branchOptions, setBranchOptions] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(true);
@@ -70,7 +73,7 @@ export default function InquiryFilter({
     { value: 'pending', label: 'INTERESTED', color: '#2f8062' },
     { value: 'approved', label: 'NOT INTERESTED', color: '#bd6262' },
     { value: 'connecting', label: 'CONNECTING', color: '#b77b38' },
-    { value: 'ringing', label: 'RINGING', color: '#9c8035' },
+    { value: 'ringing', label: 'RINGING / SWITCH OFF', color: '#d6a600' },
     { value: 'callBack', label: 'CALL BACK', color: '#478d79' },
     { value: 'office_visit', label: 'OFFICE VISIT', color: '#8565a7' },
     { value: 'processing', label: 'PROCESSING', color: '#4779ad' },
@@ -307,8 +310,24 @@ const fetchStaffOptions = async () => {
     };
   }, [role]);
 
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) =>
+    key !== 'branchCode' && value !== null && value !== undefined && value !== ''
+  ).length + (search.trim() ? 1 : 0);
+
   return (
     <Grid container spacing={1.5} alignItems="center" sx={{ mb: 2, p: { xs: 1.25, md: 1.75 }, border: '1px solid #e4e9ef', borderRadius: 2, backgroundColor: '#fbfcfe' }}>
+      <Grid item xs={12}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', mb: 0.25 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box component="span" sx={{ fontSize: 14, fontWeight: 700, color: '#263548' }}>Filter inquiries</Box>
+            {activeFilterCount > 0 && <Chip size="small" label={`${activeFilterCount} active`} sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: '#eaf2ff', color: '#2457a6' }} />}
+          </Box>
+          <Button size="small" variant="text" startIcon={<RestartAltRoundedIcon />} onClick={onClearFilters}
+            disabled={activeFilterCount === 0} sx={{ textTransform: 'none', fontWeight: 600, minHeight: 32 }}>
+            Clear filters
+          </Button>
+        </Box>
+      </Grid>
       <Grid item xs={12} sm={4} md={2}>
         <TextField
           type="search"
@@ -547,7 +566,7 @@ const fetchStaffOptions = async () => {
       <Grid item xs={12}>
         <Box sx={{ mt: 0.75, p: 0.75, border: '1px solid #e2e8f0', borderRadius: 2, background: '#f5f7fa' }}>
           <Box role="group" aria-label="Filter inquiries by status" sx={{
-            display: 'flex', gap: 0.6, overflowX: 'auto', pb: 0.25,
+            display: 'flex', width: '100%', gap: 0.6, overflowX: { xs: 'auto', md: 'hidden' }, pb: 0.25,
             '&::-webkit-scrollbar': { height: 4 },
             '&::-webkit-scrollbar-thumb': { backgroundColor: '#cbd5e1', borderRadius: 4 }
           }}>
@@ -561,20 +580,21 @@ const fetchStaffOptions = async () => {
                   onClick={() => onChange({ ...filters, status: active ? null : status.value })}
                   sx={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 0.65,
-                    flex: '1 0 auto', whiteSpace: 'nowrap', minHeight: 36, px: { xs: 1.2, lg: 0.85 },
-                    border: '1px solid', borderColor: active ? status.color : '#e2e8f0',
-                    borderRadius: 1.5, backgroundColor: active ? '#fff' : 'transparent',
-                    boxShadow: active ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
-                    color: active ? status.color : '#475569', cursor: 'pointer',
-                    fontSize: { xs: '0.72rem', lg: '0.67rem' }, fontWeight: active ? 750 : 600,
+                    flex: { xs: '0 0 auto', md: '1 1 0' }, minWidth: { xs: 'max-content', md: 0 },
+                    whiteSpace: 'nowrap', minHeight: 36, px: { xs: 1.2, md: 0.45, lg: 0.7 },
+                    border: '1px solid', borderColor: status.color,
+                    borderRadius: '4px', backgroundColor: active ? `${status.color}1f` : '#fff',
+                    boxShadow: active ? `0 0 0 1px ${status.color} inset` : 'none',
+                    color: status.color, cursor: 'pointer',
+                    fontSize: { xs: '0.72rem', md: '0.61rem', lg: '0.67rem' }, fontWeight: active ? 750 : 650,
                     transition: 'background-color 120ms ease, border-color 120ms ease',
-                    '&:hover': { backgroundColor: '#fff', borderColor: status.color },
+                    '&:hover': { backgroundColor: `${status.color}1f`, borderColor: status.color },
                     '&:focus-visible': { outline: `2px solid ${status.color}`, outlineOffset: 2 }
                   }}>
                   <Box component="span" sx={{ width: 5, height: 5, borderRadius: '50%', background: status.color, flexShrink: 0 }} />
                   {status.label}
                   <Box component="span" sx={{ borderRadius: 1, minWidth: 19, px: 0.55, py: 0.2,
-                    backgroundColor: active ? '#eef2f7' : '#e9edf2', color: '#475569',
+                    backgroundColor: `${status.color}1f`, color: status.color,
                     fontSize: '0.67rem', fontWeight: 700, textAlign: 'center' }}>
                     {loadingCounts && role !== 'staff' ? '…' : count}
                   </Box>

@@ -17,7 +17,6 @@ import {
 import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
-  EditOutlined,
   DeleteOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
@@ -272,12 +271,10 @@ export default function University({
     const cityId = city?.id || searchParams.get("cityId");
     const stateId = searchParams.get("stateId");
     const countryId = searchParams.get("countryId");
-    const continentId = searchParams.get("continentId");
 
     if (cityId) params.set("cityId", String(cityId));
     if (stateId) params.set("stateId", String(stateId));
     if (countryId) params.set("countryId", String(countryId));
-    if (continentId) params.set("continentId", String(continentId));
 
     navigate(`/wayabroadadmin/admin/courses/college?${params.toString()}`);
   };
@@ -298,46 +295,95 @@ export default function University({
 
   const columns = [
     {
-      title: "ID", dataIndex: "id", key: "id", width: 80,
-      render: (value) => value ?? "-",
+      title: "University Name",
+      dataIndex: "universityName",
+      key: "universityName",
+      render: (name) => (
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 500,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {name || "N/A"}
+        </Typography>
+      ),
     },
     {
-      title: "University Name", dataIndex: "universityName", key: "universityName",
-      sorter: (a, b) => String(a.universityName || "").localeCompare(String(b.universityName || "")),
-      render: (name) => <Typography variant="body2" sx={{ fontWeight: 500, overflowWrap: "anywhere" }}>{name || "-"}</Typography>,
+      title: "Image",
+      dataIndex: "imageUrl",
+      key: "imageUrl",
+      width: 130,
+      render: (url, record) =>
+        url ? (
+          <img
+            src={getImageUrl(url)}
+            alt={record.universityName || "University"}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+            style={{
+              width: 40,
+              height: 40,
+              objectFit: "cover",
+              borderRadius: 4,
+            }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: 60,
+              height: 40,
+              backgroundColor: "#f0f0f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 1,
+            }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              No Image
+            </Typography>
+          </Box>
+        ),
     },
     {
-      title: "City", key: "city",
-      render: (_, record) => {
-        const value = record.cityName || record.city_name || record.city?.city || record.city?.name;
-        const selectedName = city?.city || city?.cityName || city?.name;
-        const relationId = record.cityId ?? record.city_id;
-        return value || selectedName || (relationId != null ? `#${relationId}` : "-");
-      },
-    },
-    {
-      title: "Image", dataIndex: "imageUrl", key: "imageUrl", width: 130,
-      render: (url, record) => {
-        const imageSrc = url ? getImageUrl(url) : null;
-        return imageSrc ? <img src={imageSrc} alt={record.universityName || "University"} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "-";
-      },
-    },
-    {
-      title: "Created By Email", key: "createdByEmail",
-      render: (_, record) => record.createdByEmail || record.created_by_email || "-",
-    },
-    {
-      title: "Role", dataIndex: "role", key: "role", render: (value) => value || "-",
-    },
-    {
-      title: "Actions", key: "actions", width: 280,
+      title: "Actions",
+      key: "actions",
+      width: 230,
       render: (_, record) => (
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <IconButton color="primary" size="small" aria-label={`Edit ${record.universityName || "university"}`} disabled={loading} onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton>
-          <Popconfirm title="Delete this university?" description="This action cannot be undone." onConfirm={() => handleDelete(record.id)} okText="Delete" cancelText="Cancel">
-            <IconButton color="error" size="small" aria-label={`Delete ${record.universityName || "university"}`} disabled={loading}><DeleteOutlined /></IconButton>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Popconfirm
+            title="Delete this university?"
+            description="This action cannot be undone."
+            onConfirm={() => handleDelete(record.id)}
+            okText="Delete"
+            cancelText="Cancel"
+          >
+            <IconButton
+              color="error"
+              size="small"
+              aria-label="Delete university"
+              disabled={loading}
+            >
+              <DeleteOutlined />
+            </IconButton>
           </Popconfirm>
-          <Button size="small" variant="outlined" onClick={() => handleCollegeClick(record)}>Manage Colleges</Button>
+
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => handleCollegeClick(record)}
+          >
+            Manage Colleges
+          </Button>
         </Stack>
       ),
     },
@@ -503,7 +549,6 @@ export default function University({
           dataSource={filteredUniversities}
           rowKey={(record) => record.id}
           loading={tableLoading}
-          scroll={{ x: "max-content" }}
           pagination={{
             current: safeCurrentPage,
             pageSize,

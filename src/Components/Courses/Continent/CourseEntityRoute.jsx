@@ -141,15 +141,16 @@ function parseHierarchyIds(paramsKey) {
 }
 
 function makeBreadcrumbHref(type, ids) {
+  // Always keep ancestor breadcrumbs navigable. Preserve every known ancestor
+  // ID, but do not disable the link just because some context is unavailable;
+  // the destination page can still open and let the user select its parent.
   const requiredParams = TARGET_CONTEXT_PARAMS[type] || [];
   const params = new URLSearchParams();
 
   for (const param of requiredParams) {
     const paramToType = COURSE_HIERARCHY.find((item) => item.param === param)?.type;
     const value = paramToType ? ids[paramToType] : "";
-    // Do not make a breadcrumb link that cannot restore the target page context.
-    if (!value) return null;
-    params.set(param, value);
+    if (value) params.set(param, value);
   }
 
   const query = params.toString();
@@ -269,21 +270,34 @@ export default function CourseEntityRoute({ entity }) {
       }));
   }, [entity, routeIds, breadcrumbRecords]);
 
-  const updateParam = (name, value) => {
+  // Keep the URL hierarchy consistent when a parent changes. A descendant ID
+  // belongs to the old branch and must not survive a parent switch.
+  const updateParamAndClearDescendants = (name, value) => {
     const next = new URLSearchParams(searchParams);
+    const selectedIndex = COURSE_HIERARCHY.findIndex((item) => item.param === name);
+
     if (value) next.set(name, value);
     else next.delete(name);
+
+    if (selectedIndex >= 0) {
+      COURSE_HIERARCHY.slice(selectedIndex + 1).forEach(({ param }) => {
+        next.delete(param);
+      });
+    }
+
     setSearchParams(next, { replace: true });
   };
 
   const handleParentChange = (value) => {
     setSelectedId(value);
-    updateParam(config.param, value);
+    updateParamAndClearDescendants(config.param, value);
   };
 
   const handleCollegeChange = (value) => {
     setSelectedCollegeId(value);
-    updateParam("collegeId", value);
+    setSelectedId("");
+    // College is an ancestor of Stream and Course. Changing it invalidates both.
+    updateParamAndClearDescendants("collegeId", value);
   };
 
   // Return to the parent entity screen, retaining all known ancestors including
@@ -330,30 +344,48 @@ export default function CourseEntityRoute({ entity }) {
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, p: { xs: 1, sm: 2 } }}>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>{config.title}</Typography>
-      <CourseBreadcrumb items={breadcrumbItems} currentLabel={config.title} />
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2, maxWidth: entity === "course" ? 900 : 460 }}>
-        <FormControl fullWidth size="small" disabled={loading}>
-          <InputLabel id={`${entity}-parent-label`}>{config.label}</InputLabel>
-          <Select
-            labelId={`${entity}-parent-label`}
-            value={selectedId}
-            label={config.label}
-            onChange={(event) => handleParentChange(event.target.value)}
-          >
-            <MenuItem value=""><em>Select {config.label.replace(" (required by API)", "")}</em></MenuItem>
-            {options.map((item) => <MenuItem key={getId(item)} value={getId(item)}>{config.display(item)}</MenuItem>)}
-          </Select>
-        </FormControl>
-        {entity === "course" && (
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={{ xs: 1.5, md: 3 }}
+        alignItems={{ xs: "stretch", md: "flex-start" }}
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
+      >
+        <Box sx={{ minWidth: 0, flex: "1 1 auto" }}>
+          <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+            {config.title}
+          </Typography>
+          <Box sx={{ minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
+            <CourseBreadcrumb items={breadcrumbItems} currentLabel="" />
+          </Box>
+        </Box>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          sx={{ width: { xs: "100%", md: entity === "course" ? 560 : 440 }, maxWidth: "100%", flexShrink: 0 }}
+        >
           <FormControl fullWidth size="small" disabled={loading}>
-            <InputLabel id="course-college-label">College (for create)</InputLabel>
-            <Select labelId="course-college-label" value={selectedCollegeId} label="College (for create)" onChange={(event) => handleCollegeChange(event.target.value)}>
-              <MenuItem value=""><em>Select College</em></MenuItem>
-              {collegeOptions.map((item) => <MenuItem key={getId(item)} value={getId(item)}>{item.collegeName || item.college || item.name || `College ${item.id}`}</MenuItem>)}
+            <InputLabel id={`${entity}-parent-label`}>{config.label}</InputLabel>
+            <Select
+              labelId={`${entity}-parent-label`}
+              value={selectedId}
+              label={config.label}
+              onChange={(event) => handleParentChange(event.target.value)}
+            >
+              <MenuItem value=""><em>Select {config.label.replace(" (required by API)", "")}</em></MenuItem>
+              {options.map((item) => <MenuItem key={getId(item)} value={getId(item)}>{config.display(item)}</MenuItem>)}
             </Select>
           </FormControl>
-        )}
+          {entity === "course" && (
+            <FormControl fullWidth size="small" disabled={loading}>
+              <InputLabel id="course-college-label">College (for create)</InputLabel>
+              <Select labelId="course-college-label" value={selectedCollegeId} label="College (for create)" onChange={(event) => handleCollegeChange(event.target.value)}>
+                <MenuItem value=""><em>Select College</em></MenuItem>
+                {collegeOptions.map((item) => <MenuItem key={getId(item)} value={getId(item)}>{item.collegeName || item.college || item.name || `College ${item.id}`}</MenuItem>)}
+              </Select>
+            </FormControl>
+          )}
+        </Stack>
       </Stack>
       {loading && <CircularProgress size={24} />}
       {!!loadError && <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>}

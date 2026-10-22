@@ -16,6 +16,8 @@ export const JOB_SETTING_RESOURCES = {
   currency: "/admin/job-settings/currency",
   jobType: "/admin/job-settings/job-type",
   location: "/admin/job-settings/location",
+  country: "/admin/job-settings/country",
+  workType: "/admin/job-settings/work-type",
 };
 
 export async function getJobSettings(type, extraParams = {}) {
@@ -54,7 +56,7 @@ export async function deleteJobSetting(type, id) {
 }
 
 export async function getJobs() {
-  const response = await axiosInstance.get("/admin/jobs", { params: withAuth() });
+  const response = await axiosInstance.get("/admin/jobs/getAllJobs");
   return unwrap(response);
 }
 
