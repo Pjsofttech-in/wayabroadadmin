@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Box,
   Button,
+  Slider,
   MenuItem,
   Stack,
   TextField,
@@ -14,16 +15,15 @@ import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
-  SearchOutlined,
 } from "@ant-design/icons";
-import { deleteJob, getJobSettings, searchJobs } from "./JobService";
+import { deleteJob, getJobSettings, getJobs, searchJobs } from "./JobService";
 
 const EMPTY_FILTERS = {
   keyword: "",
   educationId: "",
   sectorId: "",
   jobRoleId: "",
-  locationId: "",
+  countryId: "",
   jobTypeId: "",
   workTypeId: "",
   experienceLevel: "",
@@ -36,7 +36,7 @@ const SETTING_TYPES = [
   "education",
   "sector",
   "role",
-  "location",
+  "country",
   "jobType",
   "workType",
 ];
@@ -84,7 +84,8 @@ function getOptionName(item) {
     item?.educationName ??
     item?.sectorName ??
     item?.jobRoleName ??
-    item?.locationName ??
+    item?.countryName ??
+    item?.country?.name ??
     item?.jobTypeName ??
     item?.workTypeName ??
     (item?.id != null ? `#${item.id}` : "Unnamed")
@@ -108,11 +109,14 @@ export default function JobList() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const requestIdRef = useRef(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [salaryBounds] = useState([0, 5000000]); // ₹0–₹50 lakh (0–50 LPA)
   const [settings, setSettings] = useState({
     education: [],
     sector: [],
     role: [],
-    location: [],
+    country: [],
     jobType: [],
     workType: [],
   });
@@ -121,6 +125,7 @@ export default function JobList() {
   const [error, setError] = useState("");
 
   const loadJobs = useCallback(async (nextPage, nextSize, nextFilters) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError("");
 
@@ -130,7 +135,7 @@ export default function JobList() {
         educationId: nextFilters.educationId,
         sectorId: nextFilters.sectorId,
         jobRoleId: nextFilters.jobRoleId,
-        locationId: nextFilters.locationId,
+        countryId: nextFilters.countryId,
         jobTypeId: nextFilters.jobTypeId,
         workTypeId: nextFilters.workTypeId,
         experienceLevel: nextFilters.experienceLevel.trim(),
@@ -143,12 +148,15 @@ export default function JobList() {
         sortDir: "DESC",
       });
 
+      // Ignore older responses so fast filter changes cannot overwrite newer results.
+      if (requestId !== requestIdRef.current) return;
       const result = normalizePage(response);
       setRows(result.content);
       setTotal(result.totalElements);
       setPage(nextPage);
       setPageSize(nextSize);
     } catch (requestError) {
+      if (requestId !== requestIdRef.current) return;
       console.error("Failed to load jobs:", requestError);
       setRows([]);
       setTotal(0);
@@ -159,7 +167,7 @@ export default function JobList() {
           "Failed to load jobs."
       );
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
@@ -187,8 +195,17 @@ export default function JobList() {
 
   useEffect(() => {
     loadSettings();
-    loadJobs(0, 10, EMPTY_FILTERS);
-  }, [loadJobs, loadSettings]);
+  }, [loadSettings]);
+
+  // Live filtering: debounce all filter changes slightly. This is especially useful
+  // for keyword typing and dragging the salary slider, and prevents request floods.
+  useEffect(() => {
+    setPage(0);
+    const timer = setTimeout(() => {
+      loadJobs(0, pageSize, filters);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters, refreshKey, loadJobs]);
 
   const changeFilter = (name, value) => {
     setFilters((previous) => {
@@ -207,11 +224,31 @@ export default function JobList() {
     [settings.role, filters.sectorId]
   );
 
-  const doSearch = () => loadJobs(0, pageSize, filters);
-
   const clearFilters = () => {
-    setFilters(EMPTY_FILTERS);
-    loadJobs(0, pageSize, EMPTY_FILTERS);
+    setFilters({ ...EMPTY_FILTERS });
+    setPage(0);
+    // Also refresh when Clear is clicked while filters are already empty.
+    setRefreshKey((value) => value + 1);
+  };
+
+  const salaryRange = [
+    filters.minSalary === "" ? salaryBounds[0] : Number(filters.minSalary),
+    filters.maxSalary === "" ? salaryBounds[1] : Number(filters.maxSalary),
+  ];
+
+  // Salary values are stored/sent as numeric INR amounts; show them in LPA for readability.
+  const formatSalary = (value) => `${(Number(value) / 100000).toLocaleString("en-IN", {
+    maximumFractionDigits: 1,
+  })} LPA`;
+
+  const handleSalaryRangeChange = (_, newValue) => {
+    if (!Array.isArray(newValue) || newValue.length !== 2) return;
+    const [minimum, maximum] = newValue;
+    setFilters((previous) => ({
+      ...previous,
+      minSalary: minimum <= salaryBounds[0] ? "" : String(minimum),
+      maxSalary: maximum >= salaryBounds[1] ? "" : String(maximum),
+    }));
   };
 
   const handleDelete = async (id) => {
@@ -420,13 +457,12 @@ export default function JobList() {
           allowClear
           value={filters.keyword}
           onChange={(event) => changeFilter("keyword", event.target.value)}
-          onSearch={doSearch}
           style={{ minWidth: 220, flex: "2 1 240px" }}
         />
         {selectFilter("educationId", "Education", settings.education)}
         {selectFilter("sectorId", "Sector", settings.sector)}
         {selectFilter("jobRoleId", "Role", roleOptions, !filters.sectorId)}
-        {selectFilter("locationId", "Location", settings.location)}
+        {selectFilter("countryId", "Country", settings.country)}
         {selectFilter("jobTypeId", "Job Type", settings.jobType)}
         {selectFilter("workTypeId", "Work Type", settings.workType)}
         <TextField
@@ -436,31 +472,46 @@ export default function JobList() {
           onChange={(event) => changeFilter("experienceLevel", event.target.value)}
           sx={{ minWidth: 150, flex: "1 1 150px" }}
         />
-        <TextField
-          size="small"
-          type="number"
-          label="Min salary"
-          value={filters.minSalary}
-          onChange={(event) => changeFilter("minSalary", event.target.value)}
-          sx={{ minWidth: 120, flex: "1 1 120px" }}
-          inputProps={{ min: 0 }}
-        />
-        <TextField
-          size="small"
-          type="number"
-          label="Max salary"
-          value={filters.maxSalary}
-          onChange={(event) => changeFilter("maxSalary", event.target.value)}
-          sx={{ minWidth: 120, flex: "1 1 120px" }}
-          inputProps={{ min: 0 }}
-        />
+        <Box
+          sx={{
+            flex: "2 1 280px",
+            minWidth: { xs: "100%", sm: 260 },
+            maxWidth: { xs: "100%", lg: 380 },
+            px: 1.25,
+            pt: 0.25,
+          }}
+        >
+          <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={1}>
+            <Typography variant="body2" fontWeight={600}>
+              Salary Range
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+              {formatSalary(salaryRange[0])} – {formatSalary(salaryRange[1])}
+            </Typography>
+          </Stack>
+          <Slider
+            size="small"
+            value={[
+              Math.min(salaryRange[0], salaryRange[1]),
+              Math.max(salaryRange[0], salaryRange[1]),
+            ]}
+            min={salaryBounds[0]}
+            max={salaryBounds[1]}
+            step={100000}
+            onChange={handleSalaryRangeChange}
+            valueLabelDisplay="auto"
+            valueLabelFormat={formatSalary}
+            aria-label="Salary range"
+            sx={{ mt: 0.5, mb: 0, py: 0.5 }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: -0.5 }}>
+Range: 0–50 LPA. Salary filter values are sent as numeric amounts; jobs may use different currencies.
+          </Typography>
+        </Box>
         {selectFilter("active", "Status", [
           { id: "true", name: "Active" },
           { id: "false", name: "Inactive" },
         ])}
-        <Button variant="contained" startIcon={<SearchOutlined />} onClick={doSearch}>
-          Search
-        </Button>
         <Button variant="text" onClick={clearFilters}>
           Clear
         </Button>

@@ -3,11 +3,11 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Box, Button, Stack, Paper } from "@mui/material";
-import LoadingOverlay from "../Common/LoadingOverlay"; // Make sure path is correct
+import LoadingOverlay from "../Common/LoadingOverlay"; 
 
 const navItems = [
   { label: "Continent", to: "/wayabroadadmin/admin/setting" },
-  { label: "Add inquiry", to: "/wayabroadadmin/admin/setting/AdboadSource" }, // ✅ FIXED
+  { label: "Add inquiry", to: "/wayabroadadmin/admin/setting/AdboadSource" }, 
   { label: "inquiry List", to: "/wayabroadadmin/admin/setting/AboradInquiryDepartment" },
   { label: "To Do List", to: "/wayabroadadmin/admin/setting/abroadinquiryTodoStatus" },
 ];

@@ -80,6 +80,7 @@ export default function JobForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [skillsValidationAttempted, setSkillsValidationAttempted] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -180,11 +181,13 @@ export default function JobForm() {
         .filter(Boolean)
     )];
     setField("skills", skills);
+    if (skills.length > 0) setSkillsValidationAttempted(false);
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
+    setSkillsValidationAttempted(true);
 
     const requiredFields = [
       "jobTitle", "educationId", "sectorId", "jobRoleId", "openings",
@@ -259,7 +262,7 @@ export default function JobForm() {
 
   const renderSettingSelect = (field, label, items, disabled = false) => (
     <TextField
-      select fullWidth required label={label} value={form[field]}
+      size="small" sx={fieldSx} select fullWidth required label={label} value={form[field]}
       disabled={loading || saving || disabled}
       onChange={(event) => setField(field, event.target.value)}
     >
@@ -277,167 +280,242 @@ export default function JobForm() {
     </TextField>
   );
 
+
+  const sectionSx = {
+    p: { xs: 0.75, md: 1 },
+    border: "1px solid #e6ebf2",
+    borderRadius: 2,
+    bgcolor: "#ffffff",
+    boxShadow: "0 1px 3px rgba(15, 23, 42, 0.035)",
+    minWidth: 0,
+    "& .MuiFormHelperText-root": { mt: 0.35, mx: 0.25, lineHeight: 1.25 },
+  };
+
+  const fieldSx = {
+    "& .MuiInputBase-root": { minWidth: 0 },
+    "& .MuiInputLabel-root": { maxWidth: "calc(100% - 28px)" },
+  };
+
   return (
     <Box sx={{ width: "100%", minWidth: 0, pb: 3 }}>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 2, color: "#183b56" }}>
-        {isEditing ? "Edit Job" : "Create Job"}
-      </Typography>
-
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+        <Alert severity="error" sx={{ mb: 2.5 }} onClose={() => setError("")}>
           {error}
         </Alert>
       )}
 
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", p: 6 }}>
+        <Paper sx={{ display: "flex", justifyContent: "center", p: 4, borderRadius: 3, border: "1px solid #e6ebf2" }}>
           <CircularProgress />
-        </Box>
+        </Paper>
       ) : (
         <Paper
           component="form"
           onSubmit={handleSubmit}
-          elevation={1}
-          sx={{ p: { xs: 2, md: 3 }, border: "1px solid #e2e8f0", borderRadius: 2 }}
+          elevation={0}
+          sx={{ p: { xs: 0, sm: 0.25, lg: 0.5 }, border: "none", borderRadius: 2, bgcolor: "transparent" }}
         >
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth required label="Job Title" value={form.jobTitle}
-                onChange={(event) => setField("jobTitle", event.target.value)}
-                inputProps={{ maxLength: 255 }}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Autocomplete
-                multiple freeSolo options={[]} value={form.skills}
-                onChange={handleSkillsChange} disabled={saving}
-                renderInput={(params) => (
+          <Stack spacing={0.6}>
+            <Box sx={sectionSx}>
+              <Grid container spacing={{ xs: 0.75, md: 1 }}>
+                <Grid item xs={12} md={8}>
                   <TextField
-                    {...params} required label="Skills"
-                    placeholder="Type a skill and press Enter"
-                    helperText="Add one or more skills. The backend accepts a list of strings."
+                    size="small" sx={fieldSx} fullWidth required label="Job Title" value={form.jobTitle}
+                    onChange={(event) => setField("jobTitle", event.target.value)}
+                    inputProps={{ maxLength: 255 }}
+                    placeholder="e.g. Senior Software Engineer"
                   />
-                )}
-              />
-            </Grid>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  {renderSettingSelect("jobTypeId", "Job Type", settings.jobType)}
+                </Grid>
+                <Grid item xs={12} sm={5}>
+                  {renderSettingSelect("sectorId", "Sector", settings.sector)}
+                </Grid>
+                <Grid item xs={12} sm={7}>
+                  {renderSettingSelect("jobRoleId", "Job Role", roles, !form.sectorId)}
+                </Grid>
+              </Grid>
+            </Box>
 
-            <Grid item xs={12} md={4}>
-              {renderSettingSelect("educationId", "Education", settings.education)}
-            </Grid>
-            <Grid item xs={12} md={4}>
-              {renderSettingSelect("sectorId", "Sector", settings.sector)}
-            </Grid>
-            <Grid item xs={12} md={4}>
-              {renderSettingSelect("jobRoleId", "Job Role", roles, !form.sectorId)}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <TextField
-                select fullWidth required label="Country" value={form.countryId}
-                disabled={saving || activeCountries.length === 0}
-                onChange={(event) => handleCountryChange(event.target.value)}
-              >
-                <MenuItem value="">Select Country</MenuItem>
-                {activeCountries.map((country) => (
-                  <MenuItem key={country.id} value={idString(country.id)}>
-                    {getName(country) || `#${country.id}`}
-                  </MenuItem>
-                ))}
-              </TextField>
-              {activeCountries.length === 0 && (
-                <Typography variant="caption" color="error">
-                  Add an active Country in Job Settings first.
-                </Typography>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              {renderSettingSelect("locationId", "Location", locations, !form.countryId)}
-              {form.countryId && locations.length === 0 && (
-                <Typography variant="caption" color="error">
-                  No Location is configured for this Country.
-                </Typography>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              {renderSettingSelect("workTypeId", "Work Type", settings.workType)}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth required label="Level of Experience" value={form.experienceLevel}
-                onChange={(event) => setField("experienceLevel", event.target.value)}
-                inputProps={{ maxLength: 100 }}
-                helperText="Maximum 100 characters."
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              {renderSettingSelect("jobTypeId", "Job Type", settings.jobType)}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth required type="number" label="Openings" value={form.openings}
-                onChange={(event) => setField("openings", event.target.value)}
-                inputProps={{ min: 1, step: 1 }}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth required type="number" label="Salary" value={form.salary}
-                onChange={(event) => setField("salary", event.target.value)}
-                inputProps={{ min: 0, step: "0.01" }}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              {renderSettingSelect("currencyId", "Currency", settings.currency)}
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth multiline minRows={4} label="Job Description"
-                value={form.description}
-                onChange={(event) => setField("description", event.target.value)}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={Boolean(form.active)}
-                    onChange={(event) => setField("active", event.target.checked)}
-                    color="primary"
+            <Box sx={sectionSx}>
+              <Grid container spacing={{ xs: 0.75, md: 1 }}>
+                <Grid item xs={12} sm={6}>
+                  {renderSettingSelect("educationId", "Education", settings.education)}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    sx={fieldSx}
+                    size="small" fullWidth required label="Level of Experience" value={form.experienceLevel}
+                    onChange={(event) => setField("experienceLevel", event.target.value)}
+                    inputProps={{ maxLength: 100 }}
+                    placeholder="e.g. 2–4 years"
+                    helperText="Maximum 100 characters."
                   />
-                }
-                label={form.active ? "Active" : "Inactive"}
-              />
-            </Grid>
-          </Grid>
+                </Grid>
+                <Grid item xs={12} sm={9}>
+                  <Autocomplete
+                    multiple freeSolo options={[]} value={form.skills}
+                    onChange={handleSkillsChange} disabled={saving}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        sx={fieldSx}
+                        label="Skills"
+                        placeholder="Type a skill and press Enter"
+                        error={skillsValidationAttempted && form.skills.length === 0}
+                        helperText={
+                          skillsValidationAttempted && form.skills.length === 0
+                            ? "Please add at least one skill."
+                            : "Add one or more skills; press Enter after each skill."
+                        }
+                        inputProps={{
+                          ...params.inputProps,
+                          // Let MUI add the freeSolo value first, then stop Enter from
+                          // submitting the surrounding form accidentally.
+                          onKeyDown: (event) => {
+                            params.inputProps.onKeyDown?.(event);
+                            if (event.key === "Enter" && event.target.value.trim()) {
+                              event.preventDefault();
+                            }
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <TextField
+                    size="small" sx={fieldSx} fullWidth required type="number" label="Number of Openings" value={form.openings}
+                    onChange={(event) => setField("openings", event.target.value)}
+                    inputProps={{ min: 1, step: 1 }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
 
-          <Stack
-            direction={{ xs: "column-reverse", sm: "row" }}
-            spacing={1.5} justifyContent="flex-end" sx={{ mt: 3 }}
-          >
-            <Button
-              variant="outlined"
-              onClick={() => navigate("/wayabroadadmin/admin/jobs/list")}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit" variant="contained" disabled={saving}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null}
-            >
-              {saving ? "Saving..." : isEditing ? "Update Job" : "Create Job"}
-            </Button>
+            <Box sx={sectionSx}>
+              <Grid container spacing={{ xs: 0.75, md: 1 }}>
+                <Grid item xs={12} sm={3}>
+                  <TextField
+                    size="small" sx={fieldSx} select fullWidth required label="Country" value={form.countryId}
+                    disabled={saving || activeCountries.length === 0}
+                    onChange={(event) => handleCountryChange(event.target.value)}
+                  >
+                    <MenuItem value="">Select Country</MenuItem>
+                    {activeCountries.map((country) => (
+                      <MenuItem key={country.id} value={idString(country.id)}>
+                        {getName(country) || `#${country.id}`}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  {activeCountries.length === 0 && (
+                    <Typography variant="caption" color="error">
+                      Add an active Country in Job Settings first.
+                    </Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={5}>
+                  {renderSettingSelect("locationId", "Location", locations, !form.countryId)}
+                  {form.countryId && locations.length === 0 && (
+                    <Typography variant="caption" color="error">
+                      No Location is configured for this Country.
+                    </Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  {renderSettingSelect("workTypeId", "Work Type", settings.workType)}
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Box sx={sectionSx}>
+              <Grid container spacing={{ xs: 0.75, md: 1 }}>
+                <Grid item xs={12} sm={7}>
+                  <TextField
+                    size="small" sx={fieldSx} fullWidth required type="number" label="Salary" value={form.salary}
+                    onChange={(event) => setField("salary", event.target.value)}
+                    inputProps={{ min: 0, step: "0.01" }}
+                    placeholder="Enter salary amount"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={5}>
+                  {renderSettingSelect("currencyId", "Currency", settings.currency)}
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Box sx={sectionSx}>
+              <Grid container spacing={{ xs: 0.75, md: 1 }}>
+                <Grid item xs={12}>
+                  <TextField
+                    size="small" sx={fieldSx}
+                    fullWidth multiline minRows={2} label="Job Description"
+                    value={form.description}
+                    onChange={(event) => setField("description", event.target.value)}
+                    placeholder="Enter detailed job description, responsibilities, and other details..."
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Box sx={{ ...sectionSx, py: { xs: 0.5, md: 0.65 } }}>
+              <Grid container spacing={{ xs: 0.75, md: 1 }} alignItems="center">
+                <Grid item xs={12} md={7}>
+                  <FormControlLabel
+                    sx={{ m: 0, alignItems: "center" }}
+                    control={
+                      <Switch
+                        size="small"
+                        checked={Boolean(form.active)}
+                        onChange={(event) => setField("active", event.target.checked)}
+                        color="primary"
+                        disabled={saving}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" fontWeight={700} lineHeight={1.25}>
+                          {form.active ? "Active" : "Inactive"}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" lineHeight={1.25}>
+                          Inactive jobs will not be visible to candidates.
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} md={5}>
+                  <Stack
+                    direction={{ xs: "column-reverse", sm: "row" }}
+                    spacing={0.75}
+                    justifyContent={{ xs: "stretch", sm: "flex-end" }}
+                    sx={{ width: "100%" }}
+                  >
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={() => navigate("/wayabroadadmin/admin/jobs/list")}
+                      disabled={saving}
+                      sx={{ minWidth: { sm: 100 }, borderRadius: 1.5, textTransform: "none", fontWeight: 700, py: 0.65 }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      fullWidth
+                      type="submit"
+                      variant="contained"
+                      disabled={saving}
+                      startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null}
+                      sx={{ minWidth: { sm: 135 }, borderRadius: 1.5, textTransform: "none", fontWeight: 700, boxShadow: "none", py: 0.65 }}
+                    >
+                      {saving ? "Saving..." : isEditing ? "Update Job" : "Create Job"}
+                    </Button>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </Box>
           </Stack>
         </Paper>
       )}
