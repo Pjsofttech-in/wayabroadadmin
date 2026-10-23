@@ -154,6 +154,11 @@ const ScholarshipForm = () => {
     e.preventDefault();
 
     try {
+      const amountValue = Number(formData.amount);
+      if (formData.amount === "" || !Number.isFinite(amountValue) || amountValue < 0) {
+        AlertService.error("Enter a valid amount greater than or equal to zero.");
+        return;
+      }
       setIsSubmitting(true);
 
       const payload = {
@@ -379,6 +384,7 @@ const ScholarshipForm = () => {
                 label="Amount"
                 name="amount"
                 type="number"
+                inputProps={{ min: 0, step: "any" }}
                 value={formData.amount}
                 onChange={handleChange}
                 required
@@ -400,14 +406,19 @@ const ScholarshipForm = () => {
             <Grid item xs={12} md={4}>
               <TextField
                 size="small"
+                select
                 fullWidth
-                type="date"
-                label="Test Date"
+                label="Test Month"
                 name="testDate"
                 value={formData.testDate}
                 onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-              />
+                helperText="Select the month only; no day or year is required."
+              >
+                <MenuItem value="">Select Test Month</MenuItem>
+                {applyMonthOptions.map((month) => (
+                  <MenuItem key={month} value={month}>{month}</MenuItem>
+                ))}
+              </TextField>
             </Grid>
 
             <Grid item xs={12} md={4}>

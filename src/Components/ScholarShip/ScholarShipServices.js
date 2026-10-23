@@ -13,14 +13,27 @@ const getAuthParams = () => ({
 export const getAllScholarships = async () => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.get("/getAll", {
       params: { role, email, branchCode },
     });
-
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching scholarships:", error);
+    throw error;
+  }
+};
+
+// Get Scholarship by ID (used to load all fields in the edit form)
+// Confirm that /getById/:id matches the endpoint configured by your backend.
+export const getScholarshipById = async (id) => {
+  try {
+    const { role, email, branchCode } = getAuthParams();
+    const response = await axiosInstance.get(`/getById/${id}`, {
+      params: { role, email, branchCode },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching scholarship ${id}:`, error);
     throw error;
   }
 };
@@ -29,11 +42,9 @@ export const getAllScholarships = async () => {
 export const createScholarship = async (data) => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.post("/create", data, {
       params: { role, email, branchCode },
     });
-
     return response.data;
   } catch (error) {
     console.error("Error creating scholarship:", error);
@@ -45,11 +56,9 @@ export const createScholarship = async (data) => {
 export const updateScholarship = async (id, data) => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.put(`/update/${id}`, data, {
       params: { role, email, branchCode },
     });
-
     return response.data;
   } catch (error) {
     console.error("Error updating scholarship:", error);
@@ -61,11 +70,9 @@ export const updateScholarship = async (id, data) => {
 export const deleteScholarship = async (id) => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.delete(`/delete/${id}`, {
       params: { role, email, branchCode },
     });
-
     return response.data;
   } catch (error) {
     console.error("Error deleting scholarship:", error);
@@ -79,11 +86,9 @@ export const deleteScholarship = async (id) => {
 export const getAllStudyLocations = async () => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.get("/getAllStudyLocations", {
       params: { role, email, branchCode },
     });
-
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching study locations:", error);
@@ -95,11 +100,9 @@ export const getAllStudyLocations = async () => {
 export const getAllScholarshipFor = async () => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.get("/getAllScholarshipFor", {
       params: { role, email, branchCode },
     });
-
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching scholarship for:", error);
@@ -111,11 +114,9 @@ export const getAllScholarshipFor = async () => {
 export const getAllScholarshipTypes = async () => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.get("/getAllScholarshipTypes", {
       params: { role, email, branchCode },
     });
-
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching scholarship types:", error);
@@ -127,11 +128,9 @@ export const getAllScholarshipTypes = async () => {
 export const getAllScholarshipCategories = async () => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.get("/getAllScholarshipCategories", {
       params: { role, email, branchCode },
     });
-
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching scholarship categories:", error);
@@ -145,11 +144,9 @@ export const getAllScholarshipCategories = async () => {
 export const createScholarshipLead = async (data) => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.post("/leads/create", data, {
       params: { role, email, branchCode },
     });
-
     return response.data;
   } catch (error) {
     console.error("Error creating scholarship lead:", error);
@@ -161,11 +158,9 @@ export const createScholarshipLead = async (data) => {
 export const getAllScholarshipLeads = async () => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.get("/leads/getAll", {
       params: { role, email, branchCode },
     });
-
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching scholarship leads:", error);
@@ -177,11 +172,9 @@ export const getAllScholarshipLeads = async () => {
 export const updateScholarshipLead = async (id, data) => {
   try {
     const { role, email, branchCode } = getAuthParams();
-
     const response = await axiosInstance.put(`/leads/update/${id}`, data, {
       params: { role, email, branchCode },
     });
-
     return response.data;
   } catch (error) {
     console.error("Error updating scholarship lead:", error);
