@@ -49,9 +49,18 @@ const ApplicationSidebar = () => {
       >
         <Stack direction="row" spacing={2} sx={{ justifyContent: "space-evenly", width: "100%" }}>
           {filteredNavItems.map((item, index) => {
-            const isActive = location.pathname === item.to || 
-                           (location.pathname === '/wayabroadadmin/admin/application' && item.label === 'Dashboard') ||
-                           (location.pathname === '/wayabroadadmin/admin/application/' && item.label === 'Dashboard');
+            const normalizePath = (path = "") => {
+              const trimmed = path.trim();
+              if (!trimmed) return "/";
+              return trimmed.replace(/\/+$/, "") || "/";
+            };
+            const currentPath = normalizePath(location.pathname);
+            const targetPath = normalizePath(item.to);
+            const isDashboard = item.label === "Dashboard" && (
+              currentPath === "/wayabroadadmin/admin/application" ||
+              currentPath === "/wayabroadadmin/admin/application/dashboard"
+            );
+            const isActive = isDashboard || currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
             return (
               <NavLink key={index} to={item.to} style={{ textDecoration: "none", flex: 1 }}>
                 <Button

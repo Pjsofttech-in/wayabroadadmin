@@ -9,13 +9,9 @@ import {
   Button, 
   Grid,
   IconButton,
-  Tooltip,
-  Typography,
   InputAdornment,
-  Stack,
   Chip
 } from '@mui/material';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -48,10 +44,9 @@ const ApplicationFilter = ({
     filters.conductedBy;
 
   return (
-    <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, boxShadow: 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: -3 }}>
-        <Box sx={{ flexGrow: 1 }} />
-        {isAnyFilterActive && (
+    <Box sx={{ mb: 1, p: { xs: 0.75, sm: 1 }, bgcolor: '#fff', borderRadius: 2, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+      {isAnyFilterActive && (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 0.5 }}>
           <Button
             size="small"
             onClick={onReset}
@@ -60,12 +55,12 @@ const ApplicationFilter = ({
           >
             Reset Filters
           </Button>
-        )}
-      </Box>
+        </Box>
+      )}
       
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={3}>
-          <FormControl fullWidth size="small" variant="outlined">
+      <Grid container spacing={{ xs: 0.75, sm: 1 }} alignItems="center">
+        <Grid item xs={12} sm={6} md={2} sx={{ minWidth: 0 }}>
+          <FormControl fullWidth size="small" variant="outlined" sx={{ minWidth: 0 }}>
             <InputLabel>Country</InputLabel>
             <Select
               value={filters.country || ''}
@@ -95,8 +90,8 @@ const ApplicationFilter = ({
           </FormControl>
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
-          <FormControl fullWidth size="small">
+        <Grid item xs={12} sm={6} md={2} sx={{ minWidth: 0 }}>
+          <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
             <InputLabel>University</InputLabel>
             <Select
               value={filters.university || ''}
@@ -126,8 +121,8 @@ const ApplicationFilter = ({
           </FormControl>
         </Grid>
         
-        <Grid item xs={12} sm={6} md={2}>
-          <FormControl fullWidth size="small">
+        <Grid item xs={12} sm={6} md={2} sx={{ minWidth: 0 }}>
+          <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
             <InputLabel>Status</InputLabel>
             <Select
               value={filters.status || ''}
@@ -157,8 +152,8 @@ const ApplicationFilter = ({
           </FormControl>
         </Grid>
         
-        <Grid item xs={12} sm={6} md={2}>
-          <FormControl fullWidth size="small">
+        <Grid item xs={12} sm={6} md={2} sx={{ minWidth: 0 }}>
+          <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
             <InputLabel>Conducted By</InputLabel>
             <Select
               value={filters.conductedBy || ''}
@@ -188,10 +183,11 @@ const ApplicationFilter = ({
           </FormControl>
         </Grid>
         
-        <Grid item xs={12} sm={6} md={2}>
+        <Grid item xs={12} sm={12} md={4} sx={{ minWidth: 0 }}>
           <TextField
             fullWidth
             size="small"
+            sx={{ minWidth: 0 }}
             label="Search by Name/Email"
             value={filters.search || ''}
             onChange={(e) => onFilterChange('search', e.target.value)}
@@ -220,7 +216,7 @@ const ApplicationFilter = ({
       </Grid>
       
       {isAnyFilterActive && (
-        <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ mt: 1.25, display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
           {filters.country && (
             <Chip
               label={`Country: ${filters.country}`}

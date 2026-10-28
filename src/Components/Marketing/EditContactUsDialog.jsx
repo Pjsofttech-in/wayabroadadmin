@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -14,72 +15,106 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { getAllCourses } from './Marketing';
+import { getAllContinents } from '../Courses/Continent/ContinentService';
 import AlertService from '../Common/AlertService';
 
 const EditContactUsDialog = ({ open, onClose, record, onSave }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phnNo: '',
-    continent: '',
-    courses: ''
+    phoneNumber: '',
+    continentId: '',
+    courseId: '',
+    status: '',
   });
+
   const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [continents, setContinents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const fetchCourses = async () => {
+    if (!open || !record) return;
+
+    setFormData({
+      name: record.name || '',
+      email: record.email || '',
+      phoneNumber: record.phoneNumber || '',
+      continentId:
+        record.continentId != null ? String(record.continentId) : '',
+      courseId: record.courseId != null ? String(record.courseId) : '',
+      status: record.status || '',
+    });
+
+    const loadOptions = async () => {
+      setLoading(true);
+
+      const role = sessionStorage.getItem('role') || 'staff';
+      const email = sessionStorage.getItem('email') || '';
+
       try {
-        const data = await getAllCourses();
-        setCourses(Array.isArray(data) ? data : []);
+        const [continentData, courseData] = await Promise.all([
+          getAllContinents(role, email),
+          getAllCourses(),
+        ]);
+
+        setContinents(Array.isArray(continentData) ? continentData : []);
+        setCourses(Array.isArray(courseData) ? courseData : []);
       } catch (error) {
-        console.error('Error fetching courses:', error);
-        AlertService.error('Failed to load courses');
+        console.error('Error loading inquiry edit options:', error);
+        AlertService.error('Failed to load continent/course options');
       } finally {
         setLoading(false);
       }
     };
 
-    if (open) {
-      fetchCourses();
-      if (record) {
-        setFormData({
-          name: record.name || '',
-          email: record.email || '',
-          phnNo: record.phnNo || '',
-          continent: record.continent || '',
-          courses: record.courses || ''
-        });
-      }
-    }
-  }, [record, open]);
+    loadOptions();
+  }, [open, record]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((previous) => ({ ...previous, [name]: value }));
   };
 
-  const handleSubmit = () => {
-    onSave(record.id, formData);
-    onClose();
+  const handleSubmit = async () => {
+    if (!record?.id) return;
+
+    setSaving(true);
+
+    try {
+      await onSave(record.id, formData);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Contact Us</DialogTitle>
+    <Dialog
+      open={open}
+      onClose={saving ? undefined : onClose}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>Edit Web Inquiry</DialogTitle>
+
       <DialogContent>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            mt: 2,
+          }}
+        >
           <TextField
             label="Name"
             name="name"
             value={formData.name}
             onChange={handleChange}
             fullWidth
-            margin="normal"
+            required
           />
+
           <TextField
             label="Email"
             name="email"
@@ -87,66 +122,101 @@ const EditContactUsDialog = ({ open, onClose, record, onSave }) => {
             value={formData.email}
             onChange={handleChange}
             fullWidth
-            margin="normal"
+            required
           />
+
           <TextField
             label="Phone Number"
-            name="phnNo"
-            value={formData.phnNo}
+            name="phoneNumber"
+            value={formData.phoneNumber}
             onChange={handleChange}
             fullWidth
-            margin="normal"
           />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Continent</InputLabel>
+
+          <FormControl fullWidth disabled={loading}>
+            <InputLabel id="web-inquiry-continent-label">
+              Continent
+            </InputLabel>
+
             <Select
-              name="continent"
-              value={formData.continent}
+              labelId="web-inquiry-continent-label"
+              name="continentId"
+              value={formData.continentId}
               onChange={handleChange}
               label="Continent"
             >
-              {['Asia', 'Africa', 'North America', 'South America', 'Antarctica', 'Europe', 'Australia'].map(continent => (
-                <MenuItem key={continent} value={continent}>
-                  {continent}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Courses</InputLabel>
-            <Select
-              name="courses"
-              value={formData.courses}
-              onChange={handleChange}
-              label="Courses"
-              disabled={loading}
-              MenuProps={{
-                PaperProps: {
-                  style: {
-                    maxHeight: 300,
-                  },
-                },
-              }}
-            >
-              {loading ? (
-                <Box display="flex" justifyContent="center" p={2}>
-                  <CircularProgress size={24} />
-                </Box>
-              ) : (
-                courses.map((course) => (
-                  <MenuItem key={course.id} value={course.courseName}>
-                    {course.courseName}
+              <MenuItem value="">None</MenuItem>
+
+              {continents.map((continent) => {
+                const id = continent.id ?? continent.continentId;
+                const label =
+                  continent.continentname ||
+                  continent.continentName ||
+                  continent.name ||
+                  `Continent ${id}`;
+
+                return (
+                  <MenuItem key={id} value={String(id)}>
+                    {label}
                   </MenuItem>
-                ))
-              )}
+                );
+              })}
             </Select>
           </FormControl>
+
+          <FormControl fullWidth disabled={loading}>
+            <InputLabel id="web-inquiry-course-label">Course</InputLabel>
+
+            <Select
+              labelId="web-inquiry-course-label"
+              name="courseId"
+              value={formData.courseId}
+              onChange={handleChange}
+              label="Course"
+            >
+              <MenuItem value="">None</MenuItem>
+
+              {courses.map((course) => {
+                const id = course.id ?? course.courseId;
+                const label =
+                  course.courseName || course.name || `Course ${id}`;
+
+                return (
+                  <MenuItem key={id} value={String(id)}>
+                    {label}
+                  </MenuItem>
+                );
+              })}
+            </Select>
+          </FormControl>
+
+          <TextField
+            label="Status"
+            name="status"
+            value={formData.status}
+            onChange={handleChange}
+            fullWidth
+          />
+
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+              <CircularProgress size={22} />
+            </Box>
+          )}
         </Box>
       </DialogContent>
+
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" color="primary">
-          Save Changes
+        <Button onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
+
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={saving || loading}
+        >
+          {saving ? 'Saving...' : 'Save Changes'}
         </Button>
       </DialogActions>
     </Dialog>

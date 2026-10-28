@@ -421,13 +421,6 @@ const ApplicationList = () => {
     'doc_incomplete': { color: '#faad14', text: 'Doc Incomplete' },
     'app_proceed': { color: '#722ed1', text: 'App Proceed' },
     'adm_completed': { color: '#237804', text: 'Adm Completed' },
-    // Additional statuses
-    'visa_accepted': { color: '#52c41a', text: 'Visa Accepted' },
-    'visa_rejected': { color: '#f5222d', text: 'Visa Rejected' },
-    'passport_issued': { color: '#13c2c2', text: 'Passport Issued' },
-    'passport_rejected': { color: '#f5222d', text: 'Passport Rejected' },
-    'doc_incomplete': { color: '#faad14', text: 'Doc Incomplete' },
-    'app_proceed': { color: '#722ed1', text: 'App Proceed' }
   };
   
   // Helper function to get status config with fallback for unknown statuses
@@ -480,9 +473,9 @@ const ApplicationList = () => {
     ];
 
     return (
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Application Overview</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ mb: 1.5, p: { xs: 1, sm: 1.25 }, border: '1px solid #e4e9ef', borderRadius: 1.5, bgcolor: '#fbfcfe' }}>
+        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: '#263548', fontSize: '0.76rem' }}>Application Overview</Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 145px), 1fr))', gap: 0.75 }}>
           {statusItems.map(({ status, count, config }) => (
             <Box
               key={status}
@@ -491,25 +484,21 @@ const ApplicationList = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1,
-                p: 1,
-                borderRadius: 1,
-                bgcolor: 'background.paper',
-                boxShadow: 1,
+                p: 0.9,
+                borderRadius: '6px',
+                bgcolor: '#fff',
+                boxShadow: 'none',
                 cursor: status === 'Total' ? 'default' : 'pointer',
-                border: `1px solid ${filters.status === status ? config.color : '#f0f0f0'}`,
-                '&:hover': {
-                  boxShadow: status === 'Total' ? 1 : 3,
-                },
-                minWidth: '140px',
-                flex: '1 1 160px',
-                maxWidth: '220px',
-                transition: 'all 0.2s ease-in-out',
+                border: `1px solid ${filters.status === status ? config.color : '#e2e8f0'}`,
+                '&:hover': { backgroundColor: `${config.color}0d`, borderColor: config.color },
+                minWidth: 0,
+                transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
               }}
             >
               <Box
                 sx={{
-                  width: 14,
-                  height: 14,
+                  width: 7,
+                  height: 7,
                   borderRadius: '50%',
                   bgcolor: config.color,
                   flexShrink: 0,
@@ -522,7 +511,7 @@ const ApplicationList = () => {
                   sx={{ 
                     fontWeight: 500, 
                     color: 'text.secondary',
-                    fontSize: '0.85rem'
+                    fontSize: '0.76rem'
                   }}
                 >
                   {config.text}
@@ -532,7 +521,7 @@ const ApplicationList = () => {
                   sx={{ 
                     fontWeight: 'bold', 
                     color: config.color,
-                    fontSize: '1.25rem',
+                    fontSize: '0.95rem',
                     lineHeight: 1.2
                   }}
                 >
@@ -547,7 +536,8 @@ const ApplicationList = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ width: '100%', minWidth: 0, pb: 2, boxSizing: 'border-box', color: '#172b4d' }}>
+      
       {renderStatusCounts()}
       <ApplicationFilter
         filters={filters}
@@ -556,7 +546,7 @@ const ApplicationList = () => {
         countries={countries}
         universities={universities}
       />
-      <Box sx={{ mt: 3 }}>
+      <Box sx={{ mt: 2, minWidth: 0, width: '100%', overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#fff', '& .ant-table-wrapper': { maxWidth: '100%' }, '& .ant-table': { fontSize: 13 }, '& .ant-table-thead > tr > th': { background: '#f8fafc', color: '#183b56', fontWeight: 600, borderBottom: '1px solid #e2e8f0', padding: '12px 14px', whiteSpace: 'nowrap' }, '& .ant-table-tbody > tr > td': { padding: '11px 14px', borderBottom: '1px solid #edf1f5' }, '& .ant-table-tbody > tr:hover > td': { background: '#f7faff' }, '& .ant-pagination': { margin: '14px 16px' } }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}>
             <CircularProgress />
@@ -582,6 +572,7 @@ const ApplicationList = () => {
               '--ant-table-white-space': 'nowrap',
               '--ant-table-thead-tr-th-white-space': 'nowrap',
               '--ant-table-tbody-tr-td-white-space': 'nowrap',
+              width: '100%',
             }}
             components={{
               header: {

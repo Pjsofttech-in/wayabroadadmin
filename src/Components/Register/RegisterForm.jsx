@@ -1,26 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Grid, 
-  TextField, 
-  Button, 
-  Paper, 
+import {
+  Grid,
+  TextField,
+  Button,
+  Paper,
   Typography,
   Box,
   MenuItem,
   CircularProgress,
   Alert,
-  Snackbar
 } from '@mui/material';
-import { getAllStreams, getAllCourses, createRegistration } from './ReistrationServices';
+
+import {
+  getAllStreams,
+  getAllCourses,
+  createRegistration,
+} from './ReistrationServices';
+
 import AlertService from '../Common/AlertService';
 import LoadingOverlay from '../Common/LoadingOverlay';
 import '../Common/Design.css';
 
 const RegisterForm = () => {
   const [formData, setFormData] = useState(() => {
-    // Get email from sessionStorage if available (from QR code scan)
     const savedEmail = sessionStorage.getItem('email') || '';
-    
+
     return {
       name: '',
       email: savedEmail,
@@ -28,29 +32,27 @@ const RegisterForm = () => {
       stream: '',
       course: '',
       location: '',
-      amount: ''
+      amount: '',
     };
   });
+
   const [streams, setStreams] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
 
-  // Fetch streams and courses on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        // Fetch both streams and courses in parallel
+
         const [streamsData, coursesData] = await Promise.all([
           getAllStreams(),
-          getAllCourses()
+          getAllCourses(),
         ]);
-        
+
         setStreams(streamsData);
         setCourses(coursesData);
       } catch (err) {
@@ -68,24 +70,24 @@ const RegisterForm = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setIsSubmitting(true);
     setError(null);
-    
-    try {      
-      // Get authentication data from session storage
+
+    try {
       const role = sessionStorage.getItem('role') || 'staff';
       const email = sessionStorage.getItem('email') || '';
       const branchCode = sessionStorage.getItem('branchCode') || '';
-      
-      // Prepare the data object to match AbroadRegisterForm entity exactly
+
       const registrationData = {
         name: formData.name,
         email: formData.email,
@@ -94,17 +96,15 @@ const RegisterForm = () => {
         courseName: formData.course,
         location: formData.location,
         amount: parseFloat(formData.amount) || 0,
-        // Additional required fields
-        branchCode: branchCode,
-        role: role,
-        createdByEmail: email
+        branchCode,
+        role,
+        createdByEmail: email,
       };
-      
-      // Call the createRegistration service
-      const response = await createRegistration(registrationData);      
-      setSuccess(true);
-      
-      // Reset form on success
+
+      await createRegistration(registrationData);
+
+      AlertService.success('Registration submitted successfully!');
+
       setFormData({
         name: '',
         email: '',
@@ -112,35 +112,138 @@ const RegisterForm = () => {
         stream: '',
         course: '',
         location: '',
-        amount: ''
+        amount: '',
       });
-      
-      // Show success message
-      AlertService.success('Registration submitted successfully!');
-      
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      setError(error.message || 'Failed to submit registration. Please try again.');
-      AlertService.error(error.message || 'Failed to submit registration. Please try again.');
+    } catch (err) {
+      console.error('Error submitting form:', err);
+
+      const errorMessage =
+        err.message || 'Failed to submit registration. Please try again.';
+
+      setError(errorMessage);
+      AlertService.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const getStreamValue = (stream) =>
+    typeof stream === 'string'
+      ? stream
+      : stream.streamName || stream.name || JSON.stringify(stream);
+
+  const getStreamLabel = (stream) =>
+    typeof stream === 'string'
+      ? stream
+      : stream.streamName || stream.name || 'Unnamed Stream';
+
+  const getCourseValue = (course) =>
+    typeof course === 'string'
+      ? course
+      : course.courseName || course.name || JSON.stringify(course);
+
+  const getCourseLabel = (course) =>
+    typeof course === 'string'
+      ? course
+      : course.courseName || course.name || 'Unnamed Course';
+
+  const fieldSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '6px',
+      backgroundColor: '#fff',
+      minHeight: 40,
+      '& fieldset': {
+        borderColor: '#cbd5e1',
+      },
+      '&:hover fieldset': {
+        borderColor: '#94a3b8',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: '#1976d2',
+        borderWidth: '1px',
+      },
+    },
+    '& .MuiInputLabel-root': {
+      color: '#64748b',
+    },
+    '& .MuiInputLabel-root.Mui-focused': {
+      color: '#1976d2',
+    },
+  };
+
   if (loading) {
     return (
-      <div style={{ position: 'relative', minHeight: '200px' }}>
-        <LoadingOverlay loading={true} />
-      </div>
+      <Box sx={{ position: 'relative', minHeight: 200 }}>
+        <LoadingOverlay loading />
+      </Box>
     );
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <Box
+      sx={{
+        position: 'relative',
+        width: '100%',
+        px: { xs: 1, sm: 1.5, md: 2 },
+        py: { xs: 1, md: 1.5 },
+        boxSizing: 'border-box',
+      }}
+    >
       <LoadingOverlay loading={loading || isSubmitting} />
-      <form onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
-            {/* Row 1 */}
+
+      <Paper
+        component="section"
+        elevation={0}
+        sx={{
+          width: '100%',
+          p: { xs: 2, sm: 2.5, md: 2.5 },
+          border: '1px solid #e1e7ef',
+          borderRadius: 2,
+          backgroundColor: '#fff',
+          boxSizing: 'border-box',
+        }}
+      >
+        <Box sx={{ mb: { xs: 2, md: 2.5 } }}>
+          <Typography
+            component="h2"
+            sx={{
+              fontSize: { xs: '1rem', sm: '1.1rem' },
+              fontWeight: 700,
+              color: '#183b56',
+            }}
+          >
+            Registration Details
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: 0.5,
+              fontSize: '0.82rem',
+              color: '#718096',
+            }}
+          >
+            Enter the required details to create a registration.
+          </Typography>
+        </Box>
+
+        {error && (
+          <Alert
+            severity="error"
+            sx={{ mb: 2, borderRadius: 1.5 }}
+            onClose={() => setError(null)}
+          >
+            {error}
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <Grid
+            container
+            columnSpacing={{ xs: 0, sm: 2 }}
+            rowSpacing={{ xs: 2, md: 2 }}
+          >
+            {/* Personal Information */}
+
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -150,8 +253,12 @@ const RegisterForm = () => {
                 onChange={handleChange}
                 required
                 variant="outlined"
+                size="small"
+                placeholder="Enter full name"
+                sx={fieldSx}
               />
             </Grid>
+
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -162,8 +269,12 @@ const RegisterForm = () => {
                 onChange={handleChange}
                 required
                 variant="outlined"
+                size="small"
+                placeholder="Enter email address"
+                sx={fieldSx}
               />
             </Grid>
+
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -174,14 +285,20 @@ const RegisterForm = () => {
                 onChange={handleChange}
                 required
                 variant="outlined"
+                size="small"
+                placeholder="10-digit mobile number"
                 inputProps={{
                   pattern: '[0-9]{10}',
-                  title: 'Please enter a valid 10-digit mobile number'
+                  title: 'Please enter a valid 10-digit mobile number',
+                  maxLength: 10,
+                  inputMode: 'numeric',
                 }}
+                sx={fieldSx}
               />
             </Grid>
 
-            {/* Row 2 */}
+            {/* Academic Information */}
+
             <Grid item xs={12} md={4}>
               <TextField
                 select
@@ -192,34 +309,38 @@ const RegisterForm = () => {
                 onChange={handleChange}
                 required
                 variant="outlined"
+                size="small"
+                sx={fieldSx}
                 SelectProps={{
-                  native: false,
-                  renderValue: (selected) => selected || 'Select Stream'
+                  displayEmpty: false,
                 }}
               >
                 <MenuItem value="" disabled>
                   Select Stream
                 </MenuItem>
+
                 {streams.map((stream) => {
-                  // Handle both string and object responses
-                  const value = typeof stream === 'string' 
-                    ? stream 
-                    : (stream.streamName || stream.name || JSON.stringify(stream));
-                  const label = typeof stream === 'string' 
-                    ? stream 
-                    : (stream.streamName || stream.name || 'Unnamed Stream');
-                  
+                  const value = getStreamValue(stream);
+                  const label = getStreamLabel(stream);
+
                   return (
-                    <MenuItem key={stream.id || value} value={value}>
+                    <MenuItem
+                      key={stream.id || value}
+                      value={value}
+                    >
                       {label}
                     </MenuItem>
                   );
                 })}
+
                 {streams.length === 0 && (
-                  <MenuItem disabled>No streams available</MenuItem>
+                  <MenuItem disabled value="__no_streams__">
+                    No streams available
+                  </MenuItem>
                 )}
               </TextField>
             </Grid>
+
             <Grid item xs={12} md={4}>
               <TextField
                 select
@@ -230,34 +351,38 @@ const RegisterForm = () => {
                 onChange={handleChange}
                 required
                 variant="outlined"
+                size="small"
+                sx={fieldSx}
                 SelectProps={{
-                  native: false,
-                  renderValue: (selected) => selected || 'Select Course'
+                  displayEmpty: false,
                 }}
               >
                 <MenuItem value="" disabled>
                   Select Course
                 </MenuItem>
+
                 {courses.map((course) => {
-                  // Handle both string and object responses
-                  const value = typeof course === 'string' 
-                    ? course 
-                    : (course.courseName || course.name || JSON.stringify(course));
-                  const label = typeof course === 'string' 
-                    ? course 
-                    : (course.courseName || course.name || 'Unnamed Course');
-                  
+                  const value = getCourseValue(course);
+                  const label = getCourseLabel(course);
+
                   return (
-                    <MenuItem key={course.id || value} value={value}>
+                    <MenuItem
+                      key={course.id || value}
+                      value={value}
+                    >
                       {label}
                     </MenuItem>
                   );
                 })}
+
                 {courses.length === 0 && (
-                  <MenuItem disabled>No courses available</MenuItem>
+                  <MenuItem disabled value="__no_courses__">
+                    No courses available
+                  </MenuItem>
                 )}
               </TextField>
             </Grid>
+
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -267,10 +392,14 @@ const RegisterForm = () => {
                 onChange={handleChange}
                 required
                 variant="outlined"
+                size="small"
+                placeholder="Enter location"
+                sx={fieldSx}
               />
             </Grid>
 
-            {/* Row 3 */}
+            {/* Registration Details */}
+
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -281,28 +410,77 @@ const RegisterForm = () => {
                 onChange={handleChange}
                 required
                 variant="outlined"
+                size="small"
+                placeholder="Enter amount"
                 InputProps={{
-                  startAdornment: '₹',
+                  startAdornment: (
+                    <Box
+                      component="span"
+                      sx={{
+                        mr: 1,
+                        color: '#64748b',
+                      }}
+                    >
+                      ₹
+                    </Box>
+                  ),
                 }}
+                inputProps={{
+                  min: 0,
+                  step: 'any',
+                }}
+                sx={fieldSx}
               />
             </Grid>
           </Grid>
 
-          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button 
-              variant="contained" 
-              color="primary" 
+          {/* Form Actions */}
+
+          <Box
+            sx={{
+              mt: { xs: 2.5, md: 3 },
+              pt: 2,
+              borderTop: '1px solid #edf0f4',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: 1.5,
+            }}
+          >
+            <Button
+              variant="contained"
+              color="primary"
               type="submit"
-              size="large"
               disabled={isSubmitting}
-              sx={{ px: 4 }}
-              startIcon={isSubmitting ? <CircularProgress size={24} color="inherit" /> : null}
+              disableElevation
+              startIcon={
+                isSubmitting ? (
+                  <CircularProgress size={17} color="inherit" />
+                ) : null
+              }
+              sx={{
+                minWidth: 120,
+                px: 3,
+                py: 1,
+                borderRadius: 1.5,
+                fontWeight: 600,
+                textTransform: 'none',
+                backgroundColor: '#1976d2',
+                '&:hover': {
+                  backgroundColor: '#1565c0',
+                },
+                '&:focus-visible': {
+                  outline: '2px solid #1976d2',
+                  outlineOffset: 2,
+                },
+              }}
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </Button>
           </Box>
         </form>
-      </div>
+      </Paper>
+    </Box>
   );
 };
 

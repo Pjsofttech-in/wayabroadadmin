@@ -2,7 +2,7 @@
 
 > **Document purpose:** Technical reference for onboarding, maintenance, debugging, and future frontend development.
 >
-> **Documentation status:** Initially prepared from frontend source excerpts available on 12 October 2026, then updated on 19 October 2026 with the documented Day 3 Jobs Management and Day 4 Inquiry List UI changes. This remains a source-grounded working reference, not a claim that every module or backend contract has been exhaustively audited. Day 5 Job form-field changes are intentionally excluded from this update. Verify the items listed in [Missing Information and Verification Checklist](#missing-information-and-verification-checklist) against the current repository before treating this document as a release specification.
+> **Documentation status:** Initially prepared from frontend source excerpts available on 12 October 2026 and updated on 19–20 October 2026 with documented Jobs Management and Inquiry List changes. On 28 October 2026, the document was extended with subsequent Job Management, Scholarship, Inquiry Management, Application Management, Registration Management, and Marketing requirements, plus a source-level Marketing audit. Requirements and recommendations are explicitly separated from confirmed implementation; generated code/ZIP delivery or discussion alone is not proof that changes were merged into the current local repository or passed tests. This remains a working reference, not a claim that every module or backend contract has been exhaustively audited. Verify the items listed in [Missing Information and Verification Checklist](#missing-information-and-verification-checklist) against the current repository before treating this document as a release specification.
 
 ## Table of Contents
 
@@ -991,6 +991,11 @@ To turn this into a fully audited, release-grade reference, inspect or obtain:
 - [ ] Verify `BlogManagement` parent/index route behavior.
 - [ ] Confirm whether Contact Us should appear in the sidebar.
 - [ ] Confirm whether the Scholarship lead-form route is intentionally disabled.
+- [ ] Verify the duplicate Marketing parent route in the current local `App.jsx`; no fix has been applied.
+- [ ] Confirm the authoritative Web Inquiry data source (legacy Contact Us endpoints versus `/form-submission`) with the backend owner.
+- [ ] Verify role/branch data scoping for `getAllExamsPreparation` and `/form-submission` endpoints.
+- [ ] Confirm allowed Web Inquiry status values before adding status editing or counts.
+- [ ] Confirm whether the current local Web Inquiry component includes the Status column shown in screenshots.
 
 ---
 
@@ -1000,3 +1005,198 @@ To turn this into a fully audited, release-grade reference, inspect or obtain:
 |---|---|
 | 12 October 2026 | Initial documentation generated from available `App.jsx`, `Sidebar.jsx`, navigation/package excerpts, and education hierarchy components. Forward and backward hierarchy navigation was reported working by the project owner. Full backend and repository audit remains pending. |
 | 19 October 2026 | Updated the module directory, route table, test checklist and module documentation with the Day 3 Jobs Management frontend and Day 4 Inquiry List UI changes. Day 5 Job form-field changes are intentionally not included. Build and live API validation remain pending in the actual project environment. |
+
+## 16. Subsequent Change Log — 20–28 October 2026
+
+> **Evidence note:** This section records requirements and progress discussed after the original Day 1–Day 4 document. A request being discussed or a prompt being prepared does not prove that code was implemented. Only explicitly confirmed work is labeled completed; all other items require checking against the current frontend repository before being marked done.
+
+### 16.1 Job Management — Create Job form
+
+**Requirements discussed; implementation needs repository verification**
+
+- Arrange the Create Job form into a more compact, professional layout with balanced field widths and consistent spacing. Proposed grouping:
+  - Job Title + Job Type
+  - Sector + Job Role
+  - Education + Level of Experience
+  - Skills multi-select + Number of Openings
+  - Country + Location + Work Type
+  - Salary + Currency
+  - full-width Job Description
+  - Active control and aligned Cancel/Create Job actions
+- Preserve all existing fields, API payloads, validations, and submission behavior during layout-only work.
+- A validation issue was observed: selected Skills tags (e.g. Python, ML, AI, SQL) were visible, but browser validation still showed “Please fill out this field.” Root-cause hypothesis: the required text-entry input may be validated instead of the selected-skills collection. This must be verified in code. Expected behavior: no selected skills blocks submission; one or more selected skills pass Skills validation even if the text-entry input is empty; removing all selected skills restores required validation.
+
+### 16.2 Job Management — Job List filters
+
+**Requirements discussed; implementation needs repository verification**
+
+- Verify every existing Job List filter actually filters records and works with other filters and pagination.
+- Replace separate Min Salary and Max Salary controls with one Salary Range control, preferably a two-handle slider if compatible with the existing project.
+- Use actual salary data or a backend-supported range; do not invent range bounds or currency assumptions.
+- Keep minimum ≤ maximum, allow clearing/resetting, reset pagination when criteria change, and preserve all other filters and actions.
+- Change filtering from requiring a Search-button click to automatic updates when filter values change. Use approximately 300 ms debounce for keyword input to limit API calls; dropdown and salary-range changes should apply automatically. The Clear action should reset all filters and refresh results. Ensure stale responses cannot overwrite newer results where asynchronous requests are used.
+- Do not invent API parameters or change backend contracts; document missing server-side filtering support if necessary.
+
+### 16.3 Job Management — Job Applications statuses and filter analysis
+
+**Requirements discussed; backend values and implementation need verification**
+
+- Backend developer reportedly updated application status values. Inspect the latest backend source/API and synchronize the frontend Status filter, labels, badges, and related mappings with verified values. Do not assume the earlier documented statuses (`PENDING`, `SHORTLISTED`, `REJECTED`, `HIRED`) are still authoritative.
+- Audit the backend models, responses, and filtering/query capabilities to recommend additional useful Job Applications filters. Candidate fields to evaluate include Country, Job/Job Title, Sector, Job Role, Job Type, applicant name/email/phone, application date range, education, experience level, source, assigned staff, or branch where supported.
+- Distinguish filters already supported by the API, filters possible with existing complete client data, filters requiring backend support, and unsuitable/redundant filters.
+- The additional filter recommendations should be presented for approval before implementation. Do not add filters just because a similarly named field exists in a related Job entity; verify its relationship to application records.
+
+### 16.4 Scholarship Management
+
+**Requirements discussed; implementation needs repository verification**
+
+- Edit Scholarship must contain the same fields as Create/Add Scholarship and load each saved value into the matching input. Verify field-name mapping, asynchronous dropdown loading, dependent fields, and update payloads. Reopening a saved scholarship should show the updated values without clearing unrelated data.
+- Rename **Test Date** to **Test Month** and allow selecting a month only (January–December), without requiring a day or year. Check the current API format first; if the backend expects a full date and a safe frontend mapping is not possible, document the dependency rather than silently submitting an incorrect value.
+- Add a **Scholarship Link** column to Scholarship List using the actual API field. Render valid links as clickable links opened safely in a new tab; show a placeholder when absent. Do not fabricate URLs.
+- Relax unnecessary Amount field restrictions while preserving numeric validation, allowing valid integers and decimals and zero if consistent with business rules. Do not impose an arbitrary maximum; preserve existing required/optional behavior, currency fields, and backend payload types.
+
+### 16.5 Inquiry Management — Inquiry List
+
+**Responsive status-tab improvement explicitly confirmed complete by the user; later spacing/removal request requires verification**
+
+- The user confirmed that the responsive status-tab overlap fix was completed. The intended behavior is that the nine status tabs do not overlap when the browser is resized; desktop may show a row, while narrower layouts should wrap or use contained horizontal scrolling.
+- Status tabs include: `INTERESTED`, `NOT INTERESTED`, `CONNECTING`, `RINGING / SWITCH OFF`, `CALL BACK`, `OFFICE VISIT`, `PROCESSING`, `APPLICATION`, and `CNI`.
+- A subsequent requested UI change was to remove the visible **“Filter inquiries”** heading and **“Clear filters”** action from the filter section while preserving the underlying filters and filtering logic.
+- Add moderate, consistent spacing between Dashboard/Inquiry List navigation, filters, status tabs, record summary, and table. Avoid excess whitespace.
+- The remove-heading/remove-Clear action and spacing changes were requested after the confirmed responsive fix; verify their implementation in the current repository before treating them as complete.
+
+### 16.6 Application Management
+
+**Requirements discussed; implementation needs repository verification**
+
+- Fix active navigation highlighting: Application Management should remain active on its Dashboard, Create Application, and List routes, with the correct child item highlighted. Direct navigation and page refresh should also select the correct state. Inspect actual React Router paths and avoid a one-route hardcoded fix.
+- Standardize **Application Management → List** visually with **Inquiry Management → Inquiry List**. Reuse its layout patterns (navigation/content spacing, filter controls, table header/rows, typography, borders, record summary, pagination, responsive table scrolling) while retaining Application List’s own fields, filters, records, API mappings, permissions, and row actions.
+- Do not copy Inquiry List’s business logic or data into Application Management. Do not alter unrelated modules.
+
+### 16.7 Registration Management
+
+**Requirements discussed; implementation needs repository verification**
+
+- Redesign **Registration Form** as a professional, compact, responsive form while preserving all existing fields, required indicators, validations, Stream → Course behavior, API payloads, submission flow, and success/error states. Proposed grouping includes Name, Email, Mobile Number; Stream and Course Name; Location and Amount; and a clearly aligned Submit action. Preserve any additional fields found in the actual form.
+- Standardize **Registration List** visually with **Application Management → List**, using the latter as the primary reference for spacing, filters, table styling, typography, pagination, and responsive behavior.
+- Retain Registration List’s own data, fields, filters, actions, and supported pagination. Preserve Registration Management navigation options: Registration Form, Registration List, and Generate QR Code. Do not redesign Generate QR Code as part of the list task.
+
+### 16.8 Marketing module
+
+**Audit requested; proposed enhancements are suggestions, not implemented features**
+
+Screenshots reviewed on 28 October 2026 show two visible tabs:
+
+1. **Exam Preparation List** — columns shown: ID, Name, Contact Number, Exam Name, Actions.
+2. **Web Inquiry List** — columns shown: ID, Name, Email, Phone, Continent, Courses, Status, Actions.
+
+The screenshots alone do not prove these are the only Marketing routes/pages; verify the sidebar, route configuration, components, service files, and backend endpoints before concluding the module inventory.
+
+Potential enhancements to evaluate against actual data and APIs:
+- Exam Preparation List: search by name/contact/exam, exam-wise filtering, date or preparation-status filtering only if those fields exist, and consistent empty states/pagination/record counts.
+- Web Inquiry List: search by name/email/phone, filters for Continent/Course/Status, inquiry date range if available, consistent status badges, and status updates only if supported.
+- Optional dashboard cards for total web inquiries, exam registrations, status-wise counts, recent inquiries, and follow-ups only when reliable existing data or approved backend endpoints support them.
+- Optional lead follow-up tracking (date, assigned staff, remarks) only if the current model/workflow supports it or the backend team agrees to the required API changes.
+
+No new Marketing pages or features have been confirmed as implemented. First audit the complete module and provide prioritized recommendations; wait for approval before adding features.
+
+### 16.9 Marketing module — source-level audit on 28 October 2026
+
+**Audit completed against the available frontend archive and backend Java archive; no application code was changed. The user's current local working tree may differ from the archived frontend, so re-check before implementing.**
+
+#### Routes and navigation found in the reviewed frontend archive
+
+- `src/App.jsx` contains two sibling route declarations with the same `path="Marketing"`: one renders `BlogManagement`, and another renders `MarketingSideBar` with nested Marketing pages. This is a confirmed duplicate route-definition risk in the archive, not proof of the exact runtime behavior in the user's current local copy.
+- The nested route paths found are:
+  - `/wayabroadadmin/admin/Marketing/exampreparationlist`
+  - `/wayabroadadmin/admin/Marketing/webinquirylist`
+  - `/wayabroadadmin/admin/Marketing/registrationweblist`
+- The parent `/wayabroadadmin/admin/Marketing` is intended to render the Marketing navigation container. The main sidebar entry points to that parent and the reviewed navigation config limits it to `superAdmin`.
+- `RegistrationWebList.jsx` exists as a placeholder, its route is defined, and its Marketing sidebar item is commented out. Do not treat it as a completed Registration list or enable it without a separate approved task.
+- No route changes have been applied. The proposed minimal fix is to remove the standalone duplicate `Marketing` route that renders `BlogManagement`, after confirming Blog Management remains available through its own `/blog` route and checking the current local `App.jsx`.
+
+#### Exam Preparation List
+
+- Reviewed component: `src/Components/Marketing/ExamPreparationList.jsx`.
+- Existing UI in the archive: ID, Name, Contact Number, Exam Name, Actions; sorting by ID/Name; an Exam Name filter; pagination/page-size selection; edit and delete flows; loading/error feedback.
+- The edit dialog's visible exam options in the reviewed archive are TOEFL, IELTS, GRE, GMAT, SAT, ACT, and PTE.
+- Service endpoints found in the archived `Marketing.js`: `GET /getAllExamsPreparation`, `GET /getExamPreparationById/{id}`, `PUT /updateExamPreparation/{id}`, and `DELETE /deleteExamPreparation/{id}`. Get-by-ID/update/delete calls include `role`/`email` query parameters, while the list call does not pass role/email through to the request.
+- The corresponding archived backend entity includes `id`, `name`, `contactNumber`, `examName`, `createdByEmail`, and `role`; no creation date, status, remarks, assignment, or follow-up date was found in that entity.
+- This creates a role/data-scope question to confirm with the backend owner: the list endpoint in the archive accepts no role/email parameters and appears to return all records. Do not assume this is secure or branch-scoped without server-side authorization confirmation.
+
+#### Web Inquiry List
+
+- Reviewed component: `src/Components/Marketing/ContactUsList.jsx`.
+- Existing UI in the reviewed archive: ID, Name, Email, Phone, Continent, Courses, Actions; sorting by ID/Name; a Continent filter; pagination; edit/delete flows; loading/error feedback.
+- **Screenshot/source discrepancy:** the screenshots show a Status column, but the reviewed `ContactUsList.jsx` archive does not render one. Verify the current local version before changing the table.
+- Legacy service calls found: `GET /getAllContactUs`, `PUT /updateContactUS/{id}`, and `DELETE /deleteContactUs/{id}`. The legacy Contact Us entity in the reviewed backend archive contains `id`, `name`, `email`, `phnNo`, `continent`, and `courses`, without status/date/remarks/assigned-staff/follow-up fields.
+- The reviewed backend archive also contains a separate `/form-submission` controller and response DTO with `id`, `formType`, `name`, `email`, `phoneNumber`, `continentId`, `continentName`, `courseId`, `courseName`, `status`, `createdByEmail`, `role`, and `branchCode`. The form-type enum includes `CONTACT_US`, `COUNSELLING`, and `SIGNUP`.
+- The form-submission controller supports listing/filtering by form type and has get-one/update/delete operations. The update API can update `status`; however, the reviewed model does not define a fixed status enum or authoritative allowed status list. Confirm the expected workflow/status values before implementing status controls.
+- The newer form-submission model is not identical to the legacy Contact Us model. Switching Web Inquiry to `/form-submission` requires confirming which dataset is authoritative and mapping field names/IDs correctly. No API migration was implemented during this audit.
+
+#### Marketing recommendations and dependencies
+
+Priority order:
+1. Resolve/verify duplicate route behavior and confirm the authoritative Web Inquiry data source.
+2. Review role/branch scoping for Exam Preparation list retrieval.
+3. Add global search, record summaries, clear-filter behavior, and consistent empty/error states to existing lists; client-side search is frontend-only only when the returned dataset is complete.
+4. If `/form-submission` is approved as the source, display/update status only using agreed status values and verified API behavior.
+5. Add date-range filtering only if a trustworthy date field and API support are available. Add remarks, assigned staff, follow-up dates/reminders only after backend model/API support is agreed.
+6. Consider a Marketing summary dashboard only after the source of truth, access scope, and status definitions are reliable.
+
+No Marketing UI, route, service, API, or backend code was changed during this audit. All recommendations are pending approval and implementation.
+
+### 16.10 Cross-cutting implementation and safety rules
+
+- Preserve existing data, field mappings, validation, routes, permissions, API contracts, and working functionality unless a requirement explicitly calls for a change.
+- Do not modify backend code or database schemas as part of frontend-only tasks.
+- If a backend field, endpoint, or filtering capability is missing, implement only the frontend UI that can be built safely, document the exact dependency, and avoid fake data or invented contracts.
+- Modify only files necessary for the approved task; provide complete updated code for changed files rather than replacing the entire `src` folder.
+- Verify the actual source and test outcomes before marking a task complete. Separate planned/requested work from implemented and verified work.
+
+### 16.11 Implementation status tracker — as of 28 October 2026
+
+Use this tracker to avoid treating a request, code draft, or generated ZIP as a completed production change. Status is based on the conversation and available artifacts; the current local repository has not been exhaustively diffed against all delivered files.
+
+| Module/task | Status supported by available evidence | Next verification/action |
+|---|---|---|
+| Jobs Management — compact Create Job layout | Requested; actual local implementation not verified | Inspect current `JobForm.jsx` and compare with approved layout |
+| Jobs Management — Skills multi-select validation | Issue reported; fix status not independently verified | Test empty selection, selected skills, removing all skills, and submission |
+| Jobs Management — Job List Salary Range and automatic filtering | Requirements and implementation discussion recorded; current code behavior needs verification | Test combined filters, debounce, reset, page reset, min/max bounds, and backend parameter contract |
+| Job Applications — backend status/filter integration | Backend changes reported by user/developer discussion; exact current values and frontend mapping need verification | Inspect current backend DTO/controller and frontend status mapping before changing filters |
+| Scholarship — Edit form parity, Test Month, Scholarship Link, Amount validation | Requirements recorded; implementation status not verified against current local repository | Compare Add/Edit fields, API payloads and list columns; test month and numeric edge cases |
+| Inquiry Management — responsive status tabs | User explicitly confirmed the responsive tab-overlap fix was completed | Keep as user-confirmed; browser/build regression test still not documented |
+| Inquiry Management — remove “Filter inquiries” heading and “Clear filters”; spacing | Requested; current implementation needs verification | Inspect `AbroadInquiryList.jsx` and `InquiryFilter.jsx` |
+| Application Management — active navigation state | Requested; implementation needs verification | Test dashboard/create/list route active states and direct refresh |
+| Application Management — list UI matches Inquiry List | Requested; implementation needs verification | Compare current list/filter/table styling while preserving application-specific behavior |
+| Registration Management — Registration Form redesign | Draft/generated artifacts were discussed; merge into current local project and behavior need verification | Compare form fields, validation, Stream/Course dependency and submit flow |
+| Registration Management — Registration List UI matches Application List | Draft/generated artifacts were discussed; merge into current local project and behavior need verification | Verify actual local list and retain existing actions/data/filters |
+| Marketing — duplicate route | Source-level issue found in archived frontend; no fix applied | Verify current local `App.jsx`, then apply only after approval |
+| Marketing — `/form-submission` integration | Discussed, and an update ZIP/code draft was generated; not verified as merged or live-tested | Confirm authoritative data source and exact backend contract, then test response shape |
+| Marketing — search/status/date/follow-up/dashboard enhancements | Recommendations only | Prioritize and approve individually before implementation |
+
+#### Test evidence policy
+
+- Do not mark a task “implemented and verified” solely because code was drafted, pasted in chat, or included in a generated ZIP.
+- For this update, no application source files were modified and no app build, browser test, or live API test was run.
+- Previously documented test claims remain scoped to the original notes: the Inquiry List responsive fix was confirmed by the user; the Day 3/Day 4 source notes report limited syntax checks, not a full Vite build or live API validation.
+- The Marketing route and API findings above are source-level findings from the available archives; current local working-tree differences remain possible.
+
+### 16.12 Working-session checkpoint — 28 October 2026
+
+The agreed workflow is to proceed one step at a time and wait for approval before implementation. The Marketing audit is the current focus. Step 1 identified a duplicate `Marketing` parent route in the archived `App.jsx`; the user chose to stop for the day before approving or applying the fix. Therefore:
+- No routing fix has been applied.
+- No Marketing service/API/UI changes have been applied.
+- Next session should verify the current local `App.jsx` and sidebar against the archived finding, then ask for/act on approval before editing.
+- Preserve the user's local changes and backup; avoid replacing the whole `src` folder or unrelated modules.
+
+### 16.13 Change Log — 20–28 October 2026
+
+| Date | Change / discussion | Documentation status |
+|---|---|---|
+| 20 Oct 2026 | Day 1–Day 4 source-grounded project documentation identified in Library. | Existing documentation source located. |
+| 21–23 Oct 2026 | Job Management backend integration planning, Create Job layout, Skills validation issue, Job List filter verification, Salary Range UI, and automatic filtering requirements. | Requirements captured; implementation needs current-repository verification. |
+| 23 Oct 2026 | Scholarship Edit parity, Test Month, Scholarship Link column, and flexible Amount validation requirements. | Requirements captured; implementation needs current-repository verification. |
+| 26 Oct 2026 | Job Applications updated backend statuses and analysis of additional backend-supported filters requested. | Backend inspection and implementation need verification. |
+| 28 Oct 2026 | Inquiry List responsive status tabs confirmed complete; removal of filter heading/Clear action and spacing requested. Application List UI standardization, Registration Form redesign, Registration List standardization, and Marketing module audit discussed. | Status-tab fix confirmed by user; other items require repository verification. |
+| 28 Oct 2026 (later session) | Audited the available Marketing frontend/backend archives; documented routes, legacy and form-submission APIs, entity/DTO fields, screenshot/source discrepancy, role-scope question, recommendations, and step-by-step checkpoint. | Source-level findings recorded; no application code changed. Duplicate route fix and `/form-submission` migration remain pending approval/verification. |

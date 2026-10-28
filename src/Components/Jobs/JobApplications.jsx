@@ -22,7 +22,43 @@ import {
 } from "./JobService";
 
 // Must match com.abroad.Enum.JobApplicationStatus in the supplied backend.
-const STATUSES = ["PENDING", "SHORTLISTED", "REJECTED", "HIRED"];
+const STATUSES = [
+  "PENDING",
+  "SHORTLISTED",
+  "INTERESTED",
+  "PROCESS_1",
+  "PROCESS_2",
+  "APPLY_LATER",
+  "SELECTED",
+];
+
+// Keep API values unchanged while presenting readable labels in the UI.
+const getStatusLabel = (status) => {
+  const labels = {
+    PENDING: "Pending",
+    SHORTLISTED: "Shortlisted",
+    INTERESTED: "Interested",
+    PROCESS_1: "Process 1",
+    PROCESS_2: "Process 2",
+    APPLY_LATER: "Apply Later",
+    SELECTED: "Selected",
+  };
+  return labels[status] || status || "Pending";
+};
+
+const getStatusColor = (status) => {
+  const colors = {
+    PENDING: "gold",
+    SHORTLISTED: "blue",
+    INTERESTED: "cyan",
+    PROCESS_1: "processing",
+    PROCESS_2: "purple",
+    APPLY_LATER: "orange",
+    SELECTED: "green",
+  };
+  return colors[status] || "default";
+};
+
 const EMPTY_FILTERS = { jobId: "", status: "", applicantEmail: "" };
 
 const getPageData = (response) => {
@@ -188,7 +224,7 @@ export default function JobApplications() {
       key: "status",
       width: 180,
       render: (status, record) => isBranch
-        ? <Tag color={status === "HIRED" ? "green" : status === "REJECTED" ? "red" : status === "SHORTLISTED" ? "blue" : "default"}>{status || "PENDING"}</Tag>
+        ? <Tag color={getStatusColor(status || "PENDING")}>{getStatusLabel(status || "PENDING")}</Tag>
         : (
           <TextField
             select
@@ -198,7 +234,7 @@ export default function JobApplications() {
             onChange={(event) => changeStatus(record, event.target.value)}
             sx={{ minWidth: 145 }}
           >
-            {STATUSES.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+            {STATUSES.map((item) => <MenuItem key={item} value={item}>{getStatusLabel(item)}</MenuItem>)}
           </TextField>
         ),
     },
@@ -264,7 +300,7 @@ export default function JobApplications() {
           sx={{ minWidth: 175, flex: "1 1 175px" }}
         >
           <MenuItem value="">All statuses</MenuItem>
-          {STATUSES.map((status) => <MenuItem key={status} value={status}>{status}</MenuItem>)}
+          {STATUSES.map((status) => <MenuItem key={status} value={status}>{getStatusLabel(status)}</MenuItem>)}
         </TextField>
         <Input
           placeholder="Applicant email"
@@ -311,7 +347,7 @@ export default function JobApplications() {
               <Typography><b>Email:</b> {selected.email || "-"}</Typography>
               <Typography><b>Phone:</b> {selected.phone || "-"}</Typography>
               <Typography><b>Applied:</b> {selected.appliedAt ? new Date(selected.appliedAt).toLocaleString() : "-"}</Typography>
-              <Typography><b>Status:</b> <Tag color="blue">{selected.status || "-"}</Tag></Typography>
+              <Typography><b>Status:</b> <Tag color={getStatusColor(selected.status)}>{selected.status ? getStatusLabel(selected.status) : "-"}</Tag></Typography>
               <Typography><b>Cover Letter:</b> {selected.coverLetter || "-"}</Typography>
               {selected.resumeUrl && <Typography><a href={selected.resumeUrl} target="_blank" rel="noreferrer">Open resume</a></Typography>}
               <Typography><b>Active:</b> {selected.active === false ? "No" : "Yes"}</Typography>

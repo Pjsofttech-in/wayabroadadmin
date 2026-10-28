@@ -159,8 +159,10 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
   const userRole = sessionStorage.getItem("role");
   const coursesRoute = "/wayabroadadmin/admin/courses";
   const jobsRoute = "/wayabroadadmin/admin/jobs";
+  const applicationRoute = "/wayabroadadmin/admin/application";
   const isCoursesRouteActive = isRouteActive(location.pathname, coursesRoute);
   const isJobsRouteActive = isRouteActive(location.pathname, jobsRoute);
+  const isApplicationRouteActive = isRouteActive(location.pathname, applicationRoute);
   const [coursesExpanded, setCoursesExpanded] = useState(() =>
     isRouteActive(location.pathname, coursesRoute)
   );
@@ -201,9 +203,10 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
             const hasChildren = Array.isArray(item.children) && item.children.length > 0;
             const isJobsSection = item.title === "Jobs Management";
             const isCoursesSection = item.title === "Courses";
+            const isApplicationSection = item.title === "Application Management";
             const isActive = hasChildren
               ? (isCoursesSection ? isCoursesRouteActive : isJobsSection ? isJobsRouteActive : isRouteActive(location.pathname, item.segment))
-              : isRouteActive(location.pathname, item.segment);
+              : (isApplicationSection ? isApplicationRouteActive : isRouteActive(location.pathname, item.segment));
             const sectionExpanded = isCoursesSection
               ? coursesExpanded
               : isJobsSection

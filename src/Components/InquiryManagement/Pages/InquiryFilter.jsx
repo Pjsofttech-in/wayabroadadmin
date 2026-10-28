@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Grid, TextField, MenuItem, CircularProgress, Button, Box, Chip } from "@mui/material";
-import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
+import { Grid, TextField, MenuItem, CircularProgress, Box } from "@mui/material";
 import { getBranchCodeNameMap } from "../../AllLogin/LoginService";
 import { getAllStaff } from "../../Branch/StaffService";
 import axiosInstance from "../../Common/axiosConfig";
@@ -310,25 +309,10 @@ const fetchStaffOptions = async () => {
     };
   }, [role]);
 
-  const activeFilterCount = Object.entries(filters).filter(([key, value]) =>
-    key !== 'branchCode' && value !== null && value !== undefined && value !== ''
-  ).length + (search.trim() ? 1 : 0);
-
   return (
-    <Grid container spacing={1.5} alignItems="center" sx={{ mb: 2, p: { xs: 1.25, md: 1.75 }, border: '1px solid #e4e9ef', borderRadius: 2, backgroundColor: '#fbfcfe' }}>
-      <Grid item xs={12}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', mb: 0.25 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box component="span" sx={{ fontSize: 14, fontWeight: 700, color: '#263548' }}>Filter inquiries</Box>
-            {activeFilterCount > 0 && <Chip size="small" label={`${activeFilterCount} active`} sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: '#eaf2ff', color: '#2457a6' }} />}
-          </Box>
-          <Button size="small" variant="text" startIcon={<RestartAltRoundedIcon />} onClick={onClearFilters}
-            disabled={activeFilterCount === 0} sx={{ textTransform: 'none', fontWeight: 600, minHeight: 32 }}>
-            Clear filters
-          </Button>
-        </Box>
-      </Grid>
-      <Grid item xs={12} sm={4} md={2}>
+    <Grid container spacing={1.5} alignItems="center" sx={{ mb: 2, p: { xs: 1, sm: 1.25, md: 1.5 }, border: '1px solid #e4e9ef', borderRadius: 2, backgroundColor: '#fbfcfe', minWidth: 0 }}>
+
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           type="search"
           label="Search inquiries"
@@ -347,7 +331,7 @@ const fetchStaffOptions = async () => {
         />
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Select Country"
@@ -363,7 +347,7 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Select City"
@@ -379,7 +363,7 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Select University"
@@ -395,7 +379,7 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Select College"
@@ -411,7 +395,7 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Select Stream"
@@ -428,7 +412,7 @@ const fetchStaffOptions = async () => {
       </Grid>
 
       {role === 'superAdmin' && (
-        <Grid item xs={12} sm={4} md={2}>
+        <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
           <TextField
             select
             label="Select Branch"
@@ -463,7 +447,7 @@ const fetchStaffOptions = async () => {
         </Grid>
       )}
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Select Course"
@@ -479,7 +463,7 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Passport"
@@ -494,7 +478,7 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Select Year"
@@ -510,7 +494,7 @@ const fetchStaffOptions = async () => {
         </TextField>
       </Grid>
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           label="Apply For"
@@ -527,7 +511,7 @@ const fetchStaffOptions = async () => {
       </Grid>
 
 
-      <Grid item xs={12} sm={4} md={2}>
+      <Grid item xs={12} sm={6} md={4} lg={3} xl={2}>
         <TextField
           select
           fullWidth
@@ -564,11 +548,14 @@ const fetchStaffOptions = async () => {
 
       {/* Compact, keyboard-accessible status navigation; API-backed branch counts. */}
       <Grid item xs={12}>
-        <Box sx={{ mt: 0.75, p: 0.75, border: '1px solid #e2e8f0', borderRadius: 2, background: '#f5f7fa' }}>
+        <Box sx={{ mt: 0.5, p: { xs: 0.5, sm: 0.75 }, border: '1px solid #e2e8f0', borderRadius: 2, background: '#f5f7fa', minWidth: 0 }}>
           <Box role="group" aria-label="Filter inquiries by status" sx={{
-            display: 'flex', width: '100%', gap: 0.6, overflowX: { xs: 'auto', md: 'hidden' }, pb: 0.25,
-            '&::-webkit-scrollbar': { height: 4 },
-            '&::-webkit-scrollbar-thumb': { backgroundColor: '#cbd5e1', borderRadius: 4 }
+            display: 'grid',
+            width: '100%',
+            minWidth: 0,
+            gap: 0.75,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 132px), 1fr))',
+            alignItems: 'stretch',
           }}>
             {statusOptions.map((status) => {
               const active = filters.status === status.value;
@@ -579,23 +566,38 @@ const fetchStaffOptions = async () => {
                 <Box key={status.value} component="button" type="button" aria-pressed={active}
                   onClick={() => onChange({ ...filters, status: active ? null : status.value })}
                   sx={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 0.65,
-                    flex: { xs: '0 0 auto', md: '1 1 0' }, minWidth: { xs: 'max-content', md: 0 },
-                    whiteSpace: 'nowrap', minHeight: 36, px: { xs: 1.2, md: 0.45, lg: 0.7 },
-                    border: '1px solid', borderColor: status.color,
-                    borderRadius: '4px', backgroundColor: active ? `${status.color}1f` : '#fff',
+                    display: 'flex',
+                    width: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 0.75,
+                    minHeight: 40,
+                    px: 1,
+                    py: 0.65,
+                    border: '1px solid',
+                    borderColor: status.color,
+                    borderRadius: '6px',
+                    backgroundColor: active ? `${status.color}1f` : '#fff',
                     boxShadow: active ? `0 0 0 1px ${status.color} inset` : 'none',
-                    color: status.color, cursor: 'pointer',
-                    fontSize: { xs: '0.72rem', md: '0.61rem', lg: '0.67rem' }, fontWeight: active ? 750 : 650,
+                    color: status.color,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: '0.75rem',
+                    lineHeight: 1.25,
+                    fontWeight: active ? 750 : 650,
                     transition: 'background-color 120ms ease, border-color 120ms ease',
                     '&:hover': { backgroundColor: `${status.color}1f`, borderColor: status.color },
                     '&:focus-visible': { outline: `2px solid ${status.color}`, outlineOffset: 2 }
                   }}>
-                  <Box component="span" sx={{ width: 5, height: 5, borderRadius: '50%', background: status.color, flexShrink: 0 }} />
-                  {status.label}
-                  <Box component="span" sx={{ borderRadius: 1, minWidth: 19, px: 0.55, py: 0.2,
+                  <Box component="span" sx={{ display: 'flex', minWidth: 0, alignItems: 'flex-start', gap: 0.75 }}>
+                    <Box component="span" sx={{ width: 6, height: 6, mt: '4px', borderRadius: '50%', background: status.color, flexShrink: 0 }} />
+                    <Box component="span" sx={{ minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{status.label}</Box>
+                  </Box>
+                  <Box component="span" sx={{ flexShrink: 0, borderRadius: 1, minWidth: 22, px: 0.6, py: 0.25,
                     backgroundColor: `${status.color}1f`, color: status.color,
-                    fontSize: '0.67rem', fontWeight: 700, textAlign: 'center' }}>
+                    fontSize: '0.7rem', lineHeight: 1.2, fontWeight: 700, textAlign: 'center' }}>
                     {loadingCounts && role !== 'staff' ? '…' : count}
                   </Box>
                 </Box>

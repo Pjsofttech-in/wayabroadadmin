@@ -627,13 +627,12 @@ export default function AbroadInquiryList() {
   const filteredCount = matchingData.length;
 
   return (
-    <div className="inquiry-management-page">
+    <div className="inquiry-management-page" style={{ paddingTop: 'clamp(12px, 1.25vw, 20px)' }}>
       <InquiryFilter
         filters={filters}
         onChange={setFilters}
         search={search}
         setSearch={setSearch}
-        onClearFilters={handleClearFilters}
         onFilterChange={() => {}}
         data={Array.isArray(allFilteredData) ? allFilteredData : []}
         countries={getUnique(Array.isArray(allFilteredData) ? allFilteredData : [], "country")}
@@ -716,7 +715,7 @@ export default function AbroadInquiryList() {
   </div>
 </div>
       
-      <div className="way-inquiry-table"><Table
+      <div className="way-inquiry-table" style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}><Table
         columns={columns}
         dataSource={matchingData}
         rowKey="id"
@@ -805,7 +804,15 @@ export default function AbroadInquiryList() {
         .way-inquiry-table .ant-table-thead > tr > th { background: #f7f9fc; color: #334155; font-weight: 650; border-bottom: 1px solid #dce3eb; }
         .way-inquiry-table .ant-table-tbody > tr > td { border-bottom-color: #edf0f4; }
         .way-inquiry-table .ant-table-tbody > tr:hover > td { background: #f8fbff !important; }
+        .way-inquiry-table { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+        .way-inquiry-table .ant-table-wrapper, .way-inquiry-table .ant-spin-nested-loading { min-width: 0; }
         .way-inquiry-table .ant-table { border-radius: 8px; overflow: hidden; }
+        .way-inquiry-table .ant-table-cell { overflow-wrap: anywhere; }
+        .way-inquiry-table .ant-pagination { display: flex; flex-wrap: wrap; gap: 6px; }
+        @media (max-width: 600px) {
+          .way-inquiry-table .ant-table { font-size: 12px; }
+          .way-inquiry-table .ant-table-cell { padding: 8px 10px; }
+        }
       `}</style>
     </div>
   );
