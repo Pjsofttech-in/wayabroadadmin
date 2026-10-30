@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Table, Card, Row, Col, Typography, message } from "antd";
-import { Box, Grid, CircularProgress, useTheme } from "@mui/material";
+import { Table, Card, Typography, message } from "antd";
+import { Box, CircularProgress } from "@mui/material";
 import { partnerService } from "./partnerService";
 import PartnerFilter from './PartnerFilter';
-import PartnerDetailsModal from './PartnerDetailsModal';
 import EditIcon from '@mui/icons-material/Edit';
 import IconButton from '@mui/material/IconButton';
 import PatnerInfo from './PatnerInfo';
@@ -376,7 +375,7 @@ const PartnerList = () => {
         (!newFilters.instituteType || normalizeValue(partner.instituteType) === normalizeValue(newFilters.instituteType)) &&
         (!newFilters.contractType || normalizeValue(partner.contractType) === normalizeValue(newFilters.contractType)) &&
         (!newFilters.conductedBy || normalizeValue(partner.conductedBy) === normalizeValue(newFilters.conductedBy)) &&
-        (!newFilters.status || normalizeValue(partner.status) === normalizeValue(newFilters.status))
+        (!newFilters.status || normalizeStatus(partner.status) === normalizeStatus(newFilters.status))
       );
     });
     setFilteredPartners(filtered);
@@ -446,131 +445,234 @@ const PartnerList = () => {
   return (
     <>
       <LoadingOverlay loading={loading} />
-      <Box p={2}>
-        <Box sx={{ marginBottom: '24px' }}>
-          <PartnerFilter 
-            filters={filters}
-            onFilterChange={handleFilterChange} 
-            conductedByOptions={conductedByOptions} 
-            statusOptions={ALL_STATUSES}
-          />
-        </Box>
-        
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12}>
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'row', 
-              alignItems: 'center', 
-              gap: 2, 
-              p: 1.5, 
-              bgcolor: 'background.paper', 
-              borderRadius: 1, 
-              boxShadow: 1,
-              border: '1px solid #e0e0e0',
-              flexWrap: 'wrap'
-            }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center',
-                bgcolor: 'primary.main',
-                color: 'white',
-                px: 2,
-                py: 1,
-                borderRadius: 1,
-                fontWeight: 'medium',
-                fontSize: '0.9rem',
-                minWidth: '100px',
-                justifyContent: 'center'
-              }}>
-                Total: {loading ? 
-                  <CircularProgress size={16} color="inherit" sx={{ ml: 1 }} /> : 
-                  totalPartners.toLocaleString()
-                }
-              </Box>
-              
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 1, 
-                flexWrap: 'wrap', 
-                alignItems: 'center',
-                flex: 1,
-                justifyContent: 'space-between'
-              }}>
-                {ALL_STATUSES.map((status) => (
+
+      <Box
+        sx={{
+          width: '100%',
+          minWidth: 0,
+          p: { xs: 0.75, sm: 1 },
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* Partner Overview - follows Application Overview card styling */}
+        <Box
+          sx={{
+            width: '100%',
+            mb: 1,
+            p: 1,
+            bgcolor: '#fbfcfe',
+            border: '1px solid #e4e9ef',
+            borderRadius: '6px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: 'repeat(2, minmax(0, 1fr))',
+                sm: 'repeat(3, minmax(0, 1fr))',
+                md: 'repeat(3, minmax(0, 1fr))',
+                lg: 'repeat(6, minmax(0, 1fr))',
+              },
+              width: '100%',
+              '& > *': { minWidth: 0 },
+              gap: 0.75,
+            }}
+          >
+            {[
+              {
+                value: 'total',
+                label: 'Total Partners',
+                count: totalPartners,
+                color: '#1890ff',
+              },
+              ...ALL_STATUSES.map((status) => ({
+                value: status.value,
+                label: status.label,
+                count: statusCounts[status.value] || 0,
+                color: status.color,
+              })),
+            ].map((item) => {
+              const isSelected = item.value !== 'total' &&
+                normalizeStatus(filters.status) === item.value;
+
+              return (
+                <Box
+                  key={item.value}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.65,
+                    minWidth: 0,
+                    minHeight: 43,
+                    px: 1,
+                    py: 0.75,
+                    bgcolor: '#fff',
+                    border: `1px solid ${isSelected ? item.color : '#e4e9ef'}`,
+                    borderRadius: '6px',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.15s ease, background-color 0.15s ease',
+                  }}
+                >
                   <Box
-                    key={status.value}
+                    sx={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      bgcolor: item.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Box
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: `1px solid ${status.color}`,
-                      color: status.color,
-                      minWidth: '140px',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      backgroundColor: 'transparent',
-                      pointerEvents: 'none',
-                      transition: 'all 0.2s ease-in-out',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }
+                      justifyContent: 'space-between',
+                      gap: 0.6,
+                      minWidth: 0,
+                      flex: 1,
+                      flexWrap: 'nowrap',
                     }}
                   >
-                    {status.label}
-                    <Box 
+                    <Typography
+                      noWrap
+                      title={item.label}
                       sx={{
-                        position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        backgroundColor: '#fff',
-                        color: status.color,
-                        borderRadius: '50%',
-                        width: '22px',
-                        height: '22px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.75rem',
-                        fontWeight: 'bold',
-                        border: `1px solid ${status.color}`,
-                        boxSizing: 'border-box'
+                        color: '#344054',
+                        fontSize: '0.70rem',
+                        fontWeight: 500,
+                        lineHeight: 1.3,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {statusCounts[status.value] || 0}
-                    </Box>
+                      {item.label}
+                    </Typography>
+                    <Typography
+                      component="span"
+                      sx={{
+                        color: item.color,
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        lineHeight: 1.2,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {loading && item.value === 'total'
+                        ? <CircularProgress size={12} />
+                        : Number(item.count || 0).toLocaleString()}
+                    </Typography>
                   </Box>
-                ))}
-              </Box>
-            </Box>
-          </Grid>
-        </Grid>
-        
-        <Card>
-          <Table
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+
+        {/* Filters */}
+        <Box sx={{ mb: 1, minWidth: 0 }}>
+          <PartnerFilter
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            conductedByOptions={conductedByOptions}
+            statusOptions={ALL_STATUSES}
+          />
+        </Box>
+
+        {/* Partner table - compact Application List table styling */}
+        <Card
+          bodyStyle={{ padding: 0 }}
+          style={{
+            borderRadius: 6,
+            overflow: 'hidden',
+            borderColor: '#e4e9ef',
+            boxShadow: 'none',
+          }}
+        >
+          <Box
+            sx={{
+              width: '100%',
+              minWidth: 0,
+              overflow: 'hidden',
+              '& .ant-table-wrapper': { maxWidth: '100%' },
+              '& .ant-table': {
+                fontSize: 13,
+                color: '#344054',
+              },
+              '& .ant-table-container': {
+                borderInlineStart: 0,
+                borderTop: 0,
+              },
+              '& .ant-table-thead > tr > th': {
+                background: '#f8fafc',
+                color: '#183b56',
+                fontWeight: 600,
+                fontSize: '0.72rem',
+                lineHeight: 1.35,
+                borderBottom: '1px solid #e4e9ef',
+                padding: '9px 10px',
+                whiteSpace: 'nowrap',
+              },
+              '& .ant-table-tbody > tr > td': {
+                padding: '9px 10px',
+                fontSize: '0.78rem',
+                borderBottom: '1px solid #edf1f5',
+                color: '#344054',
+              },
+              '& .ant-table-tbody > tr:hover > td': {
+                background: '#f7faff',
+              },
+              '& .ant-table-tbody > tr:last-child > td': {
+                borderBottom: 0,
+              },
+              '& .ant-pagination': {
+                margin: '10px 12px',
+                fontSize: '0.75rem',
+              },
+              '& .ant-pagination .ant-pagination-total-text': {
+                color: '#344054',
+                fontSize: '0.75rem',
+              },
+            }}
+          >
+            <Table
               columns={columns}
               dataSource={normalizedData}
               loading={loading}
               pagination={{
                 ...pagination,
                 showSizeChanger: true,
-                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} partners`,
-                pageSizeOptions: ['25', '50', '100', '500', '1000']
+                showTotal: (total, range) =>
+                  `${range[0]}-${range[1]} of ${total} partners`,
+                pageSizeOptions: ['25', '50', '100', '500', '1000'],
               }}
               onChange={handleTableChange}
               rowKey="id"
               scroll={{ x: 'max-content' }}
+              size="small"
             />
-          </Card>
-        </Box>
+          </Box>
+        </Card>
+      </Box>
 
       {viewPartner && (
-        <Dialog open={infoDialogOpen} onClose={handleCloseInfoDialog} fullWidth maxWidth="md">
+        <Dialog
+          open={infoDialogOpen}
+          onClose={handleCloseInfoDialog}
+          fullWidth
+          maxWidth="md"
+        >
           <DialogTitle>
             Partner Information
-            <IconButton aria-label="edit" onClick={() => handleEditFromDialog(viewPartner)} sx={{ position: 'absolute', right: 8, top: 8 }}>
+            <IconButton
+              aria-label="edit"
+              onClick={() => handleEditFromDialog(viewPartner)}
+              sx={{ position: 'absolute', right: 8, top: 8 }}
+            >
               <EditIcon />
             </IconButton>
           </DialogTitle>

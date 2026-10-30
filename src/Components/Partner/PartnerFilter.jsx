@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   TextField,
@@ -6,14 +6,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
   CircularProgress,
-  Button,
+  InputAdornment,
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
-import { partnerService } from "./partnerService";
+import { partnerService } from './partnerService';
 
-// Initial filter state
 const initialFilters = {
   name: '',
   email: '',
@@ -21,186 +19,242 @@ const initialFilters = {
   conductedBy: '',
   instituteType: '',
   contractType: '',
-  status: ''
+  status: '',
 };
 
-// Status options with colors for UI
-const statusOptions = [
-  { value: 'Interested', label: 'Interested', color: '#4caf50' },
-  { value: 'Not Interested', label: 'Not Interested', color: '#f44336' },
-  { value: 'Meeting Scheduled', label: 'Meeting Scheduled', color: '#2196f3' },
-  { value: 'Onboard', label: 'Onboard', color: '#9c27b0' },
-  { value: 'Ringing', label: 'Ringing', color: '#ff9800' }
+const defaultStatusOptions = [
+  { value: 'interested', label: 'Interested', color: '#4caf50' },
+  { value: 'not_interested', label: 'Not Interested', color: '#f44336' },
+  { value: 'meeting_scheduled', label: 'Meeting Scheduled', color: '#2196f3' },
+  { value: 'onboard', label: 'Onboard', color: '#9c27b0' },
+  { value: 'ringing', label: 'Ringing', color: '#ff9800' },
 ];
 
-// Map of normalized status values to their display values
-const STATUS_MAP = {
-  'interested': 'Interested',
-  'not_interested': 'Not Interested',
-  'notinterested': 'Not Interested',
-  'meeting_scheduled': 'Meeting Scheduled',
-  'meetingscheduled': 'Meeting Scheduled',
-  'onboard': 'Onboard',
-  'ringing': 'Ringing'
-};
-
-// Function to normalize status values for comparison
 const normalizeStatus = (status) => {
   if (!status) return '';
-  const normalized = status.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return STATUS_MAP[normalized] || status;
+  return status.toString().trim().toLowerCase().replace(/[\s-]+/g, '_');
 };
 
-const PartnerFilter = ({ onFilterChange, filters = initialFilters, loading = false }) => {
+const fieldSx = {
+  width: '100%',
+  '& .MuiInputBase-root': {
+    minHeight: 36,
+    height: 36,
+    borderRadius: '4px',
+    backgroundColor: '#fff',
+    fontSize: '0.76rem',
+  },
+  '& .MuiInputBase-input': {
+    py: '8px',
+    fontSize: '0.76rem',
+  },
+  '& .MuiInputLabel-root': {
+    fontSize: '0.76rem',
+  },
+  '& .MuiOutlinedInput-notchedOutline': {
+    borderColor: '#d6dbe1',
+  },
+  '&:hover .MuiOutlinedInput-notchedOutline': {
+    borderColor: '#9aabba',
+  },
+  '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+    borderColor: '#2585bd',
+    borderWidth: '1px',
+  },
+};
+const PartnerFilter = ({
+  onFilterChange,
+  filters = initialFilters,
+  loading = false,
+  conductedByOptions: conductedByOptionsProp = [],
+  statusOptions: statusOptionsProp = defaultStatusOptions,
+}) => {
   const [searchText, setSearchText] = useState(filters.name || '');
   const [filterOptions, setFilterOptions] = useState({
     conductedBy: [],
     instituteTypes: [],
-    contractTypes: []
+    contractTypes: [],
   });
   const [isLoading, setIsLoading] = useState(false);
+  const filtersRef = useRef(filters);
+  const isFirstSearchEffect = useRef(true);
 
-  // Fetch filter options from API
   useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
+  // Keep the search field synchronized when filters are reset externally.
+  useEffect(() => {
+    setSearchText(filters.name || '');
+  }, [filters.name]);
+
+  // Conducted By is supplied by PartnerList. Fetch only the remaining option lists here.
+  useEffect(() => {
+    let isMounted = true;
+
     const fetchFilterOptions = async () => {
       setIsLoading(true);
       try {
-        // Fetch initial filter options
         const response = await partnerService.filterPartners({});
-        
-        if (response && !response.error) {
-          // Extract unique values for each filter from the response
-          const conductedBy = [...new Set(response.content?.map(item => item.conductedBy).filter(Boolean))];
-          const instituteTypes = [...new Set(response.content?.map(item => item.instituteType).filter(Boolean))];
-          const contractTypes = [...new Set(response.content?.map(item => item.contractType).filter(Boolean))];
-          
+        if (isMounted && response && !response.error) {
+          const content = response.content || [];
           setFilterOptions({
-            conductedBy,
-            instituteTypes,
-            contractTypes
+            conductedBy: [],
+            instituteTypes: [...new Set(content.map((item) => item.instituteType).filter(Boolean))],
+            contractTypes: [...new Set(content.map((item) => item.contractType).filter(Boolean))],
           });
         }
       } catch (error) {
-        console.error('Error fetching filter options:', error);
+        console.error('Error fetching partner filter options:', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     fetchFilterOptions();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const handleSearch = async (e) => {
-    const value = e.target.value;
-    setSearchText(value);
-    
-    // Debounce search to avoid too many API calls
-    const timer = setTimeout(async () => {
-      const newFilters = {
-        ...filters,
-        name: value || undefined
-      };
-      onFilterChange?.(newFilters);
-    }, 500);
-    
+  const conductedByValues = (Array.isArray(conductedByOptionsProp)
+    ? conductedByOptionsProp
+    : []
+  )
+    .map((option) => {
+      if (typeof option === 'string') return option;
+      return option?.conductBy || option?.conductedBy || option?.name || '';
+    })
+    .filter(Boolean);
+
+  const statusOptions = Array.isArray(statusOptionsProp) && statusOptionsProp.length
+    ? statusOptionsProp
+    : defaultStatusOptions;
+
+  const selectOptions = (items) => [
+    { value: '', label: 'All' },
+    ...(Array.isArray(items) ? items : []).map((item) => ({
+      value: item,
+      label: item,
+    })),
+  ];
+
+  // Debounce name search; use the latest filters to avoid overwriting other active filters.
+  useEffect(() => {
+    if (isFirstSearchEffect.current) {
+      isFirstSearchEffect.current = false;
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      onFilterChange?.({
+        ...filtersRef.current,
+        name: searchText || undefined,
+      });
+    }, 400);
+
     return () => clearTimeout(timer);
-  };
+  }, [searchText, onFilterChange]);
 
   const handleFilterChange = (field, value) => {
-    // Normalize status value before setting it in filters
     const normalizedValue = field === 'status' ? normalizeStatus(value) : value;
-    
-    const newFilters = {
+    onFilterChange?.({
       ...filters,
-      [field]: normalizedValue || undefined
-    };
-    onFilterChange?.(newFilters);
+      [field]: normalizedValue || undefined,
+    });
   };
 
-  // Helper to create select options with "All" option
-  const getSelectOptions = (items) => {
-    if (!items || !Array.isArray(items)) return [];
-    return [
-      { value: '', label: 'All' },
-      ...items.map(item => ({
-        value: item,
-        label: item
-      }))
-    ];
-  };
-
-  if (isLoading) {
+  if (isLoading || loading) {
     return (
-      <Box display="flex" justifyContent="center" p={4}>
-        <CircularProgress />
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+        <CircularProgress size={24} />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Grid container spacing={2} alignItems="center">
-        {/* Search Field */}
-        <Grid item xs={12} sm={3}>
+    <Box
+      sx={{
+        width: '100%',
+        p: 0.75,
+        bgcolor: '#fff',
+        border: '1px solid #e4e9ef',
+        borderRadius: '2px',
+        boxSizing: 'border-box',
+      }}
+    >
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: 'minmax(0, 1fr)',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            md: 'repeat(4, minmax(0, 1fr))',
+            lg: 'repeat(7, minmax(0, 1fr))',
+          },
+          gap: 0.75,
+          alignItems: 'center',
+          '& > *': { minWidth: 0 },
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}> 
           <TextField
             fullWidth
-            variant="outlined"
-            placeholder="Search by name, email..."
-            value={searchText}
-            onChange={handleSearch}
-            InputProps={{
-              startAdornment: <SearchIcon sx={{ color: 'action.active', mr: 1 }} />,
-            }}
             size="small"
+            variant="outlined"
+            placeholder="Search by name..."
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            sx={fieldSx}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#718096', fontSize: 18 }} />
+                </InputAdornment>
+              ),
+            }}
           />
-        </Grid>
+        </Box>
 
-        {/* Email Filter */}
-        <Grid item xs={12} sm={3}>
+        <Box sx={{ minWidth: 0 }}> 
           <TextField
             fullWidth
+            size="small"
             label="Email"
             variant="outlined"
             value={filters.email || ''}
-            onChange={(e) => handleFilterChange('email', e.target.value)}
-            size="small"
+            onChange={(event) => handleFilterChange('email', event.target.value)}
+            sx={fieldSx}
           />
-        </Grid>
+        </Box>
 
-        {/* Business Email Filter */}
-        <Grid item xs={12} sm={3}>
+        <Box sx={{ minWidth: 0 }}> 
           <TextField
             fullWidth
+            size="small"
             label="Business Email"
             variant="outlined"
             value={filters.businessEmail || ''}
-            onChange={(e) => handleFilterChange('businessEmail', e.target.value)}
-            size="small"
+            onChange={(event) => handleFilterChange('businessEmail', event.target.value)}
+            sx={fieldSx}
           />
-        </Grid>
+        </Box>
 
-        {/* Status Filter */}
-        <Grid item xs={12} sm={3}>
-          <FormControl fullWidth size="small">
+        <Box sx={{ minWidth: 0 }}> 
+          <FormControl fullWidth size="small" sx={fieldSx}>
             <InputLabel>Status</InputLabel>
             <Select
               value={filters.status || ''}
               label="Status"
-              onChange={(e) => handleFilterChange('status', e.target.value)}
-              variant="outlined"
+              onChange={(event) => handleFilterChange('status', event.target.value)}
             >
-              {getSelectOptions(statusOptions.map(s => s.value)).map((option) => {
-                const status = statusOptions.find(s => s.value === option.value);
+              {selectOptions(statusOptions.map((status) => status.value)).map((option) => {
+                const status = statusOptions.find((item) => normalizeStatus(item.value) === normalizeStatus(option.value));
                 return (
                   <MenuItem key={option.value} value={option.value}>
-                    <Box display="flex" alignItems="center" gap={1}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {status?.color && (
-                        <Box 
-                          width={12} 
-                          height={12} 
-                          borderRadius="50%" 
-                          bgcolor={status.color}
-                        />
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: status.color }} />
                       )}
                       {option.label}
                     </Box>
@@ -209,67 +263,53 @@ const PartnerFilter = ({ onFilterChange, filters = initialFilters, loading = fal
               })}
             </Select>
           </FormControl>
-        </Grid>
-      </Grid>
+        </Box>
 
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        {/* Conducted By Filter */}
-        <Grid item xs={12} sm={3}>
-          <FormControl fullWidth size="small">
+        <Box sx={{ minWidth: 0 }}> 
+          <FormControl fullWidth size="small" sx={fieldSx}>
             <InputLabel>Conducted By</InputLabel>
             <Select
               value={filters.conductedBy || ''}
               label="Conducted By"
-              onChange={(e) => handleFilterChange('conductedBy', e.target.value)}
-              variant="outlined"
+              onChange={(event) => handleFilterChange('conductedBy', event.target.value)}
             >
-              {getSelectOptions(filterOptions.conductedBy).map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
+              {selectOptions(conductedByValues).map((option) => (
+                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
-        </Grid>
+        </Box>
 
-        {/* Institute Type Filter */}
-        <Grid item xs={12} sm={3}>
-          <FormControl fullWidth size="small">
+        <Box sx={{ minWidth: 0 }}> 
+          <FormControl fullWidth size="small" sx={fieldSx}>
             <InputLabel>Institute Type</InputLabel>
             <Select
               value={filters.instituteType || ''}
               label="Institute Type"
-              onChange={(e) => handleFilterChange('instituteType', e.target.value)}
-              variant="outlined"
+              onChange={(event) => handleFilterChange('instituteType', event.target.value)}
             >
-              {getSelectOptions(filterOptions.instituteTypes).map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
+              {selectOptions(filterOptions.instituteTypes).map((option) => (
+                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
-        </Grid>
+        </Box>
 
-        {/* Contract Type Filter */}
-        <Grid item xs={12} sm={3}>
-          <FormControl fullWidth size="small">
+        <Box sx={{ minWidth: 0 }}> 
+          <FormControl fullWidth size="small" sx={fieldSx}>
             <InputLabel>Contract Type</InputLabel>
             <Select
               value={filters.contractType || ''}
               label="Contract Type"
-              onChange={(e) => handleFilterChange('contractType', e.target.value)}
-              variant="outlined"
-            >
-              {getSelectOptions(filterOptions.contractTypes).map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
+              onChange={(event) => handleFilterChange('contractType', event.target.value)}
+              >
+              {selectOptions(filterOptions.contractTypes).map((option) => (
+                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Box>
   );
 };
