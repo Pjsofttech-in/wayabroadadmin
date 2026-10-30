@@ -1,62 +1,60 @@
-import axiosInstance from '../Common/axiosConfig';
+import axiosInstance from "../Common/axiosConfig";
 
-// Helper function to get auth params
+// Helper function to get the QR owner's registration context.
 const getAuthParams = () => ({
-  role: sessionStorage.getItem('role') || 'staff',
-  email: sessionStorage.getItem('email') || '',
-  branchCode: sessionStorage.getItem('branchCode') || ''
+  role: sessionStorage.getItem("role") || "staff",
+  email: sessionStorage.getItem("email") || "",
+  branchCode: sessionStorage.getItem("branchCode") || "",
 });
 
-// Create a new registration form
+// Create a registration from the public QR form. The backend endpoint is permitAll.
 export const createRegistration = async (formData) => {
   try {
     const { role, email } = getAuthParams();
-    const response = await axiosInstance.post('/createRegisterForm', formData, {
-      params: { role, email }
+    const response = await axiosInstance.post("/createRegisterForm", formData, {
+      params: { role, email },
+      skipAuth: true,
     });
     return response.data;
   } catch (error) {
-    console.error('Error creating registration form:', error);
+    console.error("Error creating registration form:", error);
     throw error;
   }
 };
 
-// Get all registration forms
+// Get all registration forms (admin operation; authenticated).
 export const getRegistrations = async () => {
   try {
     const { role, email, branchCode } = getAuthParams();
-    console.log('Fetching registrations with:', { role, email, branchCode });
-    
-    // Only include branchCode if it exists
+    console.log("Fetching registrations with:", { role, email, branchCode });
+
     const params = { role, email };
     if (branchCode) {
       params.branchCode = branchCode;
     }
 
-    const response = await axiosInstance.get('/getAllRegisterForms', { params });
-    console.log('Raw API response:', response);
-    
-    // The response might be the array directly or in a data property
+    const response = await axiosInstance.get("/getAllRegisterForms", { params });
+    console.log("Raw API response:", response);
+
     const data = Array.isArray(response.data) ? response.data : [];
-    console.log('Processed registrations:', data);
+    console.log("Processed registrations:", data);
     return data;
-    
   } catch (error) {
-    console.error('Error fetching registrations:', {
+    console.error("Error fetching registrations:", {
       message: error.message,
       response: error.response?.data,
-      status: error.response?.status
+      status: error.response?.status,
     });
     return [];
   }
 };
 
-// Get a single registration form by ID
+// Get a single registration form by ID (admin operation; authenticated).
 export const getRegistrationById = async (id) => {
   try {
     const { role, email, branchCode } = getAuthParams();
     const response = await axiosInstance.get(`/getRegisterFormById/${id}`, {
-      params: { role, email, branchCode }
+      params: { role, email, branchCode },
     });
     return response.data;
   } catch (error) {
@@ -65,12 +63,12 @@ export const getRegistrationById = async (id) => {
   }
 };
 
-// Update a registration form
+// Update a registration form (admin operation; authenticated).
 export const updateRegistration = async (id, updatedData) => {
   try {
     const { role, email } = getAuthParams();
     const response = await axiosInstance.put(`/updateRegisterForm/${id}`, updatedData, {
-      params: { role, email }
+      params: { role, email },
     });
     return response.data;
   } catch (error) {
@@ -79,12 +77,12 @@ export const updateRegistration = async (id, updatedData) => {
   }
 };
 
-// Delete a registration form
+// Delete a registration form (admin operation; authenticated).
 export const deleteRegistration = async (id) => {
   try {
     const { role, email } = getAuthParams();
     const response = await axiosInstance.delete(`/deleteRegisterForm/${id}`, {
-      params: { role, email }
+      params: { role, email },
     });
     return response.data;
   } catch (error) {
@@ -93,36 +91,36 @@ export const deleteRegistration = async (id) => {
   }
 };
 
-// Get all streams
+// These lookup endpoints are explicitly permitAll in the backend.
+// They must work on a phone that scans the QR without an admin session.
 export const getAllStreams = async () => {
-  const role = sessionStorage.getItem('role') || 'staff';
-  const email = sessionStorage.getItem('email') || '';
-  
+  const role = sessionStorage.getItem("role") || "staff";
+  const email = sessionStorage.getItem("email") || "";
+
   try {
-    const response = await axiosInstance.get('/getAllStreams', {
-      params: { role, email }
+    const response = await axiosInstance.get("/getAllStreams", {
+      params: { role, email },
+      skipAuth: true,
     });
-    // Ensure we return an array
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
-    console.error('Error fetching streams:', error);
-    return []; // Return empty array on error
+    console.error("Error fetching streams:", error);
+    return [];
   }
 };
 
-// Get all courses
 export const getAllCourses = async () => {
-  const role = sessionStorage.getItem('role') || 'staff';
-  const email = sessionStorage.getItem('email') || '';
-  
+  const role = sessionStorage.getItem("role") || "staff";
+  const email = sessionStorage.getItem("email") || "";
+
   try {
-    const response = await axiosInstance.get('/getAllCourseName', {
-      params: { role, email }
+    const response = await axiosInstance.get("/getAllCourseName", {
+      params: { role, email },
+      skipAuth: true,
     });
-    // Ensure we return an array
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
-    console.error('Error fetching courses:', error);
-    return []; // Return empty array on error
+    console.error("Error fetching courses:", error);
+    return [];
   }
 };
