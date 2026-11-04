@@ -18,6 +18,7 @@ import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
   DeleteOutlined,
+  EditOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
 
@@ -32,6 +33,9 @@ import LoadingOverlay from "../../Common/LoadingOverlay";
 
 const initialUniversity = {
   universityName: "",
+  globalRank: "",
+  countryRank: "",
+  stateRank: "",
   photo: null,
 };
 
@@ -69,20 +73,7 @@ export default function University({
     setApiLoading(true);
 
     try {
-      const params = {
-        search: "",
-        email,
-        role,
-        branchCode,
-      };
-
-      if (city?.id) {
-        params.cityId = city.id;
-      } else if (country?.id) {
-        params.countryId = country.id;
-      }
-
-      const data = await getAllUniversity(params);
+      const data = await getAllUniversity({ cityId: city?.id });
 
       const formattedData = (Array.isArray(data) ? data : []).map(
         (university) => ({
@@ -151,6 +142,9 @@ export default function University({
           record.university ||
           record.name ||
           "",
+        globalRank: record.globalRank || "",
+        countryRank: record.countryRank || "",
+        stateRank: record.stateRank || "",
         photo: null,
       });
 
@@ -198,18 +192,20 @@ export default function University({
     setLoading(true);
 
     try {
-      const payload = { universityName };
+      const payload = {
+        universityName,
+        globalRank: universitiesData.globalRank || "",
+        countryRank: universitiesData.countryRank || "",
+        stateRank: universitiesData.stateRank || "",
+      };
 
       if (editing !== null && editing !== undefined) {
         await updateUniversity(
           editing,
           payload,
           universitiesData.photo,
-          country?.id,
           email,
-          role,
-          branchCode,
-          city?.id
+          role
         );
 
         message.success("University updated successfully");
@@ -217,7 +213,6 @@ export default function University({
         await createUniversity(
           payload,
           universitiesData.photo,
-          country?.id,
           email,
           role,
           city?.id
@@ -248,7 +243,7 @@ export default function University({
     setLoading(true);
 
     try {
-      await deleteUniversity(id, email, role, branchCode);
+      await deleteUniversity(id, email, role);
 
       message.success("University deleted successfully");
       await fetchUniversities();
@@ -311,6 +306,24 @@ export default function University({
       ),
     },
     {
+      title: "Global Rank",
+      dataIndex: "globalRank",
+      key: "globalRank",
+      render: (value) => value || "-",
+    },
+    {
+      title: "Country Rank",
+      dataIndex: "countryRank",
+      key: "countryRank",
+      render: (value) => value || "-",
+    },
+    {
+      title: "State Rank",
+      dataIndex: "stateRank",
+      key: "stateRank",
+      render: (value) => value || "-",
+    },
+    {
       title: "Image",
       dataIndex: "imageUrl",
       key: "imageUrl",
@@ -351,7 +364,7 @@ export default function University({
     {
       title: "Actions",
       key: "actions",
-      width: 230,
+      width: 290,
       render: (_, record) => (
         <Stack
           direction="row"
@@ -360,6 +373,16 @@ export default function University({
           flexWrap="wrap"
           useFlexGap
         >
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<EditOutlined />}
+            onClick={() => handleOpenDialog(record)}
+            disabled={loading}
+          >
+            Edit
+          </Button>
+
           <Popconfirm
             title="Delete this university?"
             description="This action cannot be undone."
@@ -478,6 +501,40 @@ export default function University({
             margin="normal"
             required
             autoFocus
+          />
+
+          <TextField
+            label="Global Rank"
+            name="globalRank"
+            value={universitiesData.globalRank || ""}
+            onChange={handleChange}
+            fullWidth
+            margin="normal"
+            placeholder="Enter global rank"
+            disabled={editing !== null && editing !== undefined}
+            helperText={editing !== null && editing !== undefined ? "Rank updates require a backend update-service change." : ""}
+          />
+          <TextField
+            label="Country Rank"
+            name="countryRank"
+            value={universitiesData.countryRank || ""}
+            onChange={handleChange}
+            fullWidth
+            margin="normal"
+            placeholder="Enter country rank"
+            disabled={editing !== null && editing !== undefined}
+            helperText={editing !== null && editing !== undefined ? "Rank updates require a backend update-service change." : ""}
+          />
+          <TextField
+            label="State Rank"
+            name="stateRank"
+            value={universitiesData.stateRank || ""}
+            onChange={handleChange}
+            fullWidth
+            margin="normal"
+            placeholder="Enter state rank"
+            disabled={editing !== null && editing !== undefined}
+            helperText={editing !== null && editing !== undefined ? "Rank updates require a backend update-service change." : ""}
           />
 
           <Button

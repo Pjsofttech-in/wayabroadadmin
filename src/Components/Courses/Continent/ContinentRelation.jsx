@@ -37,7 +37,6 @@ import {
 
 const initialContinent = {
   continentname: "",
-  photo: null,
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50];
@@ -141,8 +140,7 @@ export default function ContinentRelation() {
         );
 
         setContinentData({
-          continentname: continent.continentname,
-          photo: continent.image || continent.photo || null,
+          continentname: continent.continentname || "",
         });
 
         setEditing(record.id);
@@ -168,19 +166,11 @@ export default function ContinentRelation() {
   };
 
   const handleChange = (event) => {
-    const { name, value, files } = event.target;
-
-    if (name === "photo") {
-      setContinentData((prev) => ({
-        ...prev,
-        photo: files?.[0] || null,
-      }));
-    } else {
-      setContinentData((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
-    }
+    const { name, value } = event.target;
+    setContinentData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSave = async () => {
@@ -197,7 +187,6 @@ export default function ContinentRelation() {
         continent: {
           continentname: continentData.continentname.trim(),
         },
-        image: continentData.photo,
       };
 
       if (editing) {
@@ -305,23 +294,6 @@ export default function ContinentRelation() {
       render: (value) => value || "-",
     },
     {
-      title: "Image",
-      dataIndex: "image",
-      key: "image",
-      width: 120,
-      render: (url, record) => {
-        const imageUrl = url || record.imageUrl;
-        const src = imageUrl
-          ? imageUrl.startsWith("data:image") || /^https?:\/\//i.test(imageUrl)
-            ? imageUrl
-            : `${import.meta.env.VITE_API_URL || ""}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`
-          : null;
-        return src ? (
-          <img src={src} alt={record.continentname || "Continent"} loading="lazy" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />
-        ) : "-";
-      },
-    },
-    {
       title: "Created By Email",
       key: "createdByEmail",
       render: (_, record) => record.createdByEmail || record.created_by_email || "-",
@@ -415,28 +387,7 @@ export default function ContinentRelation() {
             required
           />
 
-          <Button
-            variant="contained"
-            component="label"
-            sx={{ mt: 2 }}
-          >
-            Upload Image
-            <input
-              type="file"
-              name="photo"
-              accept="image/*"
-              hidden
-              onChange={handleChange}
-            />
-          </Button>
 
-          {continentData.photo && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              {continentData.photo instanceof File
-                ? continentData.photo.name
-                : "Existing image selected"}
-            </Typography>
-          )}
         </DialogContent>
 
         <DialogActions>

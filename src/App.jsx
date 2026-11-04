@@ -19,7 +19,7 @@ import AbroadInquiryQR from "./Components/InquiryManagement/Pages/AbroadInquiryQ
 import PublicInquiryRegistration from "./Components/InquiryManagement/Pages/PublicInquiryRegistration.jsx";
 import SettingSidebar from "./Components/Settings/SettingSidebar.jsx";
 import ContinentRelation from "./Components/Courses/Continent/ContinentRelation.jsx";
-import CourseEntityRoute from "./Components/Courses/Continent/CourseEntityRoute.jsx";
+import CourseEntityRoute, { LegacyStreamRedirect } from "./Components/Courses/Continent/CourseEntityRoute.jsx";
 import StreamManagement from "./Components/Settings/StreamManagement";
 import CourseManagement from "./Components/Settings/CourseManagement";
 import ConductByManagement from "./Components/Settings/ConductByManagement.jsx";
@@ -58,9 +58,11 @@ import ScholarshipLeadForm from "./Components/ScholarShip/ScholarshipLeadForm.js
 import ScholarshipLeadList from "./Components/ScholarShip/ScholarshipLeadList.jsx";
 import ScholarshipSettings from "./Components/ScholarShip/ScholarshipSettings.jsx";
 import JobsSidebar from "./Components/Jobs/JobsSidebar.jsx";
+import JobDashboard from "./Components/Jobs/JobDashboard.jsx";
 import JobForm from "./Components/Jobs/JobForm.jsx";
 import JobList from "./Components/Jobs/JobList.jsx";
 import JobApplications from "./Components/Jobs/JobApplications.jsx";
+import ManualApplicationForm from "./Components/Jobs/ManualApplicationForm.jsx";
 import JobSettings from "./Components/Jobs/JobSettings.jsx";
 
 // Lazy-loaded components
@@ -129,7 +131,7 @@ const App = () => {
               <Route path="city" element={<CourseEntityRoute entity="city" />} />
               <Route path="university" element={<CourseEntityRoute entity="university" />} />
               <Route path="college" element={<CourseEntityRoute entity="college" />} />
-              <Route path="stream" element={<CourseEntityRoute entity="stream" />} />
+              <Route path="stream" element={<LegacyStreamRedirect />} />
               <Route path="course" element={<CourseEntityRoute entity="course" />} />
             </Route>
             <Route path="application" element={<ApplicationSidebar />}>
@@ -201,10 +203,12 @@ const App = () => {
 
             {/* Jobs Management */}
             <Route path="jobs" element={<JobsSidebar />}>
-              <Route index element={<Navigate to="create" replace />} />
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<JobDashboard />} />
               <Route path="create" element={<JobForm />} />
               <Route path="list" element={<JobList />} />
               <Route path="applications" element={<JobApplications />} />
+              <Route path="applications/add" element={<ManualApplicationForm />} />
               <Route path="settings" element={<JobSettings />} />
             </Route>
 

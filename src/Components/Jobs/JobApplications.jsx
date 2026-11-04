@@ -21,6 +21,9 @@ import {
   deactivateJobApplication,
 } from "./JobService";
 
+import { useNavigate } from "react-router-dom";
+import { PersonAddAlt1 } from "@mui/icons-material";
+
 // Must match com.abroad.Enum.JobApplicationStatus in the supplied backend.
 const STATUSES = [
   "PENDING",
@@ -80,6 +83,7 @@ const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.response?.data?.error || error?.message || fallback;
 
 export default function JobApplications() {
+  const navigate = useNavigate();
   const isBranch = (sessionStorage.getItem("role") || "").toLowerCase() === "branch";
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -92,6 +96,10 @@ export default function JobApplications() {
   const [selected, setSelected] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState(null);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState(null);
+  const [statusRemark, setStatusRemark] = useState("");
+  const [statusRemarkError, setStatusRemarkError] = useState("");
 
   const loadApplications = useCallback(async (nextPage = page, nextSize = pageSize, nextFilters = filters) => {
     setLoading(true);
@@ -136,7 +144,7 @@ export default function JobApplications() {
     setDetailsLoading(true);
     try {
       const response = await getJobApplicationById(record.id);
-      setSelected(response?.data ?? response);
+      setSelected(response?.data ?? response ?? record);
     } catch (e) {
       console.error("Failed to load application details:", e);
       message.error(getErrorMessage(e, "Could not load application details."));
@@ -145,20 +153,54 @@ export default function JobApplications() {
     }
   };
 
-  const changeStatus = async (record, status) => {
+  const changeStatus = (record, status) => {
     const previousStatus = record.status || "PENDING";
     if (previousStatus === status) return;
+
+    // The backend requires a remark with every status update.
+    // Ask for it before sending the PUT request so the existing status
+    // remains unchanged until the backend confirms the update.
+    setPendingStatusChange({ record, status });
+    setStatusRemark("");
+    setStatusRemarkError("");
+    setStatusDialogOpen(true);
+  };
+
+  const closeStatusDialog = () => {
+    if (statusUpdatingId !== null) return;
+    setStatusDialogOpen(false);
+    setPendingStatusChange(null);
+    setStatusRemark("");
+    setStatusRemarkError("");
+  };
+
+  const submitStatusChange = async () => {
+    const remark = statusRemark.trim();
+    if (!remark) {
+      setStatusRemarkError("Remark is required to update the application status.");
+      return;
+    }
+
+    if (!pendingStatusChange) return;
+
+    const { record, status } = pendingStatusChange;
     setStatusUpdatingId(record.id);
     try {
-      const response = await updateJobApplicationStatus(record.id, status);
+      const response = await updateJobApplicationStatus(record.id, status, remark);
       const updated = response?.data ?? response;
       setRows((previous) => previous.map((item) =>
-        item.id === record.id ? { ...item, ...updated, status: updated?.status || status } : item
+        item.id === record.id
+          ? { ...item, ...updated, status: updated?.status || status, remark: updated?.remark ?? remark }
+          : item
       ));
       setSelected((previous) => previous?.id === record.id
-        ? { ...previous, ...updated, status: updated?.status || status }
+        ? { ...previous, ...updated, status: updated?.status || status, remark: updated?.remark ?? remark }
         : previous);
       message.success("Application status updated.");
+      setStatusDialogOpen(false);
+      setPendingStatusChange(null);
+      setStatusRemark("");
+      setStatusRemarkError("");
     } catch (e) {
       console.error("Status update failed:", e);
       message.error(getErrorMessage(e, "Could not update status."));
@@ -190,7 +232,7 @@ export default function JobApplications() {
   };
 
   const columns = [
-    { title: "Application ID", dataIndex: "id", key: "id", width: 120 },
+    { title: "ID", dataIndex: "id", key: "id", width: 40 },
     {
       title: "Job",
       dataIndex: "jobTitle",
@@ -269,15 +311,38 @@ export default function JobApplications() {
   return (
     <Box sx={{ width: "100%", minWidth: 0, pb: 3 }}>
       <Stack
-        direction={{ xs: "column", sm: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "stretch", sm: "center" }}
-        spacing={1.5}
-        sx={{ mb: 2 }}
-      >
-        <Typography variant="h5" fontWeight={700} color="#183b56">Job Applications</Typography>
-        <Typography variant="body2" color="text.secondary">Review applications, update status, and view applicant details.</Typography>
-      </Stack>
+  direction={{ xs: "column", sm: "row" }}
+  justifyContent="space-between"
+  alignItems={{ xs: "stretch", sm: "center" }}
+  spacing={1.5}
+  sx={{ mb: 2 }}
+>
+  <Box>
+    <Typography variant="h5" fontWeight={700} color="#183b56">
+      Job Applications
+    </Typography>
+    <Typography variant="body2" color="text.secondary">
+      Review applications, update status, and view applicant details.
+    </Typography>
+  </Box>
+
+  {!isBranch && (
+    <Button
+      variant="contained"
+      startIcon={<PersonAddAlt1 />}
+      onClick={() =>
+        navigate("/wayabroadadmin/admin/jobs/applications/add")
+      }
+      sx={{
+        textTransform: "none",
+        alignSelf: { xs: "flex-start", sm: "center" },
+        whiteSpace: "nowrap",
+      }}
+    >
+      Add Application
+    </Button>
+  )}
+</Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>{error}</Alert>}
 
@@ -334,6 +399,52 @@ export default function JobApplications() {
         />
       </Box>
 
+      <Dialog
+        open={statusDialogOpen}
+        onClose={closeStatusDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Update Application Status</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5} sx={{ pt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              {pendingStatusChange
+                ? `Change application #${pendingStatusChange.record.id} to ${getStatusLabel(pendingStatusChange.status)}.`
+                : "Add a remark for this status update."}
+            </Typography>
+            <TextField
+              label="Remark"
+              value={statusRemark}
+              onChange={(event) => {
+                setStatusRemark(event.target.value);
+                if (event.target.value.trim()) setStatusRemarkError("");
+              }}
+              error={Boolean(statusRemarkError)}
+              helperText={statusRemarkError || "A remark is required and will be saved with this status update."}
+              multiline
+              minRows={3}
+              fullWidth
+              required
+              inputProps={{ maxLength: 1000 }}
+              disabled={statusUpdatingId !== null}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeStatusDialog} disabled={statusUpdatingId !== null}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={submitStatusChange}
+            disabled={statusUpdatingId !== null || !statusRemark.trim()}
+          >
+            {statusUpdatingId !== null ? "Updating..." : "Update Status"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Application Details</DialogTitle>
         <DialogContent dividers>
@@ -348,6 +459,7 @@ export default function JobApplications() {
               <Typography><b>Phone:</b> {selected.phone || "-"}</Typography>
               <Typography><b>Applied:</b> {selected.appliedAt ? new Date(selected.appliedAt).toLocaleString() : "-"}</Typography>
               <Typography><b>Status:</b> <Tag color={getStatusColor(selected.status)}>{selected.status ? getStatusLabel(selected.status) : "-"}</Tag></Typography>
+              <Typography><b>Remark:</b> {selected.remark || "-"}</Typography>
               <Typography><b>Cover Letter:</b> {selected.coverLetter || "-"}</Typography>
               {selected.resumeUrl && <Typography><a href={selected.resumeUrl} target="_blank" rel="noreferrer">Open resume</a></Typography>}
               <Typography><b>Active:</b> {selected.active === false ? "No" : "Yes"}</Typography>

@@ -4,6 +4,7 @@ import { Box, Button, Paper, Stack } from "@mui/material";
 
 const JOBS_BASE = "/wayabroadadmin/admin/jobs";
 const allItems = [
+  { label: "Dashboard", to: `${JOBS_BASE}/dashboard`, roles: ["superAdmin", "branch"] },
   { label: "Create Job", to: `${JOBS_BASE}/create`, roles: ["superAdmin"] },
   { label: "Job List", to: `${JOBS_BASE}/list`, roles: ["superAdmin", "branch"] },
   { label: "Job Applications", to: `${JOBS_BASE}/applications`, roles: ["superAdmin", "branch"] },
@@ -17,7 +18,7 @@ export default function JobsSidebar() {
   const items = allItems.filter((item) => item.roles.includes(userRole));
 
   // Prevent Branch users from opening restricted Job Management routes directly.
-  if (isBranch && (pathname === JOBS_BASE || pathname === `${JOBS_BASE}/create` || pathname === `${JOBS_BASE}/settings`)) {
+  if (isBranch && (pathname === `${JOBS_BASE}/create` || pathname === `${JOBS_BASE}/settings`)) {
     return <Navigate to={`${JOBS_BASE}/list`} replace />;
   }
 
@@ -36,7 +37,7 @@ export default function JobsSidebar() {
           overflowX: "auto",
         }}
       >
-        <Stack direction="row" spacing={1} sx={{ width: "100%", minWidth: isBranch ? 320 : 560 }}>
+        <Stack direction="row" spacing={1} sx={{ width: "100%", minWidth: isBranch ? 430 : 690 }}>
           {items.map((item) => {
             const active = pathname === item.to || (item.to.endsWith("/create") && pathname === JOBS_BASE);
             return (

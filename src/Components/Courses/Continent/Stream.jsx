@@ -9,7 +9,6 @@ import LoadingOverlay from "../../Common/LoadingOverlay";
 
 const initialStream = {
   name: "",
-  photo: null,
 };
 
 export default function Stream({ college, branchCode, role, email, onBack }) {
@@ -28,20 +27,9 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
     setTableLoading(true);
     setApiLoading(true);
     try {
-      const data = await getAllStreams({ 
-        search, 
-        email, 
-        role, 
-        branchCode, 
-        collegeId: college.id 
-      });
+      const data = await getAllStreams();
       
-      const formattedData = data?.map(stream => ({
-        ...stream,
-        imageUrl: stream.image || null
-      })) || [];
-      
-      setStreams(formattedData);
+      setStreams(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching streams:", error);
       message.error("Failed to fetch streams");
@@ -53,12 +41,14 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
 
   useEffect(() => {
     fetchStreams();
-    // eslint-disable-next-line
-  }, [search]);
+    // The current backend returns all streams and has no search/college filter.
+    // Keep the list request independent from the local search input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [college?.id]);
 
   const handleOpenDialog = (record = null) => {
     if (record) {
-      setStreamData({ ...record, name: record.name || "", photo: null });
+      setStreamData({ ...record, name: record.name || "" });
       setEditing(record.id);
     } else {
       setStreamData(initialStream);
@@ -74,12 +64,8 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
   };
 
   const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === "photo") {
-      setStreamData((prev) => ({ ...prev, photo: files[0] }));
-    } else {
-      setStreamData((prev) => ({ ...prev, [name]: value }));
-    }
+    const { name, value } = e.target;
+    setStreamData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
@@ -88,17 +74,10 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
     try {
       const payload = { name: streamData.name };
       if (editing) {
-        await updateStream(editing, payload, streamData.photo, email, role);
+        await updateStream(editing, payload, email, role);
         message.success("Stream updated successfully");
       } else {
-        await createStream(
-          payload, 
-          streamData.photo, 
-          role, 
-          email, 
-          college.id, 
-          branchCode
-        );
+        await createStream(payload, role, email);
         message.success("Stream created successfully");
       }
       fetchStreams();
@@ -127,33 +106,12 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
     }
   };
 
+  const filteredStreams = streams.filter((streamItem) =>
+    String(streamItem.name || "").toLowerCase().includes(search.trim().toLowerCase())
+  );
+
   const columns = [
     { title: "Stream Name", dataIndex: "name", key: "name" },
-    {
-      title: "Image",
-      dataIndex: "imageUrl",
-      key: "imageUrl",
-      render: (url, record) =>
-        url ? (
-          <img 
-            src={url.startsWith('data:image') || url.startsWith('http') ? url : `${import.meta.env.VITE_API_URL || ''}${url}`} 
-            alt={record.name || 'stream'} 
-            style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} 
-          />
-        ) : (
-          <div style={{
-            width: 40,
-            height: 40,
-            backgroundColor: '#f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 4
-          }}>
-            No Image
-          </div>
-        ),
-    },
     {
       title: "Actions",
       key: "actions",
@@ -238,13 +196,7 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
             margin="normal"
             required
           />
-          <Button variant="contained" component="label" sx={{ mt: 2 }}>
-            Upload Image
-            <input type="file" name="photo" accept="image/*" hidden onChange={handleChange} />
-          </Button>
-          {streamData.photo && (
-            <Typography variant="body2" sx={{ mt: 1 }}>{streamData.photo.name}</Typography>
-          )}
+
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog} disabled={loading}>Cancel</Button>
@@ -262,7 +214,7 @@ export default function Stream({ college, branchCode, role, email, onBack }) {
 
       <Table
         columns={columns}
-        dataSource={streams}
+        dataSource={filteredStreams}
         rowKey="id"
         loading={tableLoading}
         pagination={{ pageSize: 8 }}

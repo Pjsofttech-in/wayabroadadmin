@@ -228,9 +228,7 @@ const Sidebar = memo(({ open, toggleSidebar }) => {
                       if (hasChildren) {
                         if (isCoursesSection) setCoursesExpanded((previous) => !previous);
                         else if (isJobsSection) setJobsExpanded((previous) => !previous);
-                        navigate(isJobsSection && userRole === "branch"
-                          ? "/wayabroadadmin/admin/jobs/list"
-                          : item.segment);
+                        navigate(item.segment);
                       } else {
                         handleNavigation(item.segment);
                       }

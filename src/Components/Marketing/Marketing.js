@@ -171,7 +171,6 @@ export const getAllCourses = async () => {
 export const getWebInquirySubmissions = async (role, email) => {
   const response = await axiosinstance.get('/form-submission', {
     params: {
-      formType: 'CONTACT_US',
       role,
       email,
     },
@@ -186,7 +185,7 @@ export const updateWebInquirySubmission = async (
   email
 ) => {
   const response = await axiosinstance.put(
-    `/form-submission/${id}`,
+    `/form-submission`,
     submissionData,
     { params: { role, email } }
   );
@@ -194,7 +193,7 @@ export const updateWebInquirySubmission = async (
 };
 
 export const deleteWebInquirySubmission = async (id, role, email) => {
-  const response = await axiosinstance.delete(`/form-submission/${id}`, {
+  const response = await axiosinstance.delete(`/form-submission`, {
     params: { role, email },
   });
   return response.data;

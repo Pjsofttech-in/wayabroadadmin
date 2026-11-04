@@ -183,29 +183,29 @@ const PartnerList = () => {
     setRefreshKey(prev => prev + 1);
   };
 
-  const handleFilterChange = async (field, value) => {
+  const handleFilterChange = async (filtersOrField, value) => {
     try {
       setLoading(true);
-      // Update filters state
-      const newFilters = { ...filters, [field]: value };
+      // PartnerFilter emits the complete filter object. Keep the field/value
+      // form supported for any existing callers of this handler.
+      const newFilters = filtersOrField && typeof filtersOrField === 'object'
+        ? filtersOrField
+        : { ...filters, [filtersOrField]: value };
       setFilters(newFilters);
-      
-      // Call the API with the new filters
+
       const result = await partnerService.filterPartners(newFilters);
-      
-      if (result) {
-        const filtered = Array.isArray(result) 
-          ? result 
-          : (result && Array.isArray(result.content) 
-            ? result.content 
-            : []);
-        
-        const webPartners = filtered.filter(partner => 
+      if (result && !result.error) {
+        const filtered = Array.isArray(result)
+          ? result
+          : (Array.isArray(result.content) ? result.content : []);
+
+        const webPartners = filtered.filter(partner =>
           partner.conductedBy && partner.conductedBy.toLowerCase() === 'web'
         );
-        
-        console.log('Total filtered web partners:', webPartners.length);
         setFilteredPartners(webPartners);
+      } else if (result?.error) {
+        message.error(result.error);
+        setFilteredPartners([]);
       }
     } catch (error) {
       console.error('Filter error:', error);
@@ -232,7 +232,9 @@ const PartnerList = () => {
         <Table 
           loading={loading}
           columns={columns} 
-          dataSource={filteredPartners.length > 0 ? filteredPartners : partners}
+          dataSource={Object.values(filters).some(value => value !== undefined && value !== null && value !== '')
+            ? filteredPartners
+            : partners}
           rowKey={(record) => record.key}
           pagination={{
             pageSize: 10,

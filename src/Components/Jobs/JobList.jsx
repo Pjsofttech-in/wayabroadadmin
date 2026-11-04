@@ -399,7 +399,8 @@ export default function JobList() {
       label={label}
       value={filters[name]}
       onChange={(event) => changeFilter(name, event.target.value)}
-      sx={{ minWidth: 150, flex: "1 1 150px" }}
+      fullWidth
+      sx={{ minWidth: 0, width: "100%" }}
       disabled={disabled || settingsLoading}
     >
       <MenuItem value="">All</MenuItem>
@@ -444,20 +445,28 @@ export default function JobList() {
         sx={{
           border: "1px solid #e2e8f0",
           borderRadius: 2,
-          p: 2,
+          p: { xs: 1.25, md: 1.5 },
           mb: 2,
-          display: "flex",
-          gap: 1.25,
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "minmax(0, 1fr)",
+            sm: "repeat(2, minmax(0, 1fr))",
+            md: "repeat(3, minmax(0, 1fr))",
+            xl: "minmax(170px, 1.5fr) repeat(6, minmax(105px, 1fr)) minmax(125px, 1.1fr) minmax(190px, 1.5fr) minmax(100px, 0.8fr) auto",
+          },
+          gap: 1,
           alignItems: "center",
+          minWidth: 0,
+          "& .MuiFormControl-root": { minWidth: 0, width: "100%" },
         }}
       >
         <Input.Search
-          placeholder="Search job title or keyword"
+          placeholder="Search jobs"
           allowClear
+          size="large"
           value={filters.keyword}
           onChange={(event) => changeFilter("keyword", event.target.value)}
-          style={{ minWidth: 220, flex: "2 1 240px" }}
+          style={{ minWidth: 0, width: "100%" }}
         />
         {selectFilter("educationId", "Education", settings.education)}
         {selectFilter("sectorId", "Sector", settings.sector)}
@@ -470,14 +479,18 @@ export default function JobList() {
           label="Experience Level"
           value={filters.experienceLevel}
           onChange={(event) => changeFilter("experienceLevel", event.target.value)}
-          sx={{ minWidth: 150, flex: "1 1 150px" }}
+          fullWidth
+          sx={{ minWidth: 0, width: "100%" }}
         />
+        {selectFilter("active", "Status", [
+          { id: "true", name: "Active" },
+          { id: "false", name: "Inactive" },
+        ])}
         <Box
           sx={{
-            flex: "2 1 280px",
-            minWidth: { xs: "100%", sm: 260 },
-            maxWidth: { xs: "100%", lg: 380 },
-            px: 1.25,
+            minWidth: 0,
+            width: "100%",
+            px: 0.5,
             pt: 0.25,
           }}
         >
@@ -504,17 +517,7 @@ export default function JobList() {
             aria-label="Salary range"
             sx={{ mt: 0.5, mb: 0, py: 0.5 }}
           />
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: -0.5 }}>
-Range: 0–50 LPA. Salary filter values are sent as numeric amounts; jobs may use different currencies.
-          </Typography>
         </Box>
-        {selectFilter("active", "Status", [
-          { id: "true", name: "Active" },
-          { id: "false", name: "Inactive" },
-        ])}
-        <Button variant="text" onClick={clearFilters}>
-          Clear
-        </Button>
       </Box>
 
       <Box

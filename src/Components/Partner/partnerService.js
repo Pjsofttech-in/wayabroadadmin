@@ -12,10 +12,9 @@ export const partnerService = {
         }
     },
 
-    // Filter partners
-    filterPartners: async (filters) => {
+    // Filter partners using the query parameters declared by the backend controller.
+    filterPartners: async (filters = {}, page = 0, size = 10) => {
         try {
-            // Get role and createdByEmail from sessionStorage
             const createdByEmail = sessionStorage.getItem('email');
             const role = sessionStorage.getItem('role');
 
@@ -23,19 +22,50 @@ export const partnerService = {
                 throw new Error('User role or createdByEmail not found in session');
             }
 
-            console.log('Sending filter request with role:', role, 'and createdByEmail:', createdByEmail);
+            const rawStatus = (filters.status || '').toString().trim();
+            const normalizedStatus = rawStatus.toLowerCase().replace(/[\s-]+/g, '_');
+            const statusLabels = {
+                interested: 'Interested',
+                not_interested: 'Not Interested',
+                meeting_scheduled: 'Meeting Scheduled',
+                onboard: 'Onboard',
+                ringing: 'Ringing',
+            };
 
-            const response = await axiosInstance.post(
-                '/filterBecomePartner',
-                filters,
-                {
-                    params: { role, createdByEmail }
+            // The backend compares the stored status text (case-insensitively),
+            // so send spaces rather than the UI's underscore-formatted value.
+            const status = rawStatus
+                ? (statusLabels[normalizedStatus] || rawStatus.replace(/[_-]+/g, ' '))
+                : undefined;
+
+            const params = {
+                name: filters.name,
+                email: filters.email,
+                businessEmail: filters.businessEmail,
+                instituteType: filters.instituteType,
+                contractType: filters.contractType,
+                conductedBy: filters.conductedBy,
+                status,
+                role,
+                createdByEmail,
+                page,
+                size,
+            };
+
+            // Omit blank optional filters; role and createdByEmail remain mandatory.
+            Object.keys(params).forEach((key) => {
+                if (params[key] === undefined || params[key] === null || params[key] === '') {
+                    delete params[key];
                 }
-            );
+            });
+
+            const response = await axiosInstance.post('/filterBecomePartner', null, { params });
             return response.data;
         } catch (error) {
             console.error('Error filtering partners:', error);
-            return { error: error.message || error.response?.data?.message || 'Failed to filter partners' };
+            return {
+                error: error.response?.data?.message || error.message || 'Failed to filter partners',
+            };
         }
     },
 
@@ -311,23 +341,6 @@ export const partnerService = {
             return {};
         }
     },
-        // Get status-wise count for partners
-    getStatusWiseCount: async () => {
-        try {
-            const email = sessionStorage.getItem('email') || '';
-            const role = sessionStorage.getItem('role') || '';
-
-            const response = await axiosInstance.get('/status-countPartner', {
-                params: { role, email }
-            });
-
-            return response.data || {};
-        } catch (error) {
-            console.error('Error fetching status counts:', error);
-            return {};
-        }
-    },
-
     // ✅ Add this new function below
     getAllStaff: async () => {
         try {
@@ -339,9 +352,4 @@ export const partnerService = {
         }
     },
 };
-
-
-
-
-// ✅ Get all staff (without branch or email filters)
 

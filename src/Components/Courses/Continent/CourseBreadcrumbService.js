@@ -9,7 +9,6 @@ const ENTITY_ENDPOINTS = {
   city: "getCityById",
   university: "getUniversityById",
   college: "getCollegeById",
-  stream: "getStreamById",
 };
 
 export async function getCourseBreadcrumbEntity(type, id, credentials = {}) {

@@ -18,6 +18,14 @@ const normalizeStatus = (status) => {
   return status.toString().toLowerCase().replace(/\s+/g, '_').trim();
 };
 
+const getStatusCount = (counts, statusValue) => {
+  const targetStatus = normalizeStatus(statusValue);
+  const matchingEntry = Object.entries(counts || {}).find(
+    ([backendStatus]) => normalizeStatus(backendStatus) === targetStatus
+  );
+  return Number(matchingEntry?.[1] || 0);
+};
+
 const PartnerList = () => {
   const [partners, setPartners] = useState([]);
   const [filteredPartners, setFilteredPartners] = useState([]);
@@ -71,11 +79,11 @@ const PartnerList = () => {
     status: ''
   });
 
-  const fetchPartners = useCallback(async (page = 1, pageSize = 25) => {
+  const fetchPartners = useCallback(async (page = 1, pageSize = 25, activeFilters = {}) => {
     try {
       setLoading(true);
-      // Show loading overlay
-      const result = await partnerService.getAllPartners(page - 1, pageSize);
+      // The backend filter endpoint is paginated and expects filter criteria as query params.
+      const result = await partnerService.filterPartners(activeFilters, page - 1, pageSize);
 
       if (result && Array.isArray(result.content)) {
         setPartners(result.content);
@@ -83,15 +91,16 @@ const PartnerList = () => {
         setPagination(prev => ({
           ...prev,
           current: page,
-          pageSize: pageSize,
+          pageSize,
           total: result.totalElements || 0,
         }));
         setTotalPartnersCount(result.totalElements || 0);
       } else {
         setPartners([]);
         setFilteredPartners([]);
+        setPagination(prev => ({ ...prev, current: page, pageSize, total: 0 }));
         setTotalPartnersCount(0);
-        if (result && result.error) {
+        if (result?.error) {
           message.error(result.error);
         }
       }
@@ -205,7 +214,7 @@ const PartnerList = () => {
   };
 
   const handleTableChange = (newPagination) => {
-    fetchPartners(newPagination.current, newPagination.pageSize);
+    fetchPartners(newPagination.current, newPagination.pageSize, filters);
   };
 
   const handleEditFromDialog = (partner) => {
@@ -316,7 +325,7 @@ const PartnerList = () => {
         const bgColor = statusObj.color || '#d9d9d9';
         
         // Get the count for this status using the normalized status value
-        const count = statusObj.value ? (statusCounts[statusObj.value] || 0) : 0;
+        const count = statusObj.value ? getStatusCount(statusCounts, statusObj.label || statusObj.value) : 0;
         
         return (
           <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -366,19 +375,10 @@ const PartnerList = () => {
   const normalizeValue = (value) => (value || '').toString().trim().toLowerCase();
 
   const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-    let filtered = partners.filter(partner => {
-      return (
-        (!newFilters.name || normalizeValue(partner.partnerName || partner.name).includes(normalizeValue(newFilters.name))) &&
-        (!newFilters.email || normalizeValue(partner.partnerEmail || partner.email).includes(normalizeValue(newFilters.email))) &&
-        (!newFilters.businessEmail || normalizeValue(partner.businessEmail).includes(normalizeValue(newFilters.businessEmail))) &&
-        (!newFilters.instituteType || normalizeValue(partner.instituteType) === normalizeValue(newFilters.instituteType)) &&
-        (!newFilters.contractType || normalizeValue(partner.contractType) === normalizeValue(newFilters.contractType)) &&
-        (!newFilters.conductedBy || normalizeValue(partner.conductedBy) === normalizeValue(newFilters.conductedBy)) &&
-        (!newFilters.status || normalizeStatus(partner.status) === normalizeStatus(newFilters.status))
-      );
-    });
-    setFilteredPartners(filtered);
+    const nextFilters = { ...filters, ...newFilters };
+    setFilters(nextFilters);
+    // Run the backend filter across the full dataset and restart from page one.
+    fetchPartners(1, pagination.pageSize, nextFilters);
   };
 
   // Calculate status counts for the entire dataset
@@ -490,7 +490,7 @@ const PartnerList = () => {
               ...ALL_STATUSES.map((status) => ({
                 value: status.value,
                 label: status.label,
-                count: statusCounts[status.value] || 0,
+                count: getStatusCount(statusCounts, status.label),
                 color: status.color,
               })),
             ].map((item) => {

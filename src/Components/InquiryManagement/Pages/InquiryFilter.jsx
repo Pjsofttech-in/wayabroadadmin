@@ -69,15 +69,15 @@ export default function InquiryFilter({
   
   // Status options configuration
   const statusOptions = [
-    { value: 'pending', label: 'INTERESTED', color: '#2f8062' },
-    { value: 'approved', label: 'NOT INTERESTED', color: '#bd6262' },
-    { value: 'connecting', label: 'CONNECTING', color: '#b77b38' },
-    { value: 'ringing', label: 'RINGING / SWITCH OFF', color: '#d6a600' },
-    { value: 'callBack', label: 'CALL BACK', color: '#478d79' },
-    { value: 'office_visit', label: 'OFFICE VISIT', color: '#8565a7' },
-    { value: 'processing', label: 'PROCESSING', color: '#4779ad' },
-    { value: 'application', label: 'APPLICATION', color: '#a65c77' },
-    { value: 'CNI', label: 'CNI', color: '#947a91' },
+    { value: 'pending', label: 'Intrested', color: '#2f8062' },
+    { value: 'approved', label: 'Not Intrested', color: '#bd6262' },
+    { value: 'connecting', label: 'Connecting', color: '#b77b38' },
+    { value: 'ringing', label: 'Not Available', color: '#d6a600' },
+    { value: 'callBack', label: 'Call Back', color: '#478d79' },
+    { value: 'office_visit', label: 'Visit', color: '#8565a7' },
+    { value: 'processing', label: 'InProcess', color: '#4779ad' },
+    { value: 'application', label: 'Application', color: '#a65c77' },
+    { value: 'CNI', label: 'Cni', color: '#947a91' },
   ];
 
   // Fetch total count from backend

@@ -18,7 +18,8 @@ const initialCourse = {
   date: "",
   duration: "",
   instituteRank: "",
-  thumbnail: null,
+  universityRank: "",
+  thumbnail: "",
   intake: "",
   websiteLink: "",
   applicationLink: "",
@@ -36,8 +37,7 @@ const initialCourse = {
   role: "",
   courseDetials: "",
   contractType: "",
-  streamName: "",
-  streamId: null
+  streamName: ""
 };
 
 const intakeOptions = ["Any", "Spring", "Fall", "Summer"];
@@ -45,7 +45,7 @@ const academicRequirementOptions = ["50%", "55%", "60%", "70%", "80%", "90%"];
 const examTypeOptions = ["TOEFL", "IELTS", "DUOLINGO", "GRE", "GMAT", "PTE"];
 const yesNoOptions = ["Yes", "No"];
 
-export default function Course({ stream, branchCode, role, email, onBack }) {
+export default function Course({ collegeId, branchCode, role, email, onBack }) {
 
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -56,26 +56,25 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [tableLoading, setTableLoading] = useState(false);
-  const [thumbnailPreview, setThumbnailPreview] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [apiLoading, setApiLoading] = useState(false);
   const [streams, setStreams] = useState([]);
   const [availableCourses, setAvailableCourses] = useState([]);
 
-  // Fetch courses for the current stream/college
+  // Fetch courses directly for the selected College.
   const fetchCourses = async () => {
-    if (!stream?.id) {
-      message.error('College information is missing');
+    if (!collegeId) {
+      message.error('Please select a college');
       return;
     }
 
     setTableLoading(true);
     setApiLoading(true);
     try {
-      const data = await getAllCourses({ 
-        email, 
-        role, 
-        streamId: stream.id 
+      const data = await getAllCourses({
+        email,
+        role,
+        collegeId,
       });
       
       setCourses(Array.isArray(data) ? data : []);
@@ -92,7 +91,7 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
     fetchCourses();
     fetchStreams();
     fetchAvailableCourses();
-  }, [stream?.id]);
+  }, [collegeId]);
 
   const fetchStreams = async () => {
     try {
@@ -119,7 +118,7 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
       setEditing(record.id);
       setCourseData({
         ...record,
-        thumbnail: record.thumbnail,
+        thumbnail: record.thumbnail || "",
         image: record.image,
         // Map backend fields to frontend state
         courseName: record.courseName || "",
@@ -143,19 +142,13 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
         courseDetials: record.courseDetials || "",
         contractType: record.contractType || "",
         streamName: record.streamName || "",
-        streamId: record.streamId || null,
-        instituteRank: record.instituteRank || ""
+        instituteRank: record.instituteRank || "",
+        universityRank: record.universityRank || ""
       });
-      if (record.thumbnail) setThumbnailPreview(record.thumbnail);
       if (record.image) setImagePreview(record.image);
     } else {
       setEditing(null);
-      setCourseData({
-        ...initialCourse,
-        // Ensure streamId is set for new courses
-        streamId: stream?.id
-      });
-      setThumbnailPreview(null);
+      setCourseData({ ...initialCourse });
       setImagePreview(null);
     }
     setDialogOpen(true);
@@ -164,21 +157,15 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setCourseData(initialCourse);
-    setThumbnailPreview(null);
     setImagePreview(null);
     setEditing(null);
   };
 
-  const handleFileChange = (e, type) => {
-    const file = e.target.files[0];
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
     if (file) {
-      if (type === 'thumbnail') {
-        setCourseData(prev => ({ ...prev, thumbnail: file }));
-        setThumbnailPreview(URL.createObjectURL(file));
-      } else if (type === 'image') {
-        setCourseData(prev => ({ ...prev, image: file }));
-        setImagePreview(URL.createObjectURL(file));
-      }
+      setCourseData((prev) => ({ ...prev, image: file }));
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
@@ -199,9 +186,6 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
     setApiLoading(true);
 
     try {
-      // Get the selected stream
-      const selectedStream = streams.find(s => s.id === courseData.streamId);
-      
       // Create a clean payload object matching the AbroadCourse entity
       const payload = {
         courseName: courseData.courseName || "",
@@ -213,6 +197,8 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
         academicRequirements: courseData.academicRequirements || "",
         englishExamRequirements: courseData.englishExamRequirements || "",
         instituteRank: courseData.instituteRank || "",
+        universityRank: courseData.universityRank || "",
+        thumbnail: courseData.thumbnail || "",
         examType: courseData.examType || "",
         examScore: courseData.examScore || "",
         location: courseData.location || "",
@@ -225,18 +211,19 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
         applicationLink: courseData.applicationLink || "",
         courseDetials: courseData.courseDetials || "",
         contractType: courseData.contractType || "",
-        streamName: selectedStream?.name || courseData.streamName || ""
+        // Stream is optional course metadata; it is no longer a parent in the hierarchy.
+        streamName: courseData.streamName || ""
       };
       
-      // Get the collegeId from the stream prop (collegeId is passed as stream.id from parent)
-      const collegeId = stream?.id;
-
+      if (!editing && !collegeId) {
+        message.error("Please select a college before creating a course");
+        return;
+      }
 
       if (editing) {
         await updateCourse(
           editing,
           payload,
-          courseData.thumbnail,
           courseData.image,
           role,
           email
@@ -245,7 +232,6 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
       } else {
         await createCourse(
           payload,
-          courseData.thumbnail,
           courseData.image,
           role,
           email,
@@ -314,6 +300,13 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
       key: "instituteRank",
       render: (text, record) => record.instituteRank || '-',
       width: 120
+    },
+    {
+      title: "University Rank",
+      dataIndex: "universityRank",
+      key: "universityRank",
+      render: (text, record) => record.universityRank || '-',
+      width: 130
     },
     { 
       title: "Intake", 
@@ -422,11 +415,28 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
     {
       title: "Actions",
       key: "actions",
+      width: 150,
       render: (_, record) => (
-        <Stack direction="row" spacing={1}>
-          {/* <IconButton onClick={() => handleOpenDialog(record)}><EditOutlined /></IconButton> */}
-          <Popconfirm title="Delete this course?" onConfirm={() => handleDelete(record.id)}>
-            <IconButton><DeleteOutlined /></IconButton>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<EditOutlined />}
+            onClick={() => handleOpenDialog(record)}
+            disabled={loading}
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            Edit
+          </Button>
+          <Popconfirm
+            title="Delete this course?"
+            onConfirm={() => handleDelete(record.id)}
+            okText="Delete"
+            cancelText="Cancel"
+          >
+            <IconButton color="error" aria-label="Delete course" disabled={loading}>
+              <DeleteOutlined />
+            </IconButton>
           </Popconfirm>
         </Stack>
       ),
@@ -467,31 +477,20 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
         <DialogContent>
           <Box sx={{ flexGrow: 1 }}>
             <Grid container spacing={2}>
-              {/* Row 1: Stream and Course Information */}
+              {/* Stream remains optional course metadata, not a hierarchy level. */}
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
                   select
-                  label="Stream Name"
+                  label="Stream (optional)"
                   name="streamName"
-                  value={courseData.streamId || ''}
-                  onChange={(e) => {
-                    const selectedStream = streams.find(s => s.id === e.target.value);
-                    if (selectedStream) {
-                      setCourseData(prev => ({
-                        ...prev,
-                        streamId: selectedStream.id,
-                        streamName: selectedStream.name
-                      }));
-                    }
-                  }}
+                  value={courseData.streamName || ''}
+                  onChange={(e) => setCourseData((prev) => ({ ...prev, streamName: e.target.value }))}
                   fullWidth
                   margin="normal"
-                  required
-                  disabled={!!editing}
                 >
-                  <MenuItem value=""><em>Select Stream</em></MenuItem>
+                  <MenuItem value=""><em>Not assigned</em></MenuItem>
                   {streams.map((streamItem) => (
-                    <MenuItem key={streamItem.id} value={streamItem.id}>
+                    <MenuItem key={streamItem.id} value={streamItem.name}>
                       {streamItem.name}
                     </MenuItem>
                   ))}
@@ -621,6 +620,8 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
                   margin="normal"
                   type="url"
                   placeholder="https://apply.university.edu"
+                  disabled={!!editing}
+                  helperText={editing ? "Application link updates require backend update-service support." : ""}
                 />
               </Grid>
 
@@ -645,33 +646,46 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
                 <TextField
                   label="Institute Rank (World)"
                   name="instituteRank"
-                  value={courseData.instituteRank}
+                  value={courseData.instituteRank || ""}
                   onChange={handleChange}
                   fullWidth
                   margin="normal"
-                  type="number"
+                  type="text"
+                  placeholder="Enter institute rank"
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
                   label="University Rank"
-                  name="city"
-                  value={courseData.city || ''}
+                  name="universityRank"
+                  value={courseData.universityRank || ""}
                   onChange={handleChange}
                   fullWidth
                   margin="normal"
+                  type="text"
                   placeholder="Enter university rank"
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
-                  label="State Rank"
-                  name="location"
-                  value={courseData.location || ''}
+                  label="Course City"
+                  name="city"
+                  value={courseData.city || ""}
                   onChange={handleChange}
                   fullWidth
                   margin="normal"
-                  placeholder="Enter state rank"
+                  placeholder="Enter course city"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="Location"
+                  name="location"
+                  value={courseData.location || ""}
+                  onChange={handleChange}
+                  fullWidth
+                  margin="normal"
+                  placeholder="Enter course location"
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -816,15 +830,17 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
                 <Typography variant="subtitle1" gutterBottom>Uploads</Typography>
               </Grid>
               <Grid item xs={12} md={6}>
-                <Button variant="contained" component="label" fullWidth>
-                  {courseData.thumbnail ? 'Change Thumbnail' : 'Upload Thumbnail'}
-                  <input type="file" name="thumbnail" accept="image/*" hidden onChange={handleChange} />
-                </Button>
-                {courseData.thumbnail && (
-                  <Typography variant="body2" sx={{ mt: 1, textAlign: 'center' }}>
-                    {typeof courseData.thumbnail === 'string' ? 'Current thumbnail' : courseData.thumbnail.name}
-                  </Typography>
-                )}
+                <TextField
+                  label="Thumbnail URL"
+                  name="thumbnail"
+                  value={courseData.thumbnail || ""}
+                  onChange={handleChange}
+                  fullWidth
+                  margin="normal"
+                  placeholder="Enter thumbnail URL"
+                  disabled={!!editing}
+                  helperText={editing ? "Thumbnail edits require backend update-service support." : "The backend stores thumbnail as a text URL."}
+                />
               </Grid>
               <Grid item xs={12} md={6}>
                 <Button variant="outlined" component="label" fullWidth>
@@ -834,7 +850,7 @@ export default function Course({ stream, branchCode, role, email, onBack }) {
                     name="image" 
                     accept="image/*" 
                     hidden 
-                    onChange={handleChange} 
+                    onChange={handleFileChange}
                   />
                 </Button>
                 {courseData.image && (

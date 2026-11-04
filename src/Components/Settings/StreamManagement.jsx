@@ -11,8 +11,8 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { Table, Image } from "antd";
-import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { Table } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
 import { createStream, updateStream, getAllStreams, deleteStream } from "./StreamService";
 import Loading from '../Common/LoadingOverlay';
 import AlertService from '../Common/AlertService';
@@ -23,8 +23,6 @@ const StreamManagement = () => {
   const [streams, setStreams] = useState([]);
   const [selectedStream, setSelectedStream] = useState(null);
   const [name, setName] = useState("");
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState("");
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [formErrors, setFormErrors] = useState({});
@@ -51,8 +49,6 @@ const StreamManagement = () => {
 
   const handleDialogOpen = () => {
     setName("");
-    setImageFile(null);
-    setImagePreview("");
     setDialogOpen(true);
   };
 
@@ -63,8 +59,6 @@ const StreamManagement = () => {
     }
     setSelectedStream(record);
     setName(record.name || "");
-    setImagePreview(record.imageUrl || "");
-    setImageFile(null); // Reset image file when opening edit dialog
     setOpen(true);
   };
 
@@ -76,21 +70,8 @@ const StreamManagement = () => {
     setOpen(false);
     setSelectedStream(null);
     setName("");
-    setImagePreview("");
-    setImageFile(null);
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const validateForm = () => {
     const errors = {};
@@ -106,7 +87,7 @@ const StreamManagement = () => {
     
     try {
       const streamData = { name };
-      await createStream(streamData, imageFile);
+      await createStream(streamData);
       AlertService.success('Stream added successfully');
       await fetchStreams();
       handleDialogClose();
@@ -139,15 +120,14 @@ const StreamManagement = () => {
         name: (name || '').trim(),
         ...(selectedStream.createdByEmail && { createdByEmail: selectedStream.createdByEmail }),
         ...(selectedStream.role && { role: selectedStream.role }),
-        ...(selectedStream.image && { image: selectedStream.image })
-      };
+        };
       
       if (!updatedStream.name) {
         throw new Error('Stream name cannot be empty');
       }
       
       // Update the stream
-      const response = await updateStream(selectedStream.id, updatedStream, imageFile);
+      const response = await updateStream(selectedStream.id, updatedStream);
       
       if (!response) {
         throw new Error('No response received from server');
@@ -195,22 +175,7 @@ const StreamManagement = () => {
       width: 80,
       sorter: (a, b) => a.id - b.id
     },
-    {
-      title: "Image",
-      dataIndex: "imageUrl",
-      key: "image",
-      className: "custom-header",
-      width: 100,
-      render: (imageUrl) => (
-        <Image
-          src={imageUrl || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iMSI+PHBhdGggZD0iTTEyIDJDNi40NzcgMiAyIDYuNDc3IDIgMTJzNC40NzcgMTAgMTAgMTAgMTAtNC40NzcgMTAtMTBTMTcuNTIzIDIgMTIgMnptMCAxYzQuOTcxIDAgOSA0LjAyOSA5IDlzLTQuMDI5IDktOSA5LTktNC4wMjktOS05IDQuMDI5LTkgOS05eiIvPjwvc3ZnPg=='}
-          alt="Stream"
-          width={50}
-          height={50}
-          style={{ objectFit: 'cover', borderRadius: 4 }}
-        />
-      )
-    },
+
     {
       title: "Name",
       dataIndex: "name",
@@ -276,37 +241,6 @@ const StreamManagement = () => {
       <Dialog open={dialogOpen} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>Add New Stream</DialogTitle>
         <DialogContent>
-          <Box mb={2}>
-            <input
-              accept="image/*"
-              style={{ display: 'none' }}
-              id="stream-image-upload"
-              type="file"
-              onChange={handleImageChange}
-            />
-            <label htmlFor="stream-image-upload">
-              <Button
-                variant="outlined"
-                component="span"
-                startIcon={<UploadOutlined />}
-                fullWidth
-                sx={{ mb: 2 }}
-              >
-                {imageFile ? 'Change Image' : 'Upload Image'}
-              </Button>
-            </label>
-            {imagePreview && (
-              <Box mt={1} textAlign="center">
-                <Image
-                  src={imagePreview}
-                  alt="Preview"
-                  width={150}
-                  height={100}
-                  style={{ objectFit: 'cover', borderRadius: 4 }}
-                />
-              </Box>
-            )}
-          </Box>
           <TextField
             label="Stream Name"
             variant="outlined"
@@ -330,37 +264,6 @@ const StreamManagement = () => {
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
         <DialogTitle>Edit Stream</DialogTitle>
         <DialogContent>
-          <Box mb={2}>
-            <input
-              accept="image/*"
-              style={{ display: 'none' }}
-              id="edit-stream-image-upload"
-              type="file"
-              onChange={handleImageChange}
-            />
-            <label htmlFor="edit-stream-image-upload">
-              <Button
-                variant="outlined"
-                component="span"
-                startIcon={<UploadOutlined />}
-                fullWidth
-                sx={{ mb: 2 }}
-              >
-                {imageFile ? 'Change Image' : 'Upload New Image'}
-              </Button>
-            </label>
-            {(imagePreview || selectedStream?.imageUrl) && (
-              <Box mt={1} textAlign="center">
-                <Image
-                  src={imagePreview || selectedStream?.imageUrl}
-                  alt="Preview"
-                  width={150}
-                  height={100}
-                  style={{ objectFit: 'cover', borderRadius: 4 }}
-                />
-              </Box>
-            )}
-          </Box>
           <TextField
             label="Stream Name"
             variant="outlined"

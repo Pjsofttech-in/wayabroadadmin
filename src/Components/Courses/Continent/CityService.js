@@ -2,10 +2,9 @@ import axiosInstance from "../../Common/axiosConfig";
 
 const CityService = {
   // Create a new city
-  createCity: async (cityData, image, stateId, role, email) => {
+  createCity: async (cityData, stateId, role, email) => {
     const formData = new FormData();
     formData.append('city', JSON.stringify(cityData));
-    formData.append('image', image);
     formData.append('stateId', stateId);
     formData.append('role', role);
     formData.append('email', email);
@@ -24,7 +23,7 @@ const CityService = {
 
   // Get all cities
   getAllCities: async (role, email, stateId = null) => {
-    const params = { role, email };
+    const params = {};
     if (stateId !== null) {
       params.stateId = stateId;
     }
@@ -40,9 +39,7 @@ const CityService = {
   // Get city by ID
   getCityById: async (id, role, email) => {
     try {
-      const response = await axiosInstance.get(`/getCityById/${id}`, {
-        params: { role, email }
-      });
+      const response = await axiosInstance.get(`/getCityById/${id}`);
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
@@ -50,12 +47,9 @@ const CityService = {
   },
 
   // Update city
-  updateCity: async (id, cityData, image = null, stateId = null, role, email) => {
+  updateCity: async (id, cityData, stateId = null, role, email) => {
     const formData = new FormData();
     formData.append('city', JSON.stringify(cityData));
-    if (image) {
-      formData.append('image', image);
-    }
     if (stateId) {
       formData.append('stateId', stateId);
     }

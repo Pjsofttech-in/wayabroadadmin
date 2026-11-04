@@ -297,15 +297,32 @@ export default function JobForm() {
   };
 
   return (
-    <Box sx={{ width: "100%", minWidth: 0, pb: 3 }}>
+    <Box sx={{ width: "100%", minWidth: 0, pb: 2 }}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        justifyContent="space-between"
+        spacing={0.35}
+        sx={{ mb: 1.25 }}
+      >
+        <Box>
+          <Typography variant="h6" fontWeight={750} lineHeight={1.25}>
+            {isEditing ? "Edit Job" : "Create Job"}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Enter the job details below. Fields marked with * are required.
+          </Typography>
+        </Box>
+      </Stack>
+
       {error && (
-        <Alert severity="error" sx={{ mb: 2.5 }} onClose={() => setError("")}>
+        <Alert severity="error" sx={{ mb: 1.25, py: 0 }} onClose={() => setError("")}>
           {error}
         </Alert>
       )}
 
       {loading ? (
-        <Paper sx={{ display: "flex", justifyContent: "center", p: 4, borderRadius: 3, border: "1px solid #e6ebf2" }}>
+        <Paper sx={{ display: "flex", justifyContent: "center", p: 3, borderRadius: 2, border: "1px solid #e6ebf2" }}>
           <CircularProgress />
         </Paper>
       ) : (
@@ -313,12 +330,15 @@ export default function JobForm() {
           component="form"
           onSubmit={handleSubmit}
           elevation={0}
-          sx={{ p: { xs: 0, sm: 0.25, lg: 0.5 }, border: "none", borderRadius: 2, bgcolor: "transparent" }}
+          sx={{ p: 0, border: "none", borderRadius: 2, bgcolor: "transparent" }}
         >
-          <Stack spacing={0.6}>
+          <Stack spacing={0.75}>
             <Box sx={sectionSx}>
+              <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.75 }}>
+                Job Details
+              </Typography>
               <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12} md={8}>
+                <Grid item xs={12} sm={6} lg={4}>
                   <TextField
                     size="small" sx={fieldSx} fullWidth required label="Job Title" value={form.jobTitle}
                     onChange={(event) => setField("jobTitle", event.target.value)}
@@ -326,24 +346,19 @@ export default function JobForm() {
                     placeholder="e.g. Senior Software Engineer"
                   />
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} sm={6} lg={2}>
                   {renderSettingSelect("jobTypeId", "Job Type", settings.jobType)}
                 </Grid>
-                <Grid item xs={12} sm={5}>
+                <Grid item xs={12} sm={6} lg={2}>
                   {renderSettingSelect("sectorId", "Sector", settings.sector)}
                 </Grid>
-                <Grid item xs={12} sm={7}>
+                <Grid item xs={12} sm={6} lg={2}>
                   {renderSettingSelect("jobRoleId", "Job Role", roles, !form.sectorId)}
                 </Grid>
-              </Grid>
-            </Box>
-
-            <Box sx={sectionSx}>
-              <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6} lg={2}>
                   {renderSettingSelect("educationId", "Education", settings.education)}
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6} lg={3}>
                   <TextField
                     sx={fieldSx}
                     size="small" fullWidth required label="Level of Experience" value={form.experienceLevel}
@@ -353,7 +368,7 @@ export default function JobForm() {
                     helperText="Maximum 100 characters."
                   />
                 </Grid>
-                <Grid item xs={12} sm={9}>
+                <Grid item xs={12} sm={8} lg={7}>
                   <Autocomplete
                     multiple freeSolo options={[]} value={form.skills}
                     onChange={handleSkillsChange} disabled={saving}
@@ -368,12 +383,10 @@ export default function JobForm() {
                         helperText={
                           skillsValidationAttempted && form.skills.length === 0
                             ? "Please add at least one skill."
-                            : "Add one or more skills; press Enter after each skill."
+                            : "Add skills and press Enter after each one."
                         }
                         inputProps={{
                           ...params.inputProps,
-                          // Let MUI add the freeSolo value first, then stop Enter from
-                          // submitting the surrounding form accidentally.
                           onKeyDown: (event) => {
                             params.inputProps.onKeyDown?.(event);
                             if (event.key === "Enter" && event.target.value.trim()) {
@@ -385,7 +398,7 @@ export default function JobForm() {
                     )}
                   />
                 </Grid>
-                <Grid item xs={12} sm={3}>
+                <Grid item xs={12} sm={4} lg={2}>
                   <TextField
                     size="small" sx={fieldSx} fullWidth required type="number" label="Number of Openings" value={form.openings}
                     onChange={(event) => setField("openings", event.target.value)}
@@ -396,8 +409,11 @@ export default function JobForm() {
             </Box>
 
             <Box sx={sectionSx}>
+              <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.75 }}>
+                Location & Work Type
+              </Typography>
               <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12} sm={3}>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     size="small" sx={fieldSx} select fullWidth required label="Country" value={form.countryId}
                     disabled={saving || activeCountries.length === 0}
@@ -416,7 +432,7 @@ export default function JobForm() {
                     </Typography>
                   )}
                 </Grid>
-                <Grid item xs={12} sm={5}>
+                <Grid item xs={12} sm={4}>
                   {renderSettingSelect("locationId", "Location", locations, !form.countryId)}
                   {form.countryId && locations.length === 0 && (
                     <Typography variant="caption" color="error">
@@ -431,8 +447,11 @@ export default function JobForm() {
             </Box>
 
             <Box sx={sectionSx}>
+              <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.75 }}>
+                Compensation
+              </Typography>
               <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12} sm={7}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     size="small" sx={fieldSx} fullWidth required type="number" label="Salary" value={form.salary}
                     onChange={(event) => setField("salary", event.target.value)}
@@ -440,24 +459,23 @@ export default function JobForm() {
                     placeholder="Enter salary amount"
                   />
                 </Grid>
-                <Grid item xs={12} sm={5}>
+                <Grid item xs={12} sm={6}>
                   {renderSettingSelect("currencyId", "Currency", settings.currency)}
                 </Grid>
               </Grid>
             </Box>
 
             <Box sx={sectionSx}>
-              <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12}>
-                  <TextField
-                    size="small" sx={fieldSx}
-                    fullWidth multiline minRows={2} label="Job Description"
-                    value={form.description}
-                    onChange={(event) => setField("description", event.target.value)}
-                    placeholder="Enter detailed job description, responsibilities, and other details..."
-                  />
-                </Grid>
-              </Grid>
+              <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.75 }}>
+                Description
+              </Typography>
+              <TextField
+                size="small" sx={fieldSx}
+                fullWidth multiline minRows={2} label="Job Description"
+                value={form.description}
+                onChange={(event) => setField("description", event.target.value)}
+                placeholder="Enter detailed job description, responsibilities, and other details..."
+              />
             </Box>
 
             <Box sx={{ ...sectionSx, py: { xs: 0.5, md: 0.65 } }}>

@@ -2,26 +2,27 @@ import axiosInstance from '../../Common/axiosConfig';
 
 
 // Helper function to handle file uploads
-const createFormData = (courseData, thumbnail, image) => {
+const createFormData = (courseData, image) => {
   const formData = new FormData();
-  
-  // Convert course data to JSON string for the 'course' part
+
+  // CourseController accepts one JSON part and one optional image upload.
   formData.append('course', JSON.stringify(courseData));
-  
-  // Append files if they exist
-  if (thumbnail) formData.append('image', thumbnail);
-  if (image) formData.append('image', image);
-  
+  if (image instanceof File) {
+    formData.append('image', image);
+  }
+
   return formData;
 };
 
-export const getAllCourses = async ({ email, role, streamId }) => {
+export const getAllCourses = async ({ email, role, collegeId }) => {
   try {
     const response = await axiosInstance.get(`/getAllCourses`, {
       params: {
         email,
         role,
-        streamId
+        // Backend still names this request parameter `streamId`; its repository
+        // query uses the value as AbroadCourse.abroadCollege.id (the College ID).
+        streamId: collegeId
       },
       headers: {
         'Authorization': `Bearer ${sessionStorage.getItem('token')}`,
@@ -36,9 +37,9 @@ export const getAllCourses = async ({ email, role, streamId }) => {
   }
 };
 
-export const createCourse = async (courseData, thumbnail, image, role, email, collegeId) => {
+export const createCourse = async (courseData, image, role, email, collegeId) => {
   try {
-    const formData = createFormData(courseData, thumbnail, image);
+    const formData = createFormData(courseData, image);
     
     const response = await axiosInstance.post(
       `/createCourse`,
@@ -63,9 +64,9 @@ export const createCourse = async (courseData, thumbnail, image, role, email, co
   }
 };
 
-export const updateCourse = async (id, courseData, thumbnail, image, role, email) => {
+export const updateCourse = async (id, courseData, image, role, email) => {
   try {
-    const formData = createFormData(courseData, thumbnail, image);
+    const formData = createFormData(courseData, image);
     
     const response = await axiosInstance.put(
       `/updateCourse/${id}`,
@@ -129,13 +130,8 @@ export const deleteCourse = async (id, role, email) => {
 
 // Get all streams
 export const getAllStreams = async () => {
-  const role = sessionStorage.getItem('role') || 'staff';
-  const email = sessionStorage.getItem('email') || '';
-  
   try {
-    const response = await axiosInstance.get('/getAllStreams', {
-      params: { role, email }
-    });
+    const response = await axiosInstance.get('/getAllStreams');
     return response.data;
   } catch (error) {
     console.error('Error fetching streams:', error);

@@ -10,14 +10,13 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { getAllContinents } from "./ContinentService";
 import { getAllCountries } from "./CountryService";
 import StateService from "./StateService";
 import CityService from "./CityService";
 import { getAllUniversity } from "./UniversityService";
 import { getAllColleges } from "./CollegeService";
-import { getAllStreams } from "./StreamService";
 import { getCourseBreadcrumbEntity } from "./CourseBreadcrumbService";
 import CourseBreadcrumb from "./CourseBreadcrumb";
 import Country from "./Country";
@@ -25,7 +24,6 @@ import State from "./State";
 import City from "./City";
 import University from "./University";
 import College from "./College";
-import Stream from "./Stream";
 import Course from "./Course";
 
 const auth = () => ({
@@ -41,7 +39,6 @@ const COURSE_HIERARCHY = [
   { type: "city", param: "cityId", name: "City", route: "city" },
   { type: "university", param: "universityId", name: "University", route: "university" },
   { type: "college", param: "collegeId", name: "College", route: "college" },
-  { type: "stream", param: "streamId", name: "Stream", route: "stream" },
   { type: "course", param: "courseId", name: "Course", route: "course" },
 ];
 
@@ -52,7 +49,6 @@ const LABEL_FIELDS = {
   city: ["city", "cityName", "name"],
   university: ["universityName", "university", "name"],
   college: ["collegeName", "college", "name"],
-  stream: ["name", "streamName"],
 };
 
 const TARGET_CONTEXT_PARAMS = {
@@ -62,8 +58,7 @@ const TARGET_CONTEXT_PARAMS = {
   city: ["continentId", "countryId", "stateId"],
   university: ["continentId", "countryId", "stateId", "cityId"],
   college: ["continentId", "countryId", "stateId", "cityId", "universityId"],
-  stream: ["continentId", "countryId", "stateId", "cityId", "universityId", "collegeId"],
-  course: ["continentId", "countryId", "stateId", "cityId", "universityId", "collegeId", "streamId"],
+  course: ["continentId", "countryId", "stateId", "cityId", "universityId", "collegeId"],
 };
 
 const entityConfigs = {
@@ -107,21 +102,21 @@ const entityConfigs = {
     display: (item) => item.universityName || item.university || item.name || `University ${item.id}`,
     render: (parent, back) => <College university={parent} onBack={back} />,
   },
-  stream: {
-    title: "Stream Management",
-    param: "collegeId",
-    label: "College (optional filter)",
-    load: ({ role, email, branchCode }) => getAllColleges({ role, email, branchCode }),
-    display: (item) => item.collegeName || item.college || item.name || `College ${item.id}`,
-    render: (parent, back, a) => <Stream college={parent} role={a.role} email={a.email} branchCode={a.branchCode} onBack={back} />,
-  },
   course: {
     title: "Course Management",
-    param: "streamId",
-    label: "Stream",
-    load: ({ role, email, branchCode }) => getAllStreams({ role, email, branchCode }),
-    display: (item) => item.name || item.streamName || `Stream ${item.id}`,
-    render: (parent, back, a, collegeId) => <Course stream={parent} collegeId={collegeId} role={a.role} email={a.email} branchCode={a.branchCode} onBack={back} />,
+    param: "collegeId",
+    label: "College",
+    load: ({ role, email, branchCode }) => getAllColleges({ role, email, branchCode }),
+    display: (item) => item.collegeName || item.college || item.name || `College ${item.id}`,
+    render: (parent, back, a) => (
+      <Course
+        collegeId={parent?.id}
+        role={a.role}
+        email={a.email}
+        branchCode={a.branchCode}
+        onBack={back}
+      />
+    ),
   },
 };
 
@@ -165,9 +160,6 @@ export default function CourseEntityRoute({ entity }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [selectedId, setSelectedId] = useState(searchParams.get(config.param) || "");
-  const [collegeOptions, setCollegeOptions] = useState([]);
-  const [collegeOptionsLoaded, setCollegeOptionsLoaded] = useState(false);
-  const [selectedCollegeId, setSelectedCollegeId] = useState(searchParams.get("collegeId") || "");
   const [breadcrumbRecords, setBreadcrumbRecords] = useState({});
   const credentials = useMemo(auth, []);
   const paramsKey = searchParams.toString();
@@ -175,7 +167,6 @@ export default function CourseEntityRoute({ entity }) {
 
   useEffect(() => {
     setSelectedId(searchParams.get(config.param) || "");
-    if (entity === "course") setSelectedCollegeId(searchParams.get("collegeId") || "");
   }, [entity, config.param, searchParams]);
 
   useEffect(() => {
@@ -193,26 +184,11 @@ export default function CourseEntityRoute({ entity }) {
     return () => { active = false; };
   }, [entity, config, credentials]);
 
-  useEffect(() => {
-    if (entity !== "course") {
-      setCollegeOptionsLoaded(true);
-      return undefined;
-    }
-
-    let active = true;
-    setCollegeOptionsLoaded(false);
-    getAllColleges({ ...credentials })
-      .then((data) => active && setCollegeOptions(Array.isArray(data) ? data : []))
-      .catch(() => active && setCollegeOptions([]))
-      .finally(() => active && setCollegeOptionsLoaded(true));
-    return () => { active = false; };
-  }, [entity, credentials]);
 
   const selectedParent = options.find((item) => getId(item) === selectedId) || null;
-  const selectedCollege = collegeOptions.find((item) => getId(item) === selectedCollegeId) || null;
 
   useEffect(() => {
-    if (loading || (entity === "course" && selectedCollegeId && !collegeOptionsLoaded)) return undefined;
+    if (loading) return undefined;
 
     let active = true;
     const entityIndex = COURSE_HIERARCHY.findIndex((item) => item.type === entity);
@@ -220,12 +196,9 @@ export default function CourseEntityRoute({ entity }) {
     const immediateParentType = entityIndex > 0 ? COURSE_HIERARCHY[entityIndex - 1].type : null;
     const knownRecords = {};
 
-    // Reuse the selected parent and selected college already loaded by this route.
+    // Reuse the selected parent already loaded by this route.
     if (immediateParentType && selectedParent && getId(selectedParent) === routeIds[immediateParentType]) {
       knownRecords[immediateParentType] = selectedParent;
-    }
-    if (entity === "course" && selectedCollege && getId(selectedCollege) === routeIds.college) {
-      knownRecords.college = selectedCollege;
     }
 
     setBreadcrumbRecords(knownRecords);
@@ -253,7 +226,7 @@ export default function CourseEntityRoute({ entity }) {
     });
 
     return () => { active = false; };
-  }, [entity, paramsKey, loading, collegeOptionsLoaded, selectedCollegeId, selectedParent, selectedCollege, credentials, routeIds]);
+  }, [entity, paramsKey, loading, selectedParent, credentials, routeIds]);
 
   const breadcrumbItems = useMemo(() => {
     const entityIndex = COURSE_HIERARCHY.findIndex((item) => item.type === entity);
@@ -293,12 +266,6 @@ export default function CourseEntityRoute({ entity }) {
     updateParamAndClearDescendants(config.param, value);
   };
 
-  const handleCollegeChange = (value) => {
-    setSelectedCollegeId(value);
-    setSelectedId("");
-    // College is an ancestor of Stream and Course. Changing it invalidates both.
-    updateParamAndClearDescendants("collegeId", value);
-  };
 
   // Return to the parent entity screen, retaining all known ancestors including
   // college context when returning from Course Management to Stream Management.
@@ -309,8 +276,7 @@ export default function CourseEntityRoute({ entity }) {
       city: "state",
       university: "city",
       college: "university",
-      stream: "college",
-      course: "stream",
+      course: "college",
     };
 
     const ancestorsByEntity = {
@@ -319,8 +285,7 @@ export default function CourseEntityRoute({ entity }) {
       city: ["continentId", "countryId"],
       university: ["continentId", "countryId", "stateId"],
       college: ["continentId", "countryId", "stateId", "cityId"],
-      stream: ["continentId", "countryId", "stateId", "cityId", "universityId"],
-      course: ["continentId", "countryId", "stateId", "cityId", "universityId", "collegeId"],
+      course: ["continentId", "countryId", "stateId", "cityId", "universityId"],
     };
 
     const parentRoute = routeByEntity[entity];
@@ -340,7 +305,6 @@ export default function CourseEntityRoute({ entity }) {
 
   if (!entityConfigs[entity]) return <Alert severity="error">Unknown course entity route.</Alert>;
 
-  const canRenderWithoutParent = entity === "stream";
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, p: { xs: 1, sm: 2 } }}>
@@ -362,7 +326,7 @@ export default function CourseEntityRoute({ entity }) {
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={1.5}
-          sx={{ width: { xs: "100%", md: entity === "course" ? 560 : 440 }, maxWidth: "100%", flexShrink: 0 }}
+          sx={{ width: { xs: "100%", md: 440 }, maxWidth: "100%", flexShrink: 0 }}
         >
           <FormControl fullWidth size="small" disabled={loading}>
             <InputLabel id={`${entity}-parent-label`}>{config.label}</InputLabel>
@@ -376,22 +340,28 @@ export default function CourseEntityRoute({ entity }) {
               {options.map((item) => <MenuItem key={getId(item)} value={getId(item)}>{config.display(item)}</MenuItem>)}
             </Select>
           </FormControl>
-          {entity === "course" && (
-            <FormControl fullWidth size="small" disabled={loading}>
-              <InputLabel id="course-college-label">College (for create)</InputLabel>
-              <Select labelId="course-college-label" value={selectedCollegeId} label="College (for create)" onChange={(event) => handleCollegeChange(event.target.value)}>
-                <MenuItem value=""><em>Select College</em></MenuItem>
-                {collegeOptions.map((item) => <MenuItem key={getId(item)} value={getId(item)}>{item.collegeName || item.college || item.name || `College ${item.id}`}</MenuItem>)}
-              </Select>
-            </FormControl>
-          )}
         </Stack>
       </Stack>
       {loading && <CircularProgress size={24} />}
       {!!loadError && <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>}
-      {!loading && !loadError && !selectedParent && !canRenderWithoutParent && <Alert severity="info">Select a {config.label.replace(" (required by API)", "")} above to load this page. You can also provide its ID in the URL query string, for example <strong>?{config.param}=123</strong>.</Alert>}
-      {!loading && (selectedParent || canRenderWithoutParent) && (!loadError || canRenderWithoutParent) && (entity !== "course" || selectedCollege) && config.render(selectedParent, goBack, credentials, selectedCollege?.id)}
-      {entity === "course" && selectedParent && !selectedCollege && <Alert severity="info" sx={{ mt: 1 }}>Select the college as well. The backend create-course endpoint requires a collegeId.</Alert>}
+      {!loading && !loadError && !selectedParent && <Alert severity="info">Select a {config.label.replace(" (required by API)", "")} above to load this page. You can also provide its ID in the URL query string, for example <strong>?{config.param}=123</strong>.</Alert>}
+      {!loading && !loadError && selectedParent && config.render(selectedParent, goBack, credentials, selectedParent?.id)}
     </Box>
+  );
+}
+
+
+/** Redirect legacy Stream hierarchy URLs directly to the selected College's Course page. */
+export function LegacyStreamRedirect() {
+  const [searchParams] = useSearchParams();
+  const params = new URLSearchParams(searchParams);
+  params.delete("streamId");
+  const query = params.toString();
+
+  return (
+    <Navigate
+      to={`/wayabroadadmin/admin/courses/course${query ? `?${query}` : ""}`}
+      replace
+    />
   );
 }

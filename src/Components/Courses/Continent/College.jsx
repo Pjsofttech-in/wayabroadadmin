@@ -17,6 +17,7 @@ import {
 import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteOutlined from "@ant-design/icons/DeleteOutlined";
+import EditOutlined from "@ant-design/icons/EditOutlined";
 import PlusOutlined from "@ant-design/icons/PlusOutlined";
 import UploadIcon from "@mui/icons-material/Upload";
 
@@ -31,6 +32,9 @@ import LoadingOverlay from "../../Common/LoadingOverlay";
 
 const initialCollege = {
   collegeName: "",
+  universityRank: "",
+  stateRank: "",
+  countryRank: "",
   image: null,
   fileError: null,
 };
@@ -174,6 +178,9 @@ export default function College({ university, onBack }) {
       setCollegeData({
         collegeName:
           college.collegeName || college.college || "",
+        universityRank: college.universityRank || "",
+        stateRank: college.stateRank || "",
+        countryRank: college.countryRank || "",
         image: null,
         fileError: null,
       });
@@ -254,6 +261,11 @@ export default function College({ university, onBack }) {
       return;
     }
 
+    if (!editing && !(collegeData.image instanceof File)) {
+      message.error("Please upload a college image before creating a college");
+      return;
+    }
+
     setLoading(true);
     setApiLoading(true);
 
@@ -262,6 +274,9 @@ export default function College({ university, onBack }) {
 
       const collegeObj = {
         collegeName: collegeData.collegeName.trim(),
+        universityRank: collegeData.universityRank || "",
+        stateRank: collegeData.stateRank || "",
+        countryRank: collegeData.countryRank || "",
         createdByEmail: email,
         role,
         abroadUniversity: {
@@ -275,26 +290,21 @@ export default function College({ university, onBack }) {
         formData.append("image", collegeData.image);
       }
 
-      formData.append("universityId", String(university.id));
-
       if (editing !== null && editing !== undefined) {
         await updateCollege(
           editing,
           formData,
           email,
-          role,
-          branchCode,
-          null
+          role
         );
 
         message.success("College updated successfully");
       } else {
         await createCollege(
           formData,
-          null,
-          university.id,
           email,
-          role
+          role,
+          university.id
         );
 
         message.success("College created successfully");
@@ -331,7 +341,7 @@ export default function College({ university, onBack }) {
     setApiLoading(true);
 
     try {
-      await deleteCollege(id, email, role, branchCode);
+      await deleteCollege(id, email, role);
 
       message.success("College deleted successfully");
       await fetchColleges();
@@ -348,11 +358,12 @@ export default function College({ university, onBack }) {
     }
   };
 
-  // Open the standalone Streams route while preserving the selected hierarchy.
+  // Open Courses directly for this College while preserving the selected hierarchy.
   const handleManageCourses = (college) => {
     const params = new URLSearchParams(searchParams);
+    params.delete("streamId");
     params.set("collegeId", String(college.id));
-    navigate(`/wayabroadadmin/admin/courses/stream?${params.toString()}`);
+    navigate(`/wayabroadadmin/admin/courses/course?${params.toString()}`);
   };
 
   // Resolve college image URLs.
@@ -394,6 +405,24 @@ export default function College({ university, onBack }) {
           {name || "N/A"}
         </Typography>
       ),
+    },
+    {
+      title: "University Rank",
+      dataIndex: "universityRank",
+      key: "universityRank",
+      render: (value) => value || "-",
+    },
+    {
+      title: "State Rank",
+      dataIndex: "stateRank",
+      key: "stateRank",
+      render: (value) => value || "-",
+    },
+    {
+      title: "Country Rank",
+      dataIndex: "countryRank",
+      key: "countryRank",
+      render: (value) => value || "-",
     },
     {
       title: "Image",
@@ -440,7 +469,7 @@ export default function College({ university, onBack }) {
     {
       title: "Actions",
       key: "actions",
-      width: 220,
+      width: 290,
       render: (_, record) => (
         <Stack
           direction="row"
@@ -449,6 +478,17 @@ export default function College({ university, onBack }) {
           flexWrap="wrap"
           useFlexGap
         >
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<EditOutlined />}
+            onClick={() => handleOpenDialog(record)}
+            disabled={loading}
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            Edit
+          </Button>
+
           <Popconfirm
             title="Delete this college?"
             description="This action cannot be undone."
@@ -574,6 +614,37 @@ export default function College({ university, onBack }) {
               fullWidth
               required
               autoFocus
+            />
+
+            <TextField
+              label="University Rank"
+              name="universityRank"
+              value={collegeData.universityRank || ""}
+              onChange={handleInputChange}
+              fullWidth
+              placeholder="Enter university rank"
+            disabled={editing !== null && editing !== undefined}
+            helperText={editing !== null && editing !== undefined ? "Rank updates require a backend update-service change." : ""}
+            />
+            <TextField
+              label="State Rank"
+              name="stateRank"
+              value={collegeData.stateRank || ""}
+              onChange={handleInputChange}
+              fullWidth
+              placeholder="Enter state rank"
+            disabled={editing !== null && editing !== undefined}
+            helperText={editing !== null && editing !== undefined ? "Rank updates require a backend update-service change." : ""}
+            />
+            <TextField
+              label="Country Rank"
+              name="countryRank"
+              value={collegeData.countryRank || ""}
+              onChange={handleInputChange}
+              fullWidth
+              placeholder="Enter country rank"
+            disabled={editing !== null && editing !== undefined}
+            helperText={editing !== null && editing !== undefined ? "Rank updates require a backend update-service change." : ""}
             />
 
             <Box>

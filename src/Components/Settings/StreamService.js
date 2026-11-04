@@ -1,13 +1,9 @@
 import axiosInstance from "../Common/axiosConfig";
-import { message } from 'antd';
 //
 // Create a new stream
-export const createStream = async (streamData, imageFile) => {
+export const createStream = async (streamData) => {
   const formData = new FormData();
   formData.append('stream', new Blob([JSON.stringify(streamData)], { type: 'application/json' }));
-  if (imageFile) {
-    formData.append('image', imageFile);
-  }
   
   const role = sessionStorage.getItem('role') || 'staff';
   const email = sessionStorage.getItem('email') || '';
@@ -27,12 +23,9 @@ export const createStream = async (streamData, imageFile) => {
 };
 
 // Update an existing stream
-export const updateStream = async (id, streamData, imageFile) => {
+export const updateStream = async (id, streamData) => {
   const formData = new FormData();
   formData.append('stream', new Blob([JSON.stringify(streamData)], { type: 'application/json' }));
-  if (imageFile) {
-    formData.append('image', imageFile);
-  }
   
   const role = sessionStorage.getItem('role') || 'staff';
   const email = sessionStorage.getItem('email') || '';
@@ -53,13 +46,8 @@ export const updateStream = async (id, streamData, imageFile) => {
 
 // Get all streams
 export const getAllStreams = async () => {
-  const role = sessionStorage.getItem('role') || 'staff';
-  const email = sessionStorage.getItem('email') || '';
-  
   try {
-    const response = await axiosInstance.get('/getAllStreams', {
-      params: { role, email }
-    });
+    const response = await axiosInstance.get('/getAllStreams');
     return response.data;
   } catch (error) {
     console.error('Error fetching streams:', error);
@@ -69,13 +57,8 @@ export const getAllStreams = async () => {
 
 // Get stream by ID
 export const getStreamById = async (id) => {
-  const role = sessionStorage.getItem('role') || 'staff';
-  const email = sessionStorage.getItem('email') || '';
-  
   try {
-    const response = await axiosInstance.get(`/getStreamById/${id}`, {
-      params: { role, email }
-    });
+    const response = await axiosInstance.get(`/getStreamById/${id}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching stream:', error);

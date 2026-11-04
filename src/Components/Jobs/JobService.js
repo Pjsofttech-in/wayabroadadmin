@@ -110,14 +110,22 @@ export async function getJobApplicationById(id) {
   return unwrap(response);
 }
 
-export async function updateJobApplicationStatus(id, status) {
+export async function updateJobApplicationStatus(id, status, remark) {
   const response = await axiosInstance.put(`/job-applications/admin/${id}/status`, null, {
-    params: withAuth({ status }),
+    params: withAuth({ status, remark }),
   });
   return unwrap(response);
 }
 
 export async function deactivateJobApplication(id) {
   const response = await axiosInstance.delete(`/job-applications/admin/${id}`, { params: withAuth() });
+  return unwrap(response);
+}
+
+
+export async function createJobApplication(formData) {
+  const response = await axiosInstance.post("/job-applications/apply", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return unwrap(response);
 }

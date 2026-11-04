@@ -29,6 +29,9 @@ import Documents from "./Documents";
 
 const steps = ['Basic Information', 'Documents', 'Review & Submit'];
 
+// Backend maps these two fields to java.time.LocalDate.
+const toDateOnly = (value) => (value ? String(value).split('T')[0] : '');
+
 // File input component for consistent styling and better UX
 const FileInput = ({ label, name, onChange, value, accept = "*" }) => {
   const inputRef = React.useRef(null);
@@ -138,13 +141,14 @@ const AppicationCreate = () => {
     dob: "",
     
     // Passport Information
-    hasPassport: "",
+    passportAvailable: "",
     
     // Education Information
     passedCourse: "",
     percentage: "",
     passoutYear: "",
     gapInEducation: "",
+    gapYear: "",
     
     // Application Details
     applyFor: "",
@@ -176,22 +180,34 @@ const AppicationCreate = () => {
     assignedStaffEmail: "",
     assignedStaffName: "",
     
-    // File uploads
+    // File uploads (names match AbroadAdmissionFormController @RequestPart names)
     sop: null,
+    sop2: null,
     lors: null,
+    lorsTranscript2: null,
     resume: null,
     testScores: null,
     passportCopy: null,
+    passportInHandPhoto: null,
     studentVisa: null,
     passportPhotos: null,
-    moicertificate: null,
+    moiCertificate: null,
+    moiWithSealAndSign: null,
     workOrInternshipExperienceCertificate: null,
-    sscmarksheet: null,
-    hscmarksheet: null,
-    bachelorsMarksheet: null,
+    tenthDigitalMarksheet: null,
+    twelfthDigitalMarksheet: null,
+    degreeMarkList: null,
+    diplomaMarkList: null,
     transcripts: null,
     bonafideCertificate: null,
-    parentsIDProof: null,
+    fatherPanCard: null,
+    fatherITR1: null,
+    fatherITR2: null,
+    fatherITR3: null,
+    fatherBankStatement: null,
+    bankBalanceCertificate: null,
+    fatherIDProof: null,
+    motherIDProof: null,
     bankStatement: null,
     
     // System fields
@@ -393,22 +409,22 @@ const AppicationCreate = () => {
         setFormData(prev => ({
           ...prev,
           // Basic Information
-          fullName: student.name || personalInfo.name || "",
+          fullName: student.fullName || student.name || personalInfo.fullName || personalInfo.name || "",
           email: student.email || personalInfo.email || "",
-          phone: student.phone_no || personalInfo.phone_no || "",
+          phone: student.phone || student.phone_no || personalInfo.phone || personalInfo.phone_no || "",
           alternatePhone: personalInfo.alternatePhone || student.alternatePhone || "",
           gender: personalInfo.gender || student.gender || "",
-          dob: personalInfo.dob || student.dob || "",
+          dob: toDateOnly(personalInfo.dob || student.dob),
           
           // Passport Information
-          hasPassport: personalInfo.hasPassport || student.hasPassport || "",
+          passportAvailable: personalInfo.passportAvailable || personalInfo.hasPassport || student.passportAvailable || student.hasPassport || "",
           passportNo: personalInfo.passportNo || student.passportNo || "",
           
           // Education Information
-          passedCourse: personalInfo.passedCourse || student.passedCourse || "",
+          passedCourse: personalInfo.passedCourse || student.passedCourse || student.passoutCourse || "",
           percentage: personalInfo.percentage || student.percentage || "",
           passoutYear: personalInfo.passoutYear || student.passoutYear || "",
-          gap: personalInfo.gap || student.gap || "",
+          gapInEducation: personalInfo.gapInEducation || personalInfo.gap || student.gapInEducation || student.gap || "",
           gapYear: personalInfo.gapYear || student.gapYear || "",
           
           // Application Details
@@ -418,28 +434,28 @@ const AppicationCreate = () => {
           state: personalInfo.state || student.state || "",
           city: personalInfo.city || student.city || "",
           university: personalInfo.university || student.university || "",
-          collage: personalInfo.collage || student.collage || "",
+          college: personalInfo.college || personalInfo.collage || student.college || student.collage || "",
           stream: personalInfo.stream || student.stream || "",
           course: personalInfo.course || personalInfo.courseName || student.course || student.courseName || "",
           intake: personalInfo.intake || student.intake || "",
           status: personalInfo.status || student.status || "applied",
           
           // Address Information
-          houseNo: personalInfo.houseNo || student.houseNo || "",
-          street: personalInfo.street || student.street || "",
+          houseNumber: personalInfo.houseNumber || personalInfo.houseNo || student.houseNumber || student.houseNo || "",
+          streetName: personalInfo.streetName || personalInfo.street || student.streetName || student.street || "",
           landmark: personalInfo.landmark || student.landmark || "",
           pincode: personalInfo.pincode || student.pincode || "",
           
           // Family Information
-          fathersOccupation: personalInfo.fathersOccupation || student.fathersOccupation || "",
-          fathersIncome: personalInfo.fathersIncome || student.fathersIncome || "",
-          fatherNumber: personalInfo.fatherNumber || student.fatherNumber || "",
+          fatherOccupation: personalInfo.fatherOccupation || personalInfo.fathersOccupation || student.fatherOccupation || student.fathersOccupation || "",
+          fatherIncome: personalInfo.fatherIncome || personalInfo.fathersIncome || student.fatherIncome || student.fathersIncome || "",
+          fatherPhone: personalInfo.fatherPhone || personalInfo.fatherNumber || student.fatherPhone || student.fatherNumber || "",
           
           // Additional Information
           notes: personalInfo.notes || student.notes || "",
-          enquiry_date: personalInfo.enquiry_date || student.enquiry_date || "",
-          staffEmail: staffEmail,
-          staffName: staffName,
+          enquiryDate: toDateOnly(personalInfo.enquiryDate || personalInfo.enquiry_date || student.enquiryDate || student.enquiry_date),
+          assignedStaffEmail: staffEmail,
+          assignedStaffName: staffName,
         }));
 
         message.success("Student information loaded successfully!");
@@ -458,17 +474,17 @@ const AppicationCreate = () => {
           phone: student.phone_no || "",
           alternatePhone: student.alternatePhone || "",
           gender: student.gender || "",
-          dob: student.dob || "",
+          dob: toDateOnly(student.dob),
           
           // Passport Information
-          hasPassport: student.hasPassport || "",
+          passportAvailable: student.passportAvailable || student.hasPassport || "",
           passportNo: student.passportNo || "",
           
           // Education Information
           passedCourse: student.passedCourse || "",
           percentage: student.percentage || "",
           passoutYear: student.passoutYear || "",
-          gap: student.gap || "",
+          gapInEducation: student.gapInEducation || student.gap || "",
           gapYear: student.gapYear || "",
           
           // Application Details
@@ -478,28 +494,28 @@ const AppicationCreate = () => {
           state: student.state || "",
           city: student.city || "",
           university: student.university || "",
-          collage: student.collage || "",
+          college: student.college || student.collage || "",
           stream: student.stream || "",
           course: student.course || student.courseName || "",
           intake: student.intake || "",
           status: student.status || "applied",
           
           // Address Information
-          houseNo: student.houseNo || "",
-          street: student.street || "",
+          houseNumber: student.houseNumber || student.houseNo || "",
+          streetName: student.streetName || student.street || "",
           landmark: student.landmark || "",
           pincode: student.pincode || "",
           
           // Family Information
-          fathersOccupation: student.fathersOccupation || "",
-          fathersIncome: student.fathersIncome || "",
-          fatherNumber: student.fatherNumber || "",
+          fatherOccupation: student.fatherOccupation || student.fathersOccupation || "",
+          fatherIncome: student.fatherIncome || student.fathersIncome || "",
+          fatherPhone: student.fatherPhone || student.fatherNumber || "",
           
           // Additional Information
           notes: student.notes || "",
-          enquiry_date: student.enquiry_date || "",
-          staffEmail: staffEmail,
-          staffName: staffName,
+          enquiryDate: toDateOnly(student.enquiryDate || student.enquiry_date),
+          assignedStaffEmail: staffEmail,
+          assignedStaffName: staffName,
           // Clear file objects in fallback case too
           sop: null,
           lors: null,
@@ -525,14 +541,14 @@ const AppicationCreate = () => {
         dob: "",
         
         // Passport Information
-        hasPassport: "",
+        passportAvailable: "",
         passportNo: "",
         
         // Education Information
         passedCourse: "",
         percentage: "",
         passoutYear: "",
-        gap: "",
+        gapInEducation: "",
         gapYear: "",
         
         // Application Details
@@ -542,28 +558,28 @@ const AppicationCreate = () => {
         state: "",
         city: "",
         university: "",
-        collage: "",
+        college: "",
         stream: "",
         course: "",
         intake: "",
         status: "applied",
         
         // Address Information
-        houseNo: "",
-        street: "",
+        houseNumber: "",
+        streetName: "",
         landmark: "",
         pincode: "",
         
         // Family Information
-        fathersOccupation: "",
-        fathersIncome: "",
-        fatherNumber: "",
+        fatherOccupation: "",
+        fatherIncome: "",
+        fatherPhone: "",
         
         // Additional Information
         notes: "",
-        enquiry_date: "",
-        staffEmail: "",
-        staffName: "",
+        enquiryDate: "",
+        assignedStaffEmail: "",
+        assignedStaffName: "",
         // Clear file objects when no student is selected
         sop: null,
         lors: null,
@@ -630,7 +646,7 @@ const AppicationCreate = () => {
         'notes', 'enquiryDate', 'assignedStaffEmail', 'assignedStaffName',
         
         // System fields
-        'branchCode', 'role', 'createdByEmail', 'createdDateTime'
+        'branchCode', 'role', 'createdByEmail'
       ];
 
       // List of file fields that should be handled separately
@@ -700,27 +716,70 @@ const AppicationCreate = () => {
       console.log("API call successful:", result);
       message.success("Admission form submitted successfully!");
 
-      // Reset form after successful submission
+      // Reset the complete form while preserving current session metadata.
       setFormData({
         fullName: "",
         email: "",
         phone: "",
         alternatePhone: "",
-        country: "",
-        university: "",
-        course: "",
-        stream: "",
+        gender: "",
+        dob: "",
+        passportAvailable: "",
+        passedCourse: "",
+        percentage: "",
         passoutYear: "",
-        intake: "",
+        gapInEducation: "",
+        gapYear: "",
+        applyFor: "",
+        continent: "",
+        country: "",
+        state: "",
+        city: "",
+        university: "",
+        college: "",
+        stream: "",
+        course: "",
         status: "applied",
+        intake: "",
+        houseNumber: "",
+        streetName: "",
+        landmark: "",
+        pincode: "",
+        fatherOccupation: "",
+        fatherIncome: "",
+        fatherPhone: "",
         notes: "",
+        enquiryDate: new Date().toISOString().split('T')[0],
+        assignedStaffEmail: "",
+        assignedStaffName: "",
         sop: null,
+        sop2: null,
         lors: null,
+        lorsTranscript2: null,
         resume: null,
         testScores: null,
         passportCopy: null,
+        passportInHandPhoto: null,
         studentVisa: null,
         passportPhotos: null,
+        moiCertificate: null,
+        moiWithSealAndSign: null,
+        workOrInternshipExperienceCertificate: null,
+        tenthDigitalMarksheet: null,
+        twelfthDigitalMarksheet: null,
+        degreeMarkList: null,
+        diplomaMarkList: null,
+        transcripts: null,
+        bonafideCertificate: null,
+        fatherPanCard: null,
+        fatherITR1: null,
+        fatherITR2: null,
+        fatherITR3: null,
+        fatherBankStatement: null,
+        bankBalanceCertificate: null,
+        fatherIDProof: null,
+        motherIDProof: null,
+        bankStatement: null,
         createdByEmail: sessionStorage.getItem("email") || "",
         role: sessionStorage.getItem("role") || "",
         branchCode: sessionStorage.getItem("branchCode") || "",
@@ -887,12 +946,11 @@ const AppicationCreate = () => {
                   type="date"
                   value={formData.dob ? formData.dob.split('T')[0] : ''}
                   onChange={(e) => {
-                    // Format the date as YYYY-MM-DD for the backend
-                    const dateValue = e.target.value ? new Date(e.target.value).toISOString() : '';
+                    // Backend field is LocalDate, so keep the YYYY-MM-DD value.
                     handleChange({
                       target: {
                         name: 'dob',
-                        value: dateValue
+                        value: e.target.value
                       }
                     });
                   }}
@@ -907,8 +965,8 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="Enquiry Date"
-                  name="enquiry_date"
-                  value={formData.enquiry_date || ''}
+                  name="enquiryDate"
+                  value={formData.enquiryDate || ''}
                   onChange={handleChange}
                   margin="normal"
                   InputProps={{ readOnly: true }}
@@ -926,8 +984,8 @@ const AppicationCreate = () => {
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Do you have Passport?</InputLabel>
                   <MuiSelect
-                    value={formData.hasPassport || ''}
-                    name="hasPassport"
+                    value={formData.passportAvailable || ''}
+                    name="passportAvailable"
                     onChange={handleChange}
                     label="Do you have Passport?"
                   >
@@ -938,7 +996,7 @@ const AppicationCreate = () => {
                 </FormControl>
               </Grid>
               {/* Passport number field removed as it's not recognized by the backend
-              {formData.hasPassport === 'Yes' && (
+              {formData.passportAvailable === 'Yes' && (
                 <Grid item xs={12} sm={6} md={3}>
                   <TextField
                     fullWidth
@@ -963,7 +1021,7 @@ const AppicationCreate = () => {
                   <InputLabel>Passout Course</InputLabel>
                   <MuiSelect
                     value={formData.passedCourse || ''}
-                    name="passoutCourse"
+                    name="passedCourse"
                     onChange={handleChange}
                     label="Passout Course"
                   >
@@ -988,8 +1046,8 @@ const AppicationCreate = () => {
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Have GAP in Education?</InputLabel>
                   <MuiSelect
-                    value={formData.gap || ''}
-                    name="gap"
+                    value={formData.gapInEducation || ''}
+                    name="gapInEducation"
                     onChange={handleChange}
                     label="Have GAP in Education?"
                   >
@@ -999,7 +1057,7 @@ const AppicationCreate = () => {
                   </MuiSelect>
                 </FormControl>
               </Grid>
-              {formData.gap === 'Yes' && (
+              {formData.gapInEducation === 'Yes' && (
                 <Grid item xs={12} sm={6} md={3}>
                   <TextField
                     fullWidth
@@ -1089,8 +1147,8 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="College"
-                  name="collage"
-                  value={formData.collage || ''}
+                  name="college"
+                  value={formData.college || ''}
                   onChange={handleChange}
                   margin="normal"
                 />
@@ -1172,8 +1230,8 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="House/Flat No."
-                  name="houseNo"
-                  value={formData.houseNo || ''}
+                  name="houseNumber"
+                  value={formData.houseNumber || ''}
                   onChange={handleChange}
                   margin="normal"
                 />
@@ -1182,8 +1240,8 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="Street Name"
-                  name="street"
-                  value={formData.street || ''}
+                  name="streetName"
+                  value={formData.streetName || ''}
                   onChange={handleChange}
                   margin="normal"
                 />
@@ -1219,8 +1277,8 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="Father's Occupation"
-                  name="fathersOccupation"
-                  value={formData.fathersOccupation || ''}
+                  name="fatherOccupation"
+                  value={formData.fatherOccupation || ''}
                   onChange={handleChange}
                   margin="normal"
                 />
@@ -1229,9 +1287,9 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="Father's Income"
-                  name="fathersIncome"
+                  name="fatherIncome"
                   type="number"
-                  value={formData.fathersIncome || ''}
+                  value={formData.fatherIncome || ''}
                   onChange={handleChange}
                   margin="normal"
                 />
@@ -1240,8 +1298,8 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="Father's Phone Number"
-                  name="fatherNumber"
-                  value={formData.fatherNumber || ''}
+                  name="fatherPhone"
+                  value={formData.fatherPhone || ''}
                   onChange={handleChange}
                   margin="normal"
                 />
@@ -1269,8 +1327,8 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="Assigned Staff Name"
-                  name="staffName"
-                  value={formData.staffName || ''}
+                  name="assignedStaffName"
+                  value={formData.assignedStaffName || ''}
                   onChange={handleChange}
                   margin="normal"
                   helperText="Name of the staff member handling this application"
@@ -1288,9 +1346,9 @@ const AppicationCreate = () => {
                 <TextField
                   fullWidth
                   label="Staff Email"
-                  name="staffEmail"
+                  name="assignedStaffEmail"
                   type="email"
-                  value={formData.staffEmail || ''}
+                  value={formData.assignedStaffEmail || ''}
                   onChange={handleChange}
                   margin="normal"
                   helperText="Email of the staff member"
@@ -1318,6 +1376,7 @@ const AppicationCreate = () => {
                 { name: 'SOP - 1', key: 'sop', accept: '.pdf,.doc,.docx' },
                 { name: 'SOP - 2', key: 'sop2', accept: '.pdf,.doc,.docx' },
                 { name: 'LORs', key: 'lors', accept: '.pdf,.doc,.docx' },
+                { name: 'LOR Transcript 2', key: 'lorsTranscript2', accept: '.pdf,.doc,.docx' },
                 { name: 'Resume / CV', key: 'resume', accept: '.pdf,.doc,.docx' },
                 { name: 'Test Scores', key: 'testScores', accept: '.pdf,.jpg,.jpeg,.png' },
                 { name: 'Passport Copy', key: 'passportCopy', accept: '.pdf' },
@@ -1330,6 +1389,7 @@ const AppicationCreate = () => {
                 { name: '10th Marksheet', key: 'tenthDigitalMarksheet', accept: '.pdf' },
                 { name: '12th Marksheet', key: 'twelfthDigitalMarksheet', accept: '.pdf' },
                 { name: 'Degree Mark List', key: 'degreeMarkList', accept: '.pdf' },
+                { name: 'Diploma Mark List', key: 'diplomaMarkList', accept: '.pdf' },
                 { name: 'Transcripts', key: 'transcripts', accept: '.pdf' },
                 { name: 'Bonafide Certificate', key: 'bonafideCertificate', accept: '.pdf' },
                 { name: "Father's PAN Card", key: 'fatherPanCard', accept: '.pdf,.jpg,.jpeg,.png' },
@@ -1338,7 +1398,8 @@ const AppicationCreate = () => {
                 { name: "Father's ITR 3", key: 'fatherITR3', accept: '.pdf' },
                 { name: "Father's Bank Statement", key: 'fatherBankStatement', accept: '.pdf' },
                 { name: 'Bank Balance Certificate', key: 'bankBalanceCertificate', accept: '.pdf' },
-                { name: "Parent's ID Proof", key: 'parentsIDProof', accept: '.pdf,.jpg,.jpeg,.png' },
+                { name: "Father's ID Proof", key: 'fatherIDProof', accept: '.pdf,.jpg,.jpeg,.png' },
+                { name: "Mother's ID Proof", key: 'motherIDProof', accept: '.pdf,.jpg,.jpeg,.png' },
                 { name: 'Bank Statement (6 months)', key: 'bankStatement', accept: '.pdf' }
               ].map((doc) => (
                 <Grid item xs={12} sm={6} md={4} key={doc.key}>

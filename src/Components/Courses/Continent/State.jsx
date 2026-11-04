@@ -29,7 +29,6 @@ import LoadingOverlay from "../../Common/LoadingOverlay";
 const initialState = {
   state: "",
   description: "",
-  photo: null,
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50];
@@ -67,14 +66,7 @@ export default function State({ country, onBack }) {
         country.id
       );
 
-      const formattedData = (Array.isArray(data) ? data : []).map(
-        (stateItem) => ({
-          ...stateItem,
-          imageUrl: stateItem.image || null,
-        })
-      );
-
-      setStates(formattedData);
+      setStates(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch states:", error);
       message.error("Failed to fetch states");
@@ -112,7 +104,6 @@ export default function State({ country, onBack }) {
         ...initialState,
         ...record,
         state: record.state || record.name || "",
-        photo: null,
       });
       setEditing(record.id);
     } else {
@@ -130,19 +121,11 @@ export default function State({ country, onBack }) {
   };
 
   const handleChange = (event) => {
-    const { name, value, files } = event.target;
-
-    if (name === "photo") {
-      setStateData((previous) => ({
-        ...previous,
-        photo: files?.[0] || null,
-      }));
-    } else {
-      setStateData((previous) => ({
-        ...previous,
-        [name]: value,
-      }));
-    }
+    const { name, value } = event.target;
+    setStateData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
 
   const handleSave = async () => {
@@ -161,17 +144,14 @@ export default function State({ country, onBack }) {
         await StateService.updateState(
           editing,
           payload,
-          stateData.photo,
           country?.id,
           role,
-          email,
-          branchCode
+          email
         );
         message.success("State updated successfully");
       } else {
         await StateService.createState(
           payload,
-          stateData.photo,
           country?.id,
           role,
           email
@@ -250,13 +230,6 @@ export default function State({ country, onBack }) {
         const selectedName = country?.country || country?.name;
         const relationId = record.countryId ?? record.country_id;
         return value || selectedName || (relationId != null ? `#${relationId}` : "-");
-      },
-    },
-    {
-      title: "Image", dataIndex: "imageUrl", key: "imageUrl", width: 120,
-      render: (url, record) => {
-        const imageSrc = url ? (url.startsWith("data:image") || /^https?:\/\//i.test(url) ? url : `${import.meta.env.VITE_API_URL || ""}${url}`) : null;
-        return imageSrc ? <img src={imageSrc} alt={record.state || record.name || "State"} loading="lazy" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} /> : "-";
       },
     },
     {
@@ -367,26 +340,7 @@ export default function State({ country, onBack }) {
             autoFocus
           />
 
-          <Button
-            variant="contained"
-            component="label"
-            sx={{ mt: 2 }}
-          >
-            Upload Image
-            <input
-              type="file"
-              name="photo"
-              accept="image/*"
-              hidden
-              onChange={handleChange}
-            />
-          </Button>
 
-          {stateData.photo && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              {stateData.photo.name}
-            </Typography>
-          )}
         </DialogContent>
 
         <DialogActions>

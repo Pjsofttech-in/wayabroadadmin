@@ -18,6 +18,7 @@ import { Table, Input, Popconfirm, message } from "antd";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
   DeleteOutlined,
+  EditOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
 import CityService from "./CityService";
@@ -26,7 +27,6 @@ import LoadingOverlay from "../../Common/LoadingOverlay";
 const initialCity = {
   city: "",
   description: "",
-  photo: null,
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50];
@@ -62,14 +62,7 @@ export default function City({ state, onBack }) {
         state.id
       );
 
-      const formattedData = (Array.isArray(data) ? data : []).map(
-        (cityItem) => ({
-          ...cityItem,
-          imageUrl: cityItem.image || null,
-        })
-      );
-
-      setCities(formattedData);
+      setCities(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch cities:", error);
       message.error("Failed to fetch cities");
@@ -107,7 +100,6 @@ export default function City({ state, onBack }) {
         ...initialCity,
         ...record,
         city: record.city || record.name || "",
-        photo: null,
       });
       setEditing(record.id);
     } else {
@@ -125,19 +117,11 @@ export default function City({ state, onBack }) {
   };
 
   const handleChange = (event) => {
-    const { name, value, files } = event.target;
-
-    if (name === "photo") {
-      setCityData((previous) => ({
-        ...previous,
-        photo: files?.[0] || null,
-      }));
-    } else {
-      setCityData((previous) => ({
-        ...previous,
-        [name]: value,
-      }));
-    }
+    const { name, value } = event.target;
+    setCityData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
 
   const handleSave = async () => {
@@ -156,17 +140,14 @@ export default function City({ state, onBack }) {
         await CityService.updateCity(
           editing,
           payload,
-          cityData.photo,
           state?.id,
           role,
-          email,
-          branchCode
+          email
         );
         message.success("City updated successfully");
       } else {
         await CityService.createCity(
           payload,
-          cityData.photo,
           state?.id,
           role,
           email
@@ -240,52 +221,9 @@ export default function City({ state, onBack }) {
       ),
     },
     {
-      title: "Image",
-      dataIndex: "imageUrl",
-      key: "imageUrl",
-      width: 120,
-      render: (url, record) => {
-        const imageSrc = url
-          ? url.startsWith("data:image") || url.startsWith("http")
-            ? url
-            : `${import.meta.env.VITE_API_URL || ""}${url}`
-          : null;
-
-        return imageSrc ? (
-          <img
-            src={imageSrc}
-            alt={record.city || record.name || "City"}
-            loading="lazy"
-            style={{
-              width: 40,
-              height: 40,
-              objectFit: "cover",
-              borderRadius: 4,
-            }}
-          />
-        ) : (
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              bgcolor: "#f0f0f0",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 1,
-              fontSize: 10,
-              color: "text.secondary",
-            }}
-          >
-            No Image
-          </Box>
-        );
-      },
-    },
-    {
       title: "Actions",
       key: "actions",
-      width: 230,
+      width: 300,
       render: (_, record) => (
         <Stack
           direction="row"
@@ -308,6 +246,15 @@ export default function City({ state, onBack }) {
               <DeleteOutlined />
             </IconButton>
           </Popconfirm>
+
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<EditOutlined />}
+            onClick={() => handleOpenDialog(record)}
+          >
+            Edit
+          </Button>
 
           <Button
             size="small"
@@ -405,26 +352,7 @@ export default function City({ state, onBack }) {
             autoFocus
           />
 
-          <Button
-            variant="contained"
-            component="label"
-            sx={{ mt: 2 }}
-          >
-            Upload Image
-            <input
-              type="file"
-              name="photo"
-              accept="image/*"
-              hidden
-              onChange={handleChange}
-            />
-          </Button>
 
-          {cityData.photo && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              {cityData.photo.name}
-            </Typography>
-          )}
         </DialogContent>
 
         <DialogActions>

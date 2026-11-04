@@ -77,11 +77,19 @@ const PartnerFilter = ({
   });
   const [isLoading, setIsLoading] = useState(false);
   const filtersRef = useRef(filters);
+  const onFilterChangeRef = useRef(onFilterChange);
   const isFirstSearchEffect = useRef(true);
 
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+
+  // Keep the latest parent callback without making the debounce effect depend on
+  // its identity. PartnerList recreates its handler during state updates;
+  // depending on that handler would repeatedly restart the debounce timer.
+  useEffect(() => {
+    onFilterChangeRef.current = onFilterChange;
+  }, [onFilterChange]);
 
   // Keep the search field synchronized when filters are reset externally.
   useEffect(() => {
@@ -147,14 +155,14 @@ const PartnerFilter = ({
     }
 
     const timer = setTimeout(() => {
-      onFilterChange?.({
+      onFilterChangeRef.current?.({
         ...filtersRef.current,
         name: searchText || undefined,
       });
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchText, onFilterChange]);
+  }, [searchText]);
 
   const handleFilterChange = (field, value) => {
     const normalizedValue = field === 'status' ? normalizeStatus(value) : value;
