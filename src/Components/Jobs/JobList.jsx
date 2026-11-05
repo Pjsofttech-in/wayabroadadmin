@@ -145,7 +145,7 @@ export default function JobList() {
         page: nextPage,
         size: nextSize,
         sortBy: "id",
-        sortDir: "DESC",
+        sortDir: "ASC",
       });
 
       // Ignore older responses so fast filter changes cannot overwrite newer results.
@@ -541,7 +541,7 @@ export default function JobList() {
             pageSize,
             total,
             showSizeChanger: true,
-            pageSizeOptions: ["10", "20", "25", "50"],
+            pageSizeOptions: ["25", "50", "100"],
             showTotal: (count, range) =>
               `Showing ${range[0]}-${range[1]} of ${count} jobs`,
             onChange: (current, size) =>

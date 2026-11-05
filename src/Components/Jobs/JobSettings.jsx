@@ -217,9 +217,31 @@ export default function JobSettings() {
         <Typography variant="h6" fontWeight={600}>{currentLabel}</Typography>
         <Button variant="contained" startIcon={<PlusOutlined />} onClick={openCreate}>Add {currentLabel}</Button>
       </Stack>
-      <Box sx={{ "& .ant-table": { fontSize: 13 }, "& .ant-table-thead > tr > th": { fontWeight: 600, whiteSpace: "nowrap" } }}>
-        <Table rowKey="id" columns={columns} dataSource={records[activeType] || []} loading={loading} size="middle" scroll={{ x: "max-content" }} pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "25", "50"], showTotal: (total) => `${total} ${currentLabel.toLowerCase()} records` }} />
-      </Box>
+      <Box
+  sx={{
+    "& .ant-table": { fontSize: 13 },
+    "& .ant-table-thead > tr > th": {
+      fontWeight: 600,
+      whiteSpace: "nowrap",
+    },
+  }}
+>
+  <Table
+    rowKey="id"
+    columns={columns}
+    dataSource={records[activeType] || []}
+    loading={loading}
+    size="middle"
+    scroll={{ x: "max-content" }}
+    pagination={{
+      defaultPageSize: 20,
+      showSizeChanger: true,
+      pageSizeOptions: ["20", "50", "100", "150", "200"],
+      showTotal: (total) =>
+        `${total} ${currentLabel.toLowerCase()} records`,
+    }}
+  />
+</Box>
 
       <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="xs">
         <Box component="form" onSubmit={save}>

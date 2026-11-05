@@ -321,9 +321,6 @@ export default function JobApplications() {
     <Typography variant="h5" fontWeight={700} color="#183b56">
       Job Applications
     </Typography>
-    <Typography variant="body2" color="text.secondary">
-      Review applications, update status, and view applicant details.
-    </Typography>
   </Box>
 
   {!isBranch && (

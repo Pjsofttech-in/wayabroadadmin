@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Alert, Autocomplete, Box, Button, CircularProgress, FormControlLabel, Grid,
-  MenuItem, Paper, Stack, Switch, TextField, Typography,
+  Alert, Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions,
+  DialogContent, DialogTitle, FormControlLabel, Grid, MenuItem, Paper, Stack,
+  Switch, TextField, Typography,
 } from "@mui/material";
 import { message } from "antd";
-import { createJob, getJobById, getJobSettings, updateJob } from "./JobService";
+import { createJob, createJobSetting, getJobById, getJobSettings, updateJob } from "./JobService";
 
 const EMPTY_FORM = {
   jobTitle: "",
@@ -81,6 +82,9 @@ export default function JobForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [skillsValidationAttempted, setSkillsValidationAttempted] = useState(false);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [newLocationName, setNewLocationName] = useState("");
+  const [locationSaving, setLocationSaving] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -174,6 +178,60 @@ export default function JobForm() {
     setForm((previous) => ({ ...previous, countryId, locationId: "" }));
   };
 
+  const openAddLocation = () => {
+    setNewLocationName("");
+    setLocationDialogOpen(true);
+  };
+
+  const handleAddLocation = async (event) => {
+    event.preventDefault();
+    const locationName = newLocationName.trim();
+
+    if (!locationName) {
+      message.error("Location name is required.");
+      return;
+    }
+    if (!form.countryId) {
+      message.error("Country is required.");
+      return;
+    }
+
+    setLocationSaving(true);
+    try {
+      // Keep the same Location payload used by Job Settings.
+      const created = await createJobSetting("location", {
+        location: locationName,
+        countryId: Number(form.countryId),
+        active: true,
+      });
+
+      // Reload the same settings collection used by the Create Job dropdown.
+      const refreshedLocations = asArray(await getJobSettings("location"));
+      setSettings((previous) => ({ ...previous, location: refreshedLocations }));
+
+      const createdRecord = created?.data?.data ?? created?.data ?? created;
+      const createdId = createdRecord?.id;
+      const matchingLocation = refreshedLocations.find((item) =>
+        (createdId != null && String(item.id) === String(createdId)) ||
+        (String(getCountryId(item)) === String(form.countryId) &&
+          getName(item).trim().toLowerCase() === locationName.toLowerCase())
+      );
+
+      if (matchingLocation) {
+        setField("locationId", idString(matchingLocation.id));
+      }
+
+      message.success("Location created successfully.");
+      setLocationDialogOpen(false);
+      setNewLocationName("");
+    } catch (locationError) {
+      console.error("Failed to create location:", locationError);
+      message.error(errorMessage(locationError, "Could not save location."));
+    } finally {
+      setLocationSaving(false);
+    }
+  };
+
   const handleSkillsChange = (_, values) => {
     const skills = [...new Set(
       values
@@ -216,13 +274,8 @@ export default function JobForm() {
     }
 
     const openings = Number(form.openings);
-    const salary = Number(form.salary);
     if (!Number.isInteger(openings) || openings <= 0) {
       setError("Openings must be a whole number greater than zero.");
-      return;
-    }
-    if (!Number.isFinite(salary) || salary < 0) {
-      setError("Salary must be a valid non-negative number.");
       return;
     }
 
@@ -235,7 +288,7 @@ export default function JobForm() {
       skills: form.skills.map((skill) => skill.trim()).filter(Boolean),
       openings,
       locationId: Number(form.locationId),
-      salary,
+      salary: form.salary,
       currencyId: Number(form.currencyId),
       jobTypeId: Number(form.jobTypeId),
       workTypeId: Number(form.workTypeId),
@@ -291,10 +344,22 @@ export default function JobForm() {
     "& .MuiFormHelperText-root": { mt: 0.35, mx: 0.25, lineHeight: 1.25 },
   };
 
-  const fieldSx = {
-    "& .MuiInputBase-root": { minWidth: 0 },
-    "& .MuiInputLabel-root": { maxWidth: "calc(100% - 28px)" },
-  };
+  
+const fieldSx = {
+  "& .MuiInputBase-root": {
+    minWidth: 0,
+  },
+
+  "& .MuiInputLabel-root": {
+    maxWidth: "calc(100% - 28px)",
+  },
+
+  // Required field star (*) in red color
+  "& .MuiInputLabel-asterisk": {
+    color: "#f44336",
+  },
+};
+
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, pb: 2 }}>
@@ -305,14 +370,6 @@ export default function JobForm() {
         spacing={0.35}
         sx={{ mb: 1.25 }}
       >
-        <Box>
-          <Typography variant="h6" fontWeight={750} lineHeight={1.25}>
-            {isEditing ? "Edit Job" : "Create Job"}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Enter the job details below. Fields marked with * are required.
-          </Typography>
-        </Box>
       </Stack>
 
       {error && (
@@ -432,15 +489,38 @@ export default function JobForm() {
                     </Typography>
                   )}
                 </Grid>
-                <Grid item xs={12} sm={4}>
-                  {renderSettingSelect("locationId", "Location", locations, !form.countryId)}
+                <Grid item xs={12} sm={5}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={0.75}
+                    alignItems={{ xs: "stretch", sm: "center" }}
+                    sx={{ minWidth: 0, width: "100%" }}
+                  >
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      {renderSettingSelect("locationId", "Location", locations, !form.countryId)}
+                    </Box>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={openAddLocation}
+                      disabled={saving || locationSaving || !form.countryId}
+                      sx={{
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                        textTransform: "none",
+                        minHeight: 40,
+                      }}
+                    >
+                      Add Location
+                    </Button>
+                  </Stack>
                   {form.countryId && locations.length === 0 && (
                     <Typography variant="caption" color="error">
                       No Location is configured for this Country.
                     </Typography>
                   )}
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={3}>
                   {renderSettingSelect("workTypeId", "Work Type", settings.workType)}
                 </Grid>
               </Grid>
@@ -453,10 +533,9 @@ export default function JobForm() {
               <Grid container spacing={{ xs: 0.75, md: 1 }}>
                 <Grid item xs={12} sm={6}>
                   <TextField
-                    size="small" sx={fieldSx} fullWidth required type="number" label="Salary" value={form.salary}
+                    size="small" sx={fieldSx} fullWidth required type="text" label="Salary" value={form.salary}
                     onChange={(event) => setField("salary", event.target.value)}
-                    inputProps={{ min: 0, step: "0.01" }}
-                    placeholder="Enter salary amount"
+                    placeholder="Enter salary (e.g. ₹15,000, 15k - 20k, Negotiable)"
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -537,6 +616,57 @@ export default function JobForm() {
           </Stack>
         </Paper>
       )}
+
+      <Dialog
+        open={locationDialogOpen}
+        onClose={() => !locationSaving && setLocationDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <Box component="form" onSubmit={handleAddLocation}>
+          <DialogTitle>Add Location</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <TextField
+                autoFocus
+                fullWidth
+                required
+                label="Location Name"
+                value={newLocationName}
+                onChange={(event) => setNewLocationName(event.target.value)}
+                inputProps={{ maxLength: 255 }}
+              />
+              <TextField
+                select
+                fullWidth
+                required
+                label="Country"
+                value={form.countryId}
+                disabled
+              >
+                {activeCountries
+                  .filter((country) => String(country.id) === String(form.countryId))
+                  .map((country) => (
+                    <MenuItem key={country.id} value={idString(country.id)}>
+                      {getName(country) || `#${country.id}`}
+                    </MenuItem>
+                  ))}
+              </TextField>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => setLocationDialogOpen(false)}
+              disabled={locationSaving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="contained" disabled={locationSaving}>
+              {locationSaving ? "Saving..." : "Create"}
+            </Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
     </Box>
   );
 }
