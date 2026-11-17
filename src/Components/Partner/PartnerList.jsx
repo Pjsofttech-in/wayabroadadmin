@@ -4,6 +4,7 @@ import { Box, CircularProgress } from "@mui/material";
 import { partnerService } from "./partnerService";
 import PartnerFilter from './PartnerFilter';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from '@mui/material/IconButton';
 import PatnerInfo from './PatnerInfo';
 import Dialog from '@mui/material/Dialog';
@@ -11,6 +12,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import LoadingOverlay from '../Common/LoadingOverlay';
 import AlertService from '../Common/AlertService';
+import PatnerEdit from './PatnerEdit';
 
 // Helper function to normalize status values for comparison
 const normalizeStatus = (status) => {
@@ -231,6 +233,56 @@ const PartnerList = () => {
     setIsModalVisible(true);
   };
 
+  const handleEditFromTable = (partner) => {
+    const partnerWithDefaults = {
+      ...partner,
+      id: partner.id || partner.key,
+      partnerName: partner.partnerName || partner.name,
+      partnerEmail: partner.partnerEmail || partner.email,
+      remark: partner.remark || partner.remarks,
+    };
+    setSelectedPartner(partnerWithDefaults);
+    setIsModalVisible(true);
+  };
+
+  const handleDeleteFromTable = async (partner) => {
+    const partnerId = partner?.id || partner?.key;
+    if (!partnerId) {
+      message.error('Cannot delete partner: missing partner ID.');
+      return;
+    }
+
+    const partnerName = partner.partnerName || partner.name || partner.businessName || `ID ${partnerId}`;
+    const confirmed = await AlertService.confirm(
+      `Delete partner "${partnerName}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const role = sessionStorage.getItem('role') || '';
+      const email = sessionStorage.getItem('email') || '';
+      const result = await partnerService.deletePartner(partnerId, role, email);
+
+      if (result?.success) {
+        message.success('Partner deleted successfully.');
+        await fetchPartners(pagination.current, pagination.pageSize, filters);
+        await fetchStatusCounts();
+      } else {
+        message.error(result?.error || 'Failed to delete partner.');
+      }
+    } catch (deleteError) {
+      console.error('Error deleting partner:', deleteError);
+      message.error(deleteError?.message || 'Failed to delete partner.');
+    }
+  };
+
+  const handleEditSaved = async () => {
+    setIsModalVisible(false);
+    setSelectedPartner(null);
+    await fetchPartners(pagination.current, pagination.pageSize, filters);
+    await fetchStatusCounts();
+  };
+
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 80, render: (text) => text || 'N/A' },
     {
@@ -370,6 +422,34 @@ const PartnerList = () => {
       },
     },
     { title: 'Remarks', dataIndex: 'remarks', key: 'remarks', ellipsis: true, render: (text) => text || 'N/A' },
+    {
+      title: 'Action',
+      key: 'action',
+      width: 100,
+      fixed: 'right',
+      align: 'center',
+      render: (_, record) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+          <IconButton
+            size="small"
+            aria-label={`Edit ${record.name || 'partner'}`}
+            title="Edit Partner"
+            onClick={() => handleEditFromTable(record)}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            aria-label={`Delete ${record.name || 'partner'}`}
+            title="Delete Partner"
+            onClick={() => handleDeleteFromTable(record)}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      ),
+    },
   ];
 
   const normalizeValue = (value) => (value || '').toString().trim().toLowerCase();
@@ -658,6 +738,15 @@ const PartnerList = () => {
           </Box>
         </Card>
       </Box>
+
+      {selectedPartner && (
+        <PatnerEdit
+          open={isModalVisible}
+          partnerId={selectedPartner.id}
+          onClose={handleCloseModal}
+          onUpdate={handleEditSaved}
+        />
+      )}
 
       {viewPartner && (
         <Dialog
