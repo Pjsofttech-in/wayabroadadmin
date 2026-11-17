@@ -1,19 +1,38 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  LinearProgress,
   MenuItem,
+  Skeleton,
   Stack,
   TextField,
   Typography,
+  alpha,
+  useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { Input, Popconfirm, Table, Tag, message } from "antd";
-import { DeleteOutlined, EyeOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  Groups2Rounded,
+  LooksOneRounded,
+  LooksTwoRounded,
+  PendingActionsRounded,
+  PersonAddAlt1,
+  PlaylistAddCheckRounded,
+  StarBorderRounded,
+  ThumbUpAltRounded,
+  WatchLaterRounded,
+} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 import {
   searchJobApplications,
   getJobApplicationById,
@@ -21,48 +40,31 @@ import {
   deactivateJobApplication,
 } from "./JobService";
 
-import { useNavigate } from "react-router-dom";
-import { PersonAddAlt1 } from "@mui/icons-material";
-
-// Must match com.abroad.Enum.JobApplicationStatus in the supplied backend.
+// "value" must match com.abroad.Enum.JobApplicationStatus in the backend.
+// Only the labels shown to the admin use the "inquiry" wording.
 const STATUSES = [
-  "PENDING",
-  "SHORTLISTED",
-  "INTERESTED",
-  "PROCESS_1",
-  "PROCESS_2",
-  "APPLY_LATER",
-  "SELECTED",
+  { value: "PENDING", label: "Pending", tag: "gold", color: "#D49A16", icon: <PendingActionsRounded /> },
+  { value: "SHORTLISTED", label: "Shortlisted", tag: "blue", color: "#2878C8", icon: <PlaylistAddCheckRounded /> },
+  { value: "INTERESTED", label: "Interested", tag: "cyan", color: "#17A2B8", icon: <StarBorderRounded /> },
+  { value: "PROCESS_1", label: "Process 1", tag: "processing", color: "#7654B8", icon: <LooksOneRounded /> },
+  { value: "PROCESS_2", label: "Process 2", tag: "purple", color: "#9B59B6", icon: <LooksTwoRounded /> },
+  { value: "APPLY_LATER", label: "Apply Later", tag: "orange", color: "#E67E22", icon: <WatchLaterRounded /> },
+  { value: "SELECTED", label: "Selected", tag: "green", color: "#29965A", icon: <ThumbUpAltRounded /> },
 ];
+const STATUS_BY_VALUE = Object.fromEntries(STATUSES.map((item) => [item.value, item]));
+const getStatusLabel = (status) => STATUS_BY_VALUE[status]?.label || status || "Pending";
+const getStatusColor = (status) => STATUS_BY_VALUE[status]?.tag || "default";
 
-// Keep API values unchanged while presenting readable labels in the UI.
-const getStatusLabel = (status) => {
-  const labels = {
-    PENDING: "Pending",
-    SHORTLISTED: "Shortlisted",
-    INTERESTED: "Interested",
-    PROCESS_1: "Process 1",
-    PROCESS_2: "Process 2",
-    APPLY_LATER: "Apply Later",
-    SELECTED: "Selected",
-  };
-  return labels[status] || status || "Pending";
+const EMPTY_FILTERS = {
+  jobId: "",
+  status: "",
+  applicantEmail: "",
+  applicantName: "",
+  phone: "",
+  appliedFrom: "",
+  appliedTo: "",
 };
-
-const getStatusColor = (status) => {
-  const colors = {
-    PENDING: "gold",
-    SHORTLISTED: "blue",
-    INTERESTED: "cyan",
-    PROCESS_1: "processing",
-    PROCESS_2: "purple",
-    APPLY_LATER: "orange",
-    SELECTED: "green",
-  };
-  return colors[status] || "default";
-};
-
-const EMPTY_FILTERS = { jobId: "", status: "", applicantEmail: "" };
+const EMPTY_COUNTS = Object.fromEntries([["total", null], ...STATUSES.map((item) => [item.value, null])]);
 
 const getPageData = (response) => {
   const payload = response?.data ?? response;
@@ -79,12 +81,146 @@ const getPageData = (response) => {
   };
 };
 
+// Strict total: null when the response has no totalElements (never guessed).
+const getTotal = (response) => {
+  const payload = response?.data ?? response;
+  const pageData = payload?.data ?? payload;
+  const value = pageData?.totalElements;
+  if (value === null || value === undefined || value === "") return null;
+  const count = Number(value);
+  return Number.isFinite(count) && count >= 0 ? count : null;
+};
+
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.response?.data?.error || error?.message || fallback;
 
+// The backend search only understands jobId, status and applicantEmail, so
+// applicant name, phone and applied date are matched on the frontend.
+const SERVER_PAGE_SIZE = 100;
+const normalize = (value) => String(value ?? "").trim().toLowerCase();
+const digitsOnly = (value) => String(value ?? "").replace(/\D/g, "");
+const usesClientFilters = (f) =>
+  Boolean(f.applicantName.trim() || digitsOnly(f.phone) || f.appliedFrom || f.appliedTo);
+
+const matchesClientFilters = (item, f) => {
+  const name = normalize(f.applicantName);
+  if (name && !normalize(item?.applicantName).includes(name)) return false;
+
+  const phone = digitsOnly(f.phone);
+  if (phone && !digitsOnly(item?.phone).includes(phone)) return false;
+
+  if (f.appliedFrom || f.appliedTo) {
+    const applied = new Date(item?.appliedAt);
+    if (Number.isNaN(applied.getTime())) return false;
+    if (f.appliedFrom && applied < new Date(`${f.appliedFrom}T00:00:00`)) return false;
+    if (f.appliedTo && applied > new Date(`${f.appliedTo}T23:59:59.999`)) return false;
+  }
+  return true;
+};
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+};
+const formatDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+};
+const show = (value) => (value === null || value === undefined || value === "" ? "-" : value);
+
+function OverviewCard({ title, value, icon, color, loading, onClick, selected }) {
+  const hasValue = value !== null && value !== undefined;
+  return (
+    <Card
+      elevation={0}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-pressed={onClick && selected !== undefined ? Boolean(selected) : undefined}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      sx={{
+        minWidth: 0,
+        borderRadius: 3,
+        cursor: onClick ? "pointer" : "default",
+        border: `1px solid ${alpha(color, selected ? 0.75 : 0.2)}`,
+        boxShadow: selected ? `0 0 0 3px ${alpha(color, 0.16)}` : "none",
+        background: `linear-gradient(145deg, ${alpha(color, 0.095)} 0%, #ffffff 78%)`,
+        transition: "transform 180ms ease, box-shadow 180ms ease",
+        "&:hover": onClick
+          ? { transform: "translateY(-2px)", boxShadow: `0 8px 20px ${alpha(color, 0.14)}` }
+          : undefined,
+      }}
+    >
+      <CardContent sx={{ p: { xs: 1, sm: 1.25 }, "&:last-child": { pb: { xs: 1, sm: 1.25 } } }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Box
+            sx={{
+              width: 34,
+              height: 34,
+              flex: "0 0 34px",
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 2,
+              color,
+              bgcolor: alpha(color, 0.12),
+            }}
+          >
+            {React.cloneElement(icon, { sx: { fontSize: 20 } })}
+          </Box>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography
+              variant="overline"
+              noWrap
+              sx={{ display: "block", color: "text.secondary", fontSize: 10, lineHeight: 1.3, fontWeight: 700, letterSpacing: 0.5 }}
+            >
+              {title}
+            </Typography>
+            {loading && !hasValue ? (
+              <Skeleton variant="text" width={40} sx={{ fontSize: 21 }} />
+            ) : (
+              <Typography sx={{ fontSize: { xs: 18, sm: 21 }, fontWeight: 750, lineHeight: 1.2, color: "#17212b" }}>
+                {hasValue ? Number(value).toLocaleString("en-IN") : "—"}
+              </Typography>
+            )}
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({ label, children, sx }) {
+  return (
+    <Box sx={{ minWidth: 0, ...sx }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" component="div" sx={{ fontWeight: 500, wordBreak: "break-word" }}>
+        {children}
+      </Typography>
+    </Box>
+  );
+}
+
 export default function JobApplications() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const isBranch = (sessionStorage.getItem("role") || "").toLowerCase() === "branch";
+
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -92,137 +228,129 @@ export default function JobApplications() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [selected, setSelected] = useState(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [statusUpdatingId, setStatusUpdatingId] = useState(null);
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [pendingStatusChange, setPendingStatusChange] = useState(null);
-  const [statusRemark, setStatusRemark] = useState("");
-  const [statusRemarkError, setStatusRemarkError] = useState("");
+  const [counts, setCounts] = useState(EMPTY_COUNTS);
+  const [countsLoading, setCountsLoading] = useState(true);
+  const [countsIssue, setCountsIssue] = useState("");
 
-  const loadApplications = useCallback(async (nextPage = page, nextSize = pageSize, nextFilters = filters) => {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [mode, setMode] = useState("view");
+  const [statusValue, setStatusValue] = useState("PENDING");
+  const [remark, setRemark] = useState("");
+  const [remarkError, setRemarkError] = useState("");
+  const [updating, setUpdating] = useState(false);
+
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const requestIdRef = useRef(0);
+  const clientCacheRef = useRef(null);
+  const countsRequestRef = useRef(0);
+  const detailRequestRef = useRef(0);
+
+  const loadApplications = useCallback(async (nextPage, nextSize, nextFilters, reuse = false) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError("");
     try {
-      // The supplied backend search endpoint supports only these three filters.
-      const response = await searchJobApplications({
+      // The backend search supports jobId, status and applicantEmail filters.
+      // sortBy/sortDir follow the same convention as the jobs search endpoint.
+      const serverParams = {
         jobId: nextFilters.jobId,
         status: nextFilters.status,
         applicantEmail: nextFilters.applicantEmail.trim(),
-        page: nextPage,
-        size: nextSize,
-      });
+        sortBy: "id",
+        sortDir: "ASC",
+      };
+
+      if (usesClientFilters(nextFilters)) {
+        if (nextFilters.appliedFrom && nextFilters.appliedTo && nextFilters.appliedFrom > nextFilters.appliedTo) {
+          setRows([]);
+          setTotal(0);
+          setError("The From date must be on or before the To date.");
+          return;
+        }
+
+        // Fetch every server-filtered page, then apply the extra filters here.
+        // Paging through the result reuses the list instead of fetching again.
+        const key = JSON.stringify(nextFilters);
+        let matches = reuse && clientCacheRef.current?.key === key ? clientCacheRef.current.rows : null;
+        if (!matches) {
+          const first = getPageData(await searchJobApplications({ ...serverParams, page: 0, size: SERVER_PAGE_SIZE }));
+          const combined = [...first.content];
+          const pageCount = Math.ceil(first.totalElements / SERVER_PAGE_SIZE);
+          if (pageCount > 1) {
+            const rest = await Promise.all(
+              Array.from({ length: pageCount - 1 }, (_, index) =>
+                searchJobApplications({ ...serverParams, page: index + 1, size: SERVER_PAGE_SIZE })
+              )
+            );
+            rest.forEach((response) => combined.push(...getPageData(response).content));
+          }
+          matches = combined
+            .filter((item) => matchesClientFilters(item, nextFilters))
+            .sort((a, b) => Number(a.id) - Number(b.id));
+          clientCacheRef.current = { key, rows: matches };
+        }
+        if (requestId !== requestIdRef.current) return;
+        setRows(matches.slice(nextPage * nextSize, (nextPage + 1) * nextSize));
+        setTotal(matches.length);
+        setPage(nextPage);
+        setPageSize(nextSize);
+        return;
+      }
+
+      clientCacheRef.current = null;
+      const response = await searchJobApplications({ ...serverParams, page: nextPage, size: nextSize });
+      if (requestId !== requestIdRef.current) return;
       const result = getPageData(response);
       setRows(result.content);
       setTotal(result.totalElements);
       setPage(nextPage);
       setPageSize(nextSize);
     } catch (e) {
-      console.error("Failed to fetch job applications:", e);
+      if (requestId !== requestIdRef.current) return;
+      console.error("Failed to fetch job inquiries:", e);
       setRows([]);
       setTotal(0);
-      setError(getErrorMessage(e, "Failed to fetch applications."));
+      setError(getErrorMessage(e, "Failed to fetch inquiries."));
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [page, pageSize, filters]);
+  }, []);
+
+  // Card counts describe the whole inquiry list (not the current filters).
+  const loadCounts = useCallback(() => {
+    const requestId = ++countsRequestRef.current;
+    setCountsLoading(true);
+    setCountsIssue("");
+    const base = { page: 0, size: 1 };
+    Promise.allSettled([
+      searchJobApplications(base),
+      ...STATUSES.map((item) => searchJobApplications({ ...base, status: item.value })),
+    ]).then((results) => {
+      if (requestId !== countsRequestRef.current) return;
+      const next = {};
+      let failed = false;
+      ["total", ...STATUSES.map((item) => item.value)].forEach((key, index) => {
+        const result = results[index];
+        const value = result.status === "fulfilled" ? getTotal(result.value) : null;
+        next[key] = value;
+        if (value === null) failed = true;
+      });
+      setCounts(next);
+      setCountsLoading(false);
+      if (failed) setCountsIssue("Some counts could not be loaded.");
+    });
+  }, []);
 
   useEffect(() => {
     loadApplications(0, 10, EMPTY_FILTERS);
-    // Load the first page once on mount. Filter changes are submitted explicitly.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadCounts();
+  }, [loadApplications, loadCounts]);
 
   const updateFilter = (name, value) => {
     setFilters((previous) => ({ ...previous, [name]: value }));
-  };
-
-  const viewDetails = async (record) => {
-    setSelected(record);
-    setDetailsOpen(true);
-    setDetailsLoading(true);
-    try {
-      const response = await getJobApplicationById(record.id);
-      setSelected(response?.data ?? response ?? record);
-    } catch (e) {
-      console.error("Failed to load application details:", e);
-      message.error(getErrorMessage(e, "Could not load application details."));
-    } finally {
-      setDetailsLoading(false);
-    }
-  };
-
-  const changeStatus = (record, status) => {
-    const previousStatus = record.status || "PENDING";
-    if (previousStatus === status) return;
-
-    // The backend requires a remark with every status update.
-    // Ask for it before sending the PUT request so the existing status
-    // remains unchanged until the backend confirms the update.
-    setPendingStatusChange({ record, status });
-    setStatusRemark("");
-    setStatusRemarkError("");
-    setStatusDialogOpen(true);
-  };
-
-  const closeStatusDialog = () => {
-    if (statusUpdatingId !== null) return;
-    setStatusDialogOpen(false);
-    setPendingStatusChange(null);
-    setStatusRemark("");
-    setStatusRemarkError("");
-  };
-
-  const submitStatusChange = async () => {
-    const remark = statusRemark.trim();
-    if (!remark) {
-      setStatusRemarkError("Remark is required to update the application status.");
-      return;
-    }
-
-    if (!pendingStatusChange) return;
-
-    const { record, status } = pendingStatusChange;
-    setStatusUpdatingId(record.id);
-    try {
-      const response = await updateJobApplicationStatus(record.id, status, remark);
-      const updated = response?.data ?? response;
-      setRows((previous) => previous.map((item) =>
-        item.id === record.id
-          ? { ...item, ...updated, status: updated?.status || status, remark: updated?.remark ?? remark }
-          : item
-      ));
-      setSelected((previous) => previous?.id === record.id
-        ? { ...previous, ...updated, status: updated?.status || status, remark: updated?.remark ?? remark }
-        : previous);
-      message.success("Application status updated.");
-      setStatusDialogOpen(false);
-      setPendingStatusChange(null);
-      setStatusRemark("");
-      setStatusRemarkError("");
-    } catch (e) {
-      console.error("Status update failed:", e);
-      message.error(getErrorMessage(e, "Could not update status."));
-    } finally {
-      setStatusUpdatingId(null);
-    }
-  };
-
-  const deactivate = async (id) => {
-    try {
-      await deactivateJobApplication(id);
-      message.success("Application deactivated.");
-      const lastPage = Math.max(0, Math.ceil((total - 1) / pageSize) - 1);
-      await loadApplications(Math.min(page, lastPage), pageSize, filters);
-      if (selected?.id === id) {
-        setDetailsOpen(false);
-        setSelected(null);
-      }
-    } catch (e) {
-      console.error("Application deactivation failed:", e);
-      message.error(getErrorMessage(e, "Could not deactivate application."));
-    }
   };
 
   const search = () => loadApplications(0, pageSize, filters);
@@ -231,241 +359,466 @@ export default function JobApplications() {
     loadApplications(0, pageSize, EMPTY_FILTERS);
   };
 
+  // Clicking a status card filters by that status; clicking it again (or Total) clears it.
+  const applyStatusCard = (value) => {
+    const nextStatus = value === "" || filters.status === value ? "" : value;
+    const next = { ...filters, status: nextStatus };
+    setFilters(next);
+    loadApplications(0, pageSize, next);
+  };
+
+  const hasFilters = Boolean(
+    filters.jobId || filters.status || filters.applicantEmail.trim() || usesClientFilters(filters)
+  );
+
+  /* ------------------------------ row popup ------------------------------ */
+
+  const openDetails = async (record) => {
+    const requestId = ++detailRequestRef.current;
+    setSelected(record);
+    setMode("view");
+    setRemark("");
+    setRemarkError("");
+    setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const response = await getJobApplicationById(record.id);
+      if (requestId === detailRequestRef.current) {
+        setSelected(response?.data ?? response ?? record);
+      }
+    } catch (e) {
+      console.error("Failed to load inquiry details:", e);
+      if (requestId === detailRequestRef.current) {
+        message.error(getErrorMessage(e, "Could not load inquiry details."));
+      }
+    } finally {
+      if (requestId === detailRequestRef.current) setDetailLoading(false);
+    }
+  };
+
+  const closeDetails = () => {
+    if (!updating) setDetailOpen(false);
+  };
+
+  const startStatusUpdate = () => {
+    setStatusValue(selected?.status || "PENDING");
+    setRemark("");
+    setRemarkError("");
+    setMode("status");
+  };
+
+  const cancelStatusUpdate = () => {
+    if (updating) return;
+    setMode("view");
+    setRemarkError("");
+  };
+
+  const currentStatus = selected?.status || "PENDING";
+
+  const submitStatusChange = async () => {
+    const trimmed = remark.trim();
+    if (!trimmed) {
+      setRemarkError("Remark is required to update the status.");
+      return;
+    }
+    if (statusValue === currentStatus) {
+      setRemarkError("Choose a different status.");
+      return;
+    }
+    setUpdating(true);
+    try {
+      await updateJobApplicationStatus(selected.id, statusValue, trimmed);
+      message.success("Inquiry status updated.");
+      setDetailOpen(false);
+      await loadApplications(page, pageSize, filters);
+      loadCounts();
+    } catch (e) {
+      console.error("Status update failed:", e);
+      message.error(getErrorMessage(e, "Could not update status."));
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const deactivate = async (id) => {
+    try {
+      await deactivateJobApplication(id);
+      message.success("Inquiry deactivated.");
+      const lastPage = Math.max(0, Math.ceil((total - 1) / pageSize) - 1);
+      await loadApplications(Math.min(page, lastPage), pageSize, filters);
+      loadCounts();
+      if (selected?.id === id) {
+        setDetailOpen(false);
+        setSelected(null);
+      }
+    } catch (e) {
+      console.error("Inquiry deactivation failed:", e);
+      message.error(getErrorMessage(e, "Could not deactivate inquiry."));
+    }
+  };
+
+  /* -------------------------------- table -------------------------------- */
+
+  // Columns appear progressively with screen width so no horizontal scrollbar is
+  // needed. Everything is always available in the row popup.
+  const text = (value) => value || "-";
   const columns = [
-    { title: "ID", dataIndex: "id", key: "id", width: 40 },
+    { title: "ID", dataIndex: "id", key: "id", width: 56, responsive: ["md"] },
     {
-      title: "Job",
-      dataIndex: "jobTitle",
-      key: "jobTitle",
+      title: "Job", dataIndex: "jobTitle", key: "jobTitle", ellipsis: true,
       render: (value, record) => value || (record.jobId != null ? `Job #${record.jobId}` : "-"),
     },
-    { title: "Applicant", dataIndex: "applicantName", key: "applicantName", render: (value) => value || "-" },
-    { title: "Email", dataIndex: "email", key: "email", render: (value) => value || "-" },
-    { title: "Phone", dataIndex: "phone", key: "phone", render: (value) => value || "-" },
+    { title: "Applicant", dataIndex: "applicantName", key: "applicantName", ellipsis: true, render: text },
+    { title: "Email", dataIndex: "email", key: "email", ellipsis: true, responsive: ["md"], render: text },
+    { title: "Phone", dataIndex: "phone", key: "phone", width: 125, ellipsis: true, responsive: ["lg"], render: text },
+    { title: "Applied", dataIndex: "appliedAt", key: "appliedAt", width: 110, responsive: ["lg"], render: formatDate },
     {
-      title: "Applied At",
-      dataIndex: "appliedAt",
-      key: "appliedAt",
-      render: (value) => {
-        if (!value) return "-";
-        const date = new Date(value);
-        return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-      },
-    },
-    {
-      title: "Resume",
-      dataIndex: "resumeUrl",
-      key: "resumeUrl",
+      title: "Resume", dataIndex: "resumeUrl", key: "resumeUrl", width: 80, responsive: ["xl"],
       render: (url) => url
-        ? <a href={url} target="_blank" rel="noreferrer">View Resume</a>
+        ? <a href={url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>View</a>
         : "-",
     },
     {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 180,
-      render: (status, record) => isBranch
-        ? <Tag color={getStatusColor(status || "PENDING")}>{getStatusLabel(status || "PENDING")}</Tag>
-        : (
-          <TextField
-            select
-            size="small"
-            value={status || "PENDING"}
-            disabled={statusUpdatingId === record.id}
-            onChange={(event) => changeStatus(record, event.target.value)}
-            sx={{ minWidth: 145 }}
-          >
-            {STATUSES.map((item) => <MenuItem key={item} value={item}>{getStatusLabel(item)}</MenuItem>)}
-          </TextField>
-        ),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      fixed: "right",
-      width: isBranch ? 80 : 110,
-      render: (_, record) => (
-        <Stack direction="row" spacing={0.5}>
-          <Button size="small" aria-label={`View application ${record.id}`} onClick={() => viewDetails(record)}>
-            <EyeOutlined />
-          </Button>
-          {!isBranch && (
-            <Popconfirm
-              title="Deactivate this application?"
-              description="The application will be marked inactive."
-              onConfirm={() => deactivate(record.id)}
-              okText="Deactivate"
-              cancelText="Cancel"
-            >
-              <Button size="small" color="error" aria-label={`Deactivate application ${record.id}`}>
-                <DeleteOutlined />
-              </Button>
-            </Popconfirm>
-          )}
-        </Stack>
+      title: "Status", dataIndex: "status", key: "status", width: 105,
+      render: (status) => (
+        <Tag style={{ marginInlineEnd: 0 }} color={getStatusColor(status || "PENDING")}>
+          {getStatusLabel(status || "PENDING")}
+        </Tag>
       ),
     },
+    ...(!isBranch
+      ? [
+          {
+            title: "",
+            key: "actions",
+            width: 48,
+            align: "center",
+            render: (_, record) => (
+              // Stops the click (including the confirm popup) from opening the row popup.
+              <span onClick={(event) => event.stopPropagation()}>
+                <Popconfirm
+                  title="Deactivate this inquiry?"
+                  description="It will be marked inactive."
+                  onConfirm={() => deactivate(record.id)}
+                  okText="Deactivate"
+                  cancelText="Cancel"
+                >
+                  <Button size="small" color="error" sx={{ minWidth: 0, p: 0.5 }} aria-label={`Deactivate inquiry ${record.id}`}>
+                    <DeleteOutlined />
+                  </Button>
+                </Popconfirm>
+              </span>
+            ),
+          },
+        ]
+      : []),
   ];
 
+  const cards = [
+    { key: "total", title: "Total", color: "#183b56", icon: <Groups2Rounded />, onClick: () => applyStatusCard("") },
+    ...STATUSES.map((item) => ({
+      key: item.value,
+      title: item.label,
+      color: item.color,
+      icon: item.icon,
+      onClick: () => applyStatusCard(item.value),
+      selected: filters.status === item.value,
+    })),
+  ];
+
+  const detailGrid = {
+    display: "grid",
+    gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" },
+    gap: { xs: 1.25, sm: 1.5 },
+  };
+  const fullRow = { gridColumn: "1 / -1" };
+
   return (
-    <Box sx={{ width: "100%", minWidth: 0, pb: 3 }}>
-      <Stack
-  direction={{ xs: "column", sm: "row" }}
-  justifyContent="space-between"
-  alignItems={{ xs: "stretch", sm: "center" }}
-  spacing={1.5}
-  sx={{ mb: 2 }}
->
-  <Box>
-    <Typography variant="h5" fontWeight={700} color="#183b56">
-      Job Applications
-    </Typography>
-  </Box>
+    <Box sx={{ width: "100%", minWidth: 0, pb: 1 }}>
+      {error && (
+        <Alert severity="error" sx={{ mb: 1, py: 0 }} onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
+      {countsIssue && (
+        <Alert severity="warning" sx={{ mb: 1, py: 0 }} onClose={() => setCountsIssue("")}>
+          {countsIssue}
+        </Alert>
+      )}
 
-  {!isBranch && (
-    <Button
-      variant="contained"
-      startIcon={<PersonAddAlt1 />}
-      onClick={() =>
-        navigate("/wayabroadadmin/admin/jobs/applications/add")
-      }
-      sx={{
-        textTransform: "none",
-        alignSelf: { xs: "flex-start", sm: "center" },
-        whiteSpace: "nowrap",
-      }}
-    >
-      Add Application
-    </Button>
-  )}
-</Stack>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "repeat(2, minmax(0, 1fr))",
+            sm: "repeat(4, minmax(0, 1fr))",
+            xl: "repeat(8, minmax(0, 1fr))",
+          },
+          gap: 1,
+          mb: 1.25,
+        }}
+      >
+        {cards.map(({ key, ...card }) => (
+          <OverviewCard
+            key={key}
+            {...card}
+            value={counts[key]}
+            loading={countsLoading}
+          />
+        ))}
+      </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>{error}</Alert>}
-
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25, alignItems: "center", p: 2, mb: 2, border: "1px solid #e2e8f0", borderRadius: 2 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 1,
+          alignItems: "center",
+          p: 1,
+          mb: 1.25,
+          border: "1px solid #e2e8f0",
+          borderRadius: 2,
+        }}
+      >
         <TextField
           size="small"
           type="number"
           label="Job ID"
           value={filters.jobId}
           onChange={(event) => updateFilter("jobId", event.target.value)}
-          sx={{ minWidth: 130, flex: "1 1 130px" }}
+          onKeyDown={(event) => { if (event.key === "Enter") search(); }}
+          sx={{ flex: "1 1 100px", maxWidth: { sm: 130 }, minWidth: 90 }}
           inputProps={{ min: 1 }}
         />
         <TextField
           select
           size="small"
-          label="Application Status"
+          label="Status"
           value={filters.status}
           onChange={(event) => updateFilter("status", event.target.value)}
-          sx={{ minWidth: 175, flex: "1 1 175px" }}
+          sx={{ flex: "1 1 140px", maxWidth: { sm: 170 }, minWidth: 130 }}
         >
-          <MenuItem value="">All statuses</MenuItem>
-          {STATUSES.map((status) => <MenuItem key={status} value={status}>{getStatusLabel(status)}</MenuItem>)}
+          <MenuItem value="">All</MenuItem>
+          {STATUSES.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
         </TextField>
-        <Input
-          placeholder="Applicant email"
-          allowClear
-          value={filters.applicantEmail}
-          onChange={(event) => updateFilter("applicantEmail", event.target.value)}
-          onPressEnter={search}
-          style={{ minWidth: 220, flex: "2 1 240px", height: 40 }}
-        />
-        <Button variant="contained" startIcon={<SearchOutlined />} onClick={search}>Search</Button>
-        <Button onClick={clearFilters}>Clear</Button>
+        <Box sx={{ flex: "2 1 200px", minWidth: 0 }}>
+          <Input
+            placeholder="Applicant email"
+            allowClear
+            value={filters.applicantEmail}
+            onChange={(event) => updateFilter("applicantEmail", event.target.value)}
+            onPressEnter={search}
+            style={{ width: "100%", height: 40 }}
+          />
+        </Box>
+        {/* Extra filters: always visible on tablet and up, behind "More filters" on phones. */}
+        <Box sx={{ display: { xs: moreOpen ? "contents" : "none", sm: "contents" } }}>
+          <TextField
+            size="small"
+            label="Applicant name"
+            value={filters.applicantName}
+            onChange={(event) => updateFilter("applicantName", event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") search(); }}
+            sx={{ flex: "1 1 160px", minWidth: 140 }}
+            inputProps={{ maxLength: 150 }}
+          />
+          <TextField
+            size="small"
+            label="Phone"
+            value={filters.phone}
+            onChange={(event) => updateFilter("phone", event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") search(); }}
+            sx={{ flex: "1 1 130px", maxWidth: { sm: 170 }, minWidth: 120 }}
+            inputProps={{ maxLength: 20 }}
+          />
+          <TextField
+            size="small"
+            type="date"
+            label="Applied from"
+            value={filters.appliedFrom}
+            onChange={(event) => updateFilter("appliedFrom", event.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ flex: "1 1 140px", maxWidth: { sm: 165 }, minWidth: 135 }}
+          />
+          <TextField
+            size="small"
+            type="date"
+            label="Applied to"
+            value={filters.appliedTo}
+            onChange={(event) => updateFilter("appliedTo", event.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ flex: "1 1 140px", maxWidth: { sm: 165 }, minWidth: 135 }}
+          />
+        </Box>
+        <Button variant="contained" startIcon={<SearchOutlined />} onClick={search} sx={{ height: 40, textTransform: "none", boxShadow: "none" }}>
+          Search
+        </Button>
+        <Button onClick={clearFilters} disabled={!hasFilters} sx={{ height: 40, textTransform: "none" }}>
+          Clear
+        </Button>
+        <Button
+          onClick={() => setMoreOpen((open) => !open)}
+          sx={{ display: { xs: "inline-flex", sm: "none" }, height: 40, textTransform: "none", whiteSpace: "nowrap" }}
+        >
+          {moreOpen ? "Fewer filters" : "More filters"}
+        </Button>
+        {!isBranch && (
+          <Button
+            variant="outlined"
+            startIcon={<PersonAddAlt1 />}
+            onClick={() => navigate("/wayabroadadmin/admin/jobs/applications/add")}
+            sx={{ height: 40, textTransform: "none", whiteSpace: "nowrap", ml: { md: "auto" } }}
+          >
+            Add Inquiry
+          </Button>
+        )}
       </Box>
 
-      <Box sx={{ "& .ant-table": { fontSize: 13 }, "& .ant-table-thead > tr > th": { fontWeight: 600, whiteSpace: "nowrap" } }}>
+      <Box
+        sx={{
+          "& .ant-table": { fontSize: 13 },
+          "& .ant-table-thead > tr > th": { fontWeight: 600, whiteSpace: "nowrap", padding: "8px" },
+          "& .ant-table-tbody > tr > td": { padding: "7px 8px" },
+          "& .ant-table-tbody > tr": { cursor: "pointer" },
+        }}
+      >
         <Table
           rowKey="id"
           columns={columns}
           dataSource={rows}
           loading={loading}
-          size="middle"
-          scroll={{ x: 1250 }}
+          size="small"
+          onRow={(record) => ({ onClick: () => openDetails(record) })}
           pagination={{
             current: page + 1,
             pageSize,
             total,
+            size: "small",
+            showLessItems: true,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "25", "50"],
-            showTotal: (count, range) => `Showing ${range[0]}-${range[1]} of ${count} applications`,
-            onChange: (current, size) => loadApplications(current - 1, size, filters),
+            showTotal: (count, range) => `${range[0]}-${range[1]} of ${count}`,
+            onChange: (current, size) => loadApplications(current - 1, size, filters, true),
           }}
         />
       </Box>
 
       <Dialog
-        open={statusDialogOpen}
-        onClose={closeStatusDialog}
+        open={detailOpen}
+        onClose={closeDetails}
         fullWidth
         maxWidth="sm"
+        fullScreen={fullScreen}
+        scroll="paper"
       >
-        <DialogTitle>Update Application Status</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={1.5} sx={{ pt: 0.5 }}>
-            <Typography variant="body2" color="text.secondary">
-              {pendingStatusChange
-                ? `Change application #${pendingStatusChange.record.id} to ${getStatusLabel(pendingStatusChange.status)}.`
-                : "Add a remark for this status update."}
+        <DialogTitle sx={{ py: 1.25 }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+            <Typography
+              component="span"
+              sx={{ fontSize: 17, fontWeight: 700, minWidth: 0, flex: 1, wordBreak: "break-word" }}
+            >
+              {mode === "status"
+                ? "Update status"
+                : selected?.applicantName || (selected?.id != null ? `Inquiry #${selected.id}` : "Inquiry")}
             </Typography>
-            <TextField
-              label="Remark"
-              value={statusRemark}
-              onChange={(event) => {
-                setStatusRemark(event.target.value);
-                if (event.target.value.trim()) setStatusRemarkError("");
-              }}
-              error={Boolean(statusRemarkError)}
-              helperText={statusRemarkError || "A remark is required and will be saved with this status update."}
-              multiline
-              minRows={3}
-              fullWidth
-              required
-              inputProps={{ maxLength: 1000 }}
-              disabled={statusUpdatingId !== null}
-            />
+            {mode === "view" && selected && (
+              <Tag style={{ marginInlineEnd: 0 }} color={getStatusColor(selected.status || "PENDING")}>
+                {getStatusLabel(selected.status || "PENDING")}
+              </Tag>
+            )}
           </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeStatusDialog} disabled={statusUpdatingId !== null}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={submitStatusChange}
-            disabled={statusUpdatingId !== null || !statusRemark.trim()}
-          >
-            {statusUpdatingId !== null ? "Updating..." : "Update Status"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Application Details</DialogTitle>
-        <DialogContent dividers>
-          {detailsLoading ? (
-            <Typography>Loading application details…</Typography>
-          ) : selected ? (
-            <Stack spacing={1.25} sx={{ pt: 0.5 }}>
-              <Typography><b>Application ID:</b> {selected.id ?? "-"}</Typography>
-              <Typography><b>Job:</b> {selected.jobTitle || (selected.jobId != null ? `Job #${selected.jobId}` : "-")}</Typography>
-              <Typography><b>Applicant:</b> {selected.applicantName || "-"}</Typography>
-              <Typography><b>Email:</b> {selected.email || "-"}</Typography>
-              <Typography><b>Phone:</b> {selected.phone || "-"}</Typography>
-              <Typography><b>Applied:</b> {selected.appliedAt ? new Date(selected.appliedAt).toLocaleString() : "-"}</Typography>
-              <Typography><b>Status:</b> <Tag color={getStatusColor(selected.status)}>{selected.status ? getStatusLabel(selected.status) : "-"}</Tag></Typography>
-              <Typography><b>Remark:</b> {selected.remark || "-"}</Typography>
-              <Typography><b>Cover Letter:</b> {selected.coverLetter || "-"}</Typography>
-              {selected.resumeUrl && <Typography><a href={selected.resumeUrl} target="_blank" rel="noreferrer">Open resume</a></Typography>}
-              <Typography><b>Active:</b> {selected.active === false ? "No" : "Yes"}</Typography>
+        </DialogTitle>
+        {detailLoading && <LinearProgress sx={{ height: 2 }} />}
+        <DialogContent dividers sx={{ py: 1.5 }}>
+          {!selected ? (
+            <Typography variant="body2">No inquiry details available.</Typography>
+          ) : mode === "status" ? (
+            <Stack spacing={1.5} sx={{ pt: 0.5 }}>
+              <TextField
+                select
+                size="small"
+                fullWidth
+                label="Status"
+                value={statusValue}
+                onChange={(event) => { setStatusValue(event.target.value); setRemarkError(""); }}
+                disabled={updating}
+              >
+                {STATUSES.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+              </TextField>
+              <TextField
+                label="Remark"
+                value={remark}
+                onChange={(event) => {
+                  setRemark(event.target.value);
+                  if (event.target.value.trim()) setRemarkError("");
+                }}
+                error={Boolean(remarkError)}
+                helperText={remarkError || "Required. Saved with this status update."}
+                multiline
+                minRows={3}
+                fullWidth
+                required
+                autoFocus
+                inputProps={{ maxLength: 1000 }}
+                disabled={updating}
+              />
             </Stack>
           ) : (
-            <Typography>No application details available.</Typography>
+            <Box sx={detailGrid}>
+              <Field label="Inquiry ID">{show(selected.id)}</Field>
+              <Field label="Job">
+                {selected.jobTitle || (selected.jobId != null ? `Job #${selected.jobId}` : "-")}
+              </Field>
+              <Field label="Applicant">{show(selected.applicantName)}</Field>
+              <Field label="Applied">{formatDateTime(selected.appliedAt)}</Field>
+              <Field label="Email">{show(selected.email)}</Field>
+              <Field label="Phone">{show(selected.phone)}</Field>
+              <Field label="Active">{selected.active === false ? "No" : "Yes"}</Field>
+              <Field label="Resume">
+                {selected.resumeUrl
+                  ? <a href={selected.resumeUrl} target="_blank" rel="noreferrer">Open resume</a>
+                  : "-"}
+              </Field>
+              <Field label="Remark" sx={fullRow}>
+                <Box component="span" sx={{ whiteSpace: "pre-wrap" }}>{show(selected.remark)}</Box>
+              </Field>
+              <Field label="Cover Letter" sx={fullRow}>
+                <Box component="span" sx={{ whiteSpace: "pre-wrap" }}>{show(selected.coverLetter)}</Box>
+              </Field>
+            </Box>
           )}
         </DialogContent>
-        <DialogActions><Button onClick={() => setDetailsOpen(false)}>Close</Button></DialogActions>
+        <DialogActions sx={{ px: 2, py: 1 }}>
+          {mode === "status" ? (
+            <>
+              <Button onClick={cancelStatusUpdate} disabled={updating} sx={{ textTransform: "none" }}>
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={submitStatusChange}
+                disabled={updating || !remark.trim() || statusValue === currentStatus}
+                sx={{ textTransform: "none", boxShadow: "none" }}
+              >
+                {updating ? "Updating..." : "Update"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={closeDetails} sx={{ textTransform: "none" }}>Close</Button>
+              {!isBranch && selected && (
+                <Button
+                  variant="contained"
+                  onClick={startStatusUpdate}
+                  disabled={detailLoading}
+                  sx={{ textTransform: "none", boxShadow: "none" }}
+                >
+                  Update status
+                </Button>
+              )}
+            </>
+          )}
+        </DialogActions>
       </Dialog>
     </Box>
   );

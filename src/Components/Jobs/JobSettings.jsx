@@ -8,6 +8,7 @@ import { Popconfirm, Table, message, Tag } from "antd";
 import {
   createJobSetting, deleteJobSetting, getJobSettings, updateJobSetting,
 } from "./JobService";
+import CountrySettingDialog from "./CountrySettingDialog";
 
 const TYPES = [
   { key: "education", label: "Education" },
@@ -41,6 +42,8 @@ export default function JobSettings() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [countryDialogOpen, setCountryDialogOpen] = useState(false);
+  const [countryEditing, setCountryEditing] = useState(null);
 
   const loadType = useCallback(async (type = activeType) => {
     setLoading(true);
@@ -88,6 +91,11 @@ export default function JobSettings() {
   };
 
   const openCreate = () => {
+    if (activeType === "country") {
+      setCountryEditing(null);
+      setCountryDialogOpen(true);
+      return;
+    }
     setEditing(null);
     setForm(emptyForm);
     setDialogOpen(true);
@@ -95,6 +103,11 @@ export default function JobSettings() {
   };
 
   const openEdit = (record) => {
+    if (activeType === "country") {
+      setCountryEditing(record);
+      setCountryDialogOpen(true);
+      return;
+    }
     setEditing(record);
     setForm({
       name: recordName(activeType, record),
@@ -206,7 +219,6 @@ export default function JobSettings() {
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, pb: 3 }}>
-      <Typography variant="h5" fontWeight={700} color="#183b56" sx={{ mb: 2 }}>Job Settings</Typography>
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
         <Tabs value={activeType} onChange={(_, value) => setActiveType(value)} variant="scrollable" scrollButtons="auto" aria-label="Job setting categories">
           {TYPES.map((type) => <Tab key={type.key} value={type.key} label={type.label} />)}
@@ -243,6 +255,7 @@ export default function JobSettings() {
   />
 </Box>
 
+      {activeType !== "country" && (
       <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="xs">
         <Box component="form" onSubmit={save}>
           <DialogTitle>{editing ? "Edit" : "Add"} {currentLabel}</DialogTitle>
@@ -280,6 +293,21 @@ export default function JobSettings() {
           </DialogActions>
         </Box>
       </Dialog>
+      )}
+      <CountrySettingDialog
+        open={countryDialogOpen}
+        editing={countryEditing}
+        onClose={() => {
+          setCountryDialogOpen(false);
+          setCountryEditing(null);
+        }}
+        onSaved={(refreshedCountries) => {
+          setRecords((previous) => ({
+            ...previous,
+            country: refreshedCountries,
+          }));
+        }}
+      />
     </Box>
   );
 }

@@ -7,7 +7,7 @@ const allItems = [
   { label: "Dashboard", to: `${JOBS_BASE}/dashboard`, roles: ["superAdmin", "branch"] },
   { label: "Create Job", to: `${JOBS_BASE}/create`, roles: ["superAdmin"] },
   { label: "Job List", to: `${JOBS_BASE}/list`, roles: ["superAdmin", "branch"] },
-  { label: "Job Applications", to: `${JOBS_BASE}/applications`, roles: ["superAdmin", "branch"] },
+  { label: "Job Inquiry", to: `${JOBS_BASE}/applications`, roles: ["superAdmin", "branch"] },
   { label: "Job Settings", to: `${JOBS_BASE}/settings`, roles: ["superAdmin"] },
 ];
 

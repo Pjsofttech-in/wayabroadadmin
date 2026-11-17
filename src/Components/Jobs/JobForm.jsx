@@ -7,6 +7,7 @@ import {
 } from "@mui/material";
 import { message } from "antd";
 import { createJob, createJobSetting, getJobById, getJobSettings, updateJob } from "./JobService";
+import CountrySettingDialog from "./CountrySettingDialog";
 
 const EMPTY_FORM = {
   jobTitle: "",
@@ -67,6 +68,11 @@ const errorMessage = (error, fallback) =>
   error?.message ||
   fallback;
 
+// Layout: each field gets a fixed width sized to its content (full width on mobile)
+// and wraps onto the next line when the row is full.
+const rowSx = { display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: { xs: 0.75, md: 1 } };
+const fieldBox = (width) => ({ width: { xs: "100%", sm: width }, maxWidth: "100%", flex: "0 0 auto", minWidth: 0 });
+
 export default function JobForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -85,6 +91,7 @@ export default function JobForm() {
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
   const [locationSaving, setLocationSaving] = useState(false);
+  const [countryDialogOpen, setCountryDialogOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -176,6 +183,31 @@ export default function JobForm() {
 
   const handleCountryChange = (countryId) => {
     setForm((previous) => ({ ...previous, countryId, locationId: "" }));
+  };
+
+  const handleCountrySaved = (refreshedCountries, created) => {
+    const createdRecord = created?.data?.data ?? created?.data ?? created;
+    const createdId = createdRecord?.id ?? createdRecord?.countryId;
+    const createdName = getName(createdRecord).trim().toLowerCase();
+
+    const matchingCountry = refreshedCountries.find((country) =>
+      (createdId != null && String(country.id) === String(createdId)) ||
+      (createdName && getName(country).trim().toLowerCase() === createdName)
+    );
+
+    setSettings((previous) => ({
+      ...previous,
+      country: refreshedCountries,
+    }));
+
+    if (matchingCountry && isActive(matchingCountry)) {
+      // Selecting a new country also clears the dependent Location field.
+      setForm((previous) => ({
+        ...previous,
+        countryId: idString(matchingCountry.id),
+        locationId: "",
+      }));
+    }
   };
 
   const openAddLocation = () => {
@@ -362,7 +394,7 @@ const fieldSx = {
 
 
   return (
-    <Box sx={{ width: "100%", minWidth: 0, pb: 2 }}>
+    <Box sx={{ width: "100%", maxWidth: 1120, mx: "auto", minWidth: 0, pb: 2 }}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
         alignItems={{ xs: "flex-start", sm: "center" }}
@@ -394,28 +426,28 @@ const fieldSx = {
               <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.75 }}>
                 Job Details
               </Typography>
-              <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12} sm={6} lg={4}>
+              <Box sx={rowSx}>
+                <Box sx={fieldBox(380)}>
                   <TextField
                     size="small" sx={fieldSx} fullWidth required label="Job Title" value={form.jobTitle}
                     onChange={(event) => setField("jobTitle", event.target.value)}
                     inputProps={{ maxLength: 255 }}
                     placeholder="e.g. Senior Software Engineer"
                   />
-                </Grid>
-                <Grid item xs={12} sm={6} lg={2}>
+                </Box>
+                <Box sx={fieldBox(190)}>
                   {renderSettingSelect("jobTypeId", "Job Type", settings.jobType)}
-                </Grid>
-                <Grid item xs={12} sm={6} lg={2}>
+                </Box>
+                <Box sx={fieldBox(240)}>
                   {renderSettingSelect("sectorId", "Sector", settings.sector)}
-                </Grid>
-                <Grid item xs={12} sm={6} lg={2}>
+                </Box>
+                <Box sx={fieldBox(240)}>
                   {renderSettingSelect("jobRoleId", "Job Role", roles, !form.sectorId)}
-                </Grid>
-                <Grid item xs={12} sm={6} lg={2}>
+                </Box>
+                <Box sx={fieldBox(220)}>
                   {renderSettingSelect("educationId", "Education", settings.education)}
-                </Grid>
-                <Grid item xs={12} sm={6} lg={3}>
+                </Box>
+                <Box sx={fieldBox(200)}>
                   <TextField
                     sx={fieldSx}
                     size="small" fullWidth required label="Level of Experience" value={form.experienceLevel}
@@ -424,8 +456,8 @@ const fieldSx = {
                     placeholder="e.g. 2–4 years"
                     helperText="Maximum 100 characters."
                   />
-                </Grid>
-                <Grid item xs={12} sm={8} lg={7}>
+                </Box>
+                <Box sx={fieldBox(420)}>
                   <Autocomplete
                     multiple freeSolo options={[]} value={form.skills}
                     onChange={handleSkillsChange} disabled={saving}
@@ -454,42 +486,65 @@ const fieldSx = {
                       />
                     )}
                   />
-                </Grid>
-                <Grid item xs={12} sm={4} lg={2}>
+                </Box>
+                <Box sx={fieldBox(175)}>
                   <TextField
                     size="small" sx={fieldSx} fullWidth required type="number" label="Number of Openings" value={form.openings}
                     onChange={(event) => setField("openings", event.target.value)}
                     inputProps={{ min: 1, step: 1 }}
                   />
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
             </Box>
 
             <Box sx={sectionSx}>
               <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.75 }}>
                 Location & Work Type
               </Typography>
-              <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    size="small" sx={fieldSx} select fullWidth required label="Country" value={form.countryId}
-                    disabled={saving || activeCountries.length === 0}
-                    onChange={(event) => handleCountryChange(event.target.value)}
+              <Box sx={rowSx}>
+                <Box sx={fieldBox(390)}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={0.75}
+                    alignItems={{ xs: "stretch", sm: "center" }}
+                    sx={{ minWidth: 0, width: "100%" }}
                   >
-                    <MenuItem value="">Select Country</MenuItem>
-                    {activeCountries.map((country) => (
-                      <MenuItem key={country.id} value={idString(country.id)}>
-                        {getName(country) || `#${country.id}`}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <TextField
+                        size="small" sx={fieldSx} select fullWidth required label="Country" value={form.countryId}
+                        disabled={saving}
+                        onChange={(event) => handleCountryChange(event.target.value)}
+                      >
+                        <MenuItem value="">Select Country</MenuItem>
+                        {activeCountries.map((country) => (
+                          <MenuItem key={country.id} value={idString(country.id)}>
+                            {getName(country) || `#${country.id}`}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Box>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setCountryDialogOpen(true)}
+                      disabled={saving}
+                      sx={{
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                        textTransform: "none",
+                        minHeight: 40,
+                      }}
+                    >
+                      Add Country
+                    </Button>
+                  </Stack>
                   {activeCountries.length === 0 && (
                     <Typography variant="caption" color="error">
-                      Add an active Country in Job Settings first.
+                      Add an active Country here or in Job Settings.
                     </Typography>
                   )}
-                </Grid>
-                <Grid item xs={12} sm={5}>
+                </Box>
+                <Box sx={fieldBox(390)}>
                   <Stack
                     direction={{ xs: "column", sm: "row" }}
                     spacing={0.75}
@@ -519,29 +574,29 @@ const fieldSx = {
                       No Location is configured for this Country.
                     </Typography>
                   )}
-                </Grid>
-                <Grid item xs={12} sm={3}>
+                </Box>
+                <Box sx={fieldBox(190)}>
                   {renderSettingSelect("workTypeId", "Work Type", settings.workType)}
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
             </Box>
 
             <Box sx={sectionSx}>
               <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.75 }}>
                 Compensation
               </Typography>
-              <Grid container spacing={{ xs: 0.75, md: 1 }}>
-                <Grid item xs={12} sm={6}>
+              <Box sx={rowSx}>
+                <Box sx={fieldBox(240)}>
                   <TextField
                     size="small" sx={fieldSx} fullWidth required type="text" label="Salary" value={form.salary}
                     onChange={(event) => setField("salary", event.target.value)}
                     placeholder="Enter salary (e.g. ₹15,000, 15k - 20k, Negotiable)"
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Box>
+                <Box sx={fieldBox(170)}>
                   {renderSettingSelect("currencyId", "Currency", settings.currency)}
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
             </Box>
 
             <Box sx={sectionSx}>
@@ -549,7 +604,7 @@ const fieldSx = {
                 Description
               </Typography>
               <TextField
-                size="small" sx={fieldSx}
+                size="small" sx={{ ...fieldSx, maxWidth: 900 }}
                 fullWidth multiline minRows={2} label="Job Description"
                 value={form.description}
                 onChange={(event) => setField("description", event.target.value)}
@@ -590,22 +645,18 @@ const fieldSx = {
                     justifyContent={{ xs: "stretch", sm: "flex-end" }}
                     sx={{ width: "100%" }}
                   >
-                    <Button
-                      fullWidth
-                      variant="outlined"
+                    <Button variant="outlined"
                       onClick={() => navigate("/wayabroadadmin/admin/jobs/list")}
                       disabled={saving}
-                      sx={{ minWidth: { sm: 100 }, borderRadius: 1.5, textTransform: "none", fontWeight: 700, py: 0.65 }}
+                      sx={{ width: { xs: "100%", sm: "auto" }, minWidth: { sm: 100 }, borderRadius: 1.5, textTransform: "none", fontWeight: 700, py: 0.65 }}
                     >
                       Cancel
                     </Button>
-                    <Button
-                      fullWidth
-                      type="submit"
+                    <Button type="submit"
                       variant="contained"
                       disabled={saving}
                       startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null}
-                      sx={{ minWidth: { sm: 135 }, borderRadius: 1.5, textTransform: "none", fontWeight: 700, boxShadow: "none", py: 0.65 }}
+                      sx={{ width: { xs: "100%", sm: "auto" }, minWidth: { sm: 135 }, borderRadius: 1.5, textTransform: "none", fontWeight: 700, boxShadow: "none", py: 0.65 }}
                     >
                       {saving ? "Saving..." : isEditing ? "Update Job" : "Create Job"}
                     </Button>
@@ -616,6 +667,12 @@ const fieldSx = {
           </Stack>
         </Paper>
       )}
+
+      <CountrySettingDialog
+        open={countryDialogOpen}
+        onClose={() => setCountryDialogOpen(false)}
+        onSaved={handleCountrySaved}
+      />
 
       <Dialog
         open={locationDialogOpen}
@@ -670,4 +727,3 @@ const fieldSx = {
     </Box>
   );
 }
-
