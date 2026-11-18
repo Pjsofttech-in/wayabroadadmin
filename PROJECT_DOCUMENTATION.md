@@ -1,1202 +1,323 @@
 # Wayabroad Admin Panel — Project Documentation
 
-> **Document purpose:** Technical reference for onboarding, maintenance, debugging, and future frontend development.
->
-> **Documentation status:** Initially prepared from frontend source excerpts available on 12 October 2026 and updated on 19–20 October 2026 with documented Jobs Management and Inquiry List changes. On 28 October 2026, the document was extended with subsequent Job Management, Scholarship, Inquiry Management, Application Management, Registration Management, and Marketing requirements, plus a source-level Marketing audit. Requirements and recommendations are explicitly separated from confirmed implementation; generated code/ZIP delivery or discussion alone is not proof that changes were merged into the current local repository or passed tests. This remains a working reference, not a claim that every module or backend contract has been exhaustively audited. Verify the items listed in [Missing Information and Verification Checklist](#missing-information-and-verification-checklist) against the current repository before treating this document as a release specification.
+> **Repository snapshot:** 18 November 2026. **Scope:** Current frontend source, routes, configuration, integrations, and verification state. This document replaces older planning notes and archived implementation discussions. It describes what is present in this repository; it does not certify backend behavior or production deployment.
 
-## Table of Contents
+## Contents
 
-1. [Project Overview](#1-project-overview)
-2. [Technology Stack](#2-technology-stack)
-3. [Project Directory Structure](#3-project-directory-structure)
-4. [Architecture Diagram](#4-architecture-diagram)
-5. [Module-wise Documentation](#5-module-wise-documentation)
-6. [Routing and Navigation](#6-routing-and-navigation)
-7. [Hierarchical Data Flow](#7-hierarchical-data-flow)
-8. [API and Backend Dependencies](#8-api-and-backend-dependencies)
-9. [Shared Components and UI Design](#9-shared-components-and-ui-design)
-10. [Development Environment Setup](#10-development-environment-setup)
-11. [Running and Testing the Application](#11-running-and-testing-the-application)
-12. [Known Issues and Limitations](#12-known-issues-and-limitations)
-13. [Future Development Guidelines](#13-future-development-guidelines)
-14. [Glossary of Important Technical Terms](#14-glossary-of-important-technical-terms)
-15. [Missing Information and Verification Checklist](#missing-information-and-verification-checklist)
+1. [Overview](#1-overview)
+2. [Technology and scripts](#2-technology-and-scripts)
+3. [Repository layout](#3-repository-layout)
+4. [Application architecture](#4-application-architecture)
+5. [Routes and access model](#5-routes-and-access-model)
+6. [Feature areas](#6-feature-areas)
+7. [API integration and configuration](#7-api-integration-and-configuration)
+8. [Local development and verification](#8-local-development-and-verification)
+9. [Known caveats](#9-known-caveats)
+10. [Maintenance guidance](#10-maintenance-guidance)
+11. [Recent change history](#11-recent-change-history)
 
 ---
 
-## 1. Project Overview
+## 1. Overview
 
-### 1.1 Purpose
+Wayabroad Admin Panel is a React single-page application for internal administration of overseas education and related business workflows. It includes public login/registration pages and protected admin areas for dashboards, inquiries, applications, registrations, partner and branch management, courses, jobs, scholarships, marketing, blogs, and settings.
 
-Wayabroad Admin Panel is a React single-page application (SPA) used to operate administrative workflows related to overseas education and business operations. The available route configuration includes dashboard, inquiry, application, registration, branch, partner, income/expense, course discovery, education-course data management, marketing, scholarship, blog, and settings areas.
+The frontend owns page rendering, client-side navigation, form state and validation, and calls to backend APIs. The backend remains authoritative for persistence, business rules, authentication, authorization, data scoping, and validation.
 
-The frontend provides screens, navigation, forms, tables, local filtering/pagination, and API calls through service modules. Persistent business data and server-side rules are outside the frontend's authority and depend on backend APIs.
+**Evidence convention**
 
-### 1.2 Frontend/backend ownership
+- **In source** means the behavior or configuration is present in this repository.
+- **Backend-dependent** means the UI calls an API, but the backend contract or production behavior is not established by this frontend repository.
+- **Needs follow-up** identifies an observed inconsistency or verification gap, not necessarily a production incident.
 
-| Area | Frontend responsibility | Backend dependency |
-|---|---|---|
-| Pages and layout | React components, visual states, responsive layout | None for static rendering |
-| Navigation | React Router routes, sidebar, query-string context | Server hosting must support SPA fallback for direct URL refresh |
-| Forms | Inputs, local state, client-side validation where implemented | Validation, persistence, authorization and business rules must be enforced server-side |
-| Tables | Rendering, local search and page slicing where implemented | API must supply records; server pagination is not assumed |
-| Education hierarchy | Select parent entity, pass IDs, navigate between entity pages | APIs must return correct entities and preserve relationships |
-| Authentication | `PrivateRoute` is used around admin layout; session values are read by components | Actual login verification, token/session validity and permission enforcement need backend confirmation |
-| CRUD | UI invokes service functions for create/read/update/delete | Endpoints, database writes, uploads and data integrity are backend responsibilities |
-| Configuration | Vite base path and frontend build scripts | Production server, API origin, CORS, routing rewrites and TLS are deployment/backend concerns |
+## 2. Technology and scripts
 
-### 1.3 Evidence labels used in this document
+### Runtime and UI
 
-- **Confirmed from code:** Directly visible in the source excerpts reviewed.
-- **Reported working:** The project owner confirmed the education hierarchy's forward and backward navigation worked in their environment.
-- **Needs verification:** The available excerpts do not prove the behavior or contract.
-- **Recommendation:** A suggested engineering practice, not a claim about current implementation.
-
----
-
-## 2. Technology Stack
-
-The package manifest excerpt identifies the following declared versions/ranges. These are package ranges, not necessarily the exact installed versions in `package-lock.json`.
-
-| Technology | Declared version/range | Purpose visible or typical in this project |
+| Technology | Declared package range | Use |
 |---|---:|---|
-| React / React DOM | `^18.2.0` | Component-based frontend |
-| Vite | `^6.2.0` | Development server and production bundler |
-| `@vitejs/plugin-react` | `^4.3.4` | React support in Vite |
-| React Router DOM | `^6.22.3` | Client-side route configuration and navigation |
-| Material UI | `^5.15.13` | Layout, forms, dialogs, controls and theme |
-| MUI icons | `^5.15.13` | Interface icons |
-| Emotion | `^11.11.1` / `^11.11.0` | Styling engine used by MUI |
-| Ant Design (`antd`) | `^5.24.7` | Tables, search inputs, confirmation dialogs and messages in reviewed course components |
-| Axios | `^1.8.4` | HTTP client dependency; service usage should be verified in each service |
-| Framer Motion | `^12.7.3` | Sidebar/content animation |
-| Formik | `^2.4.6` | Form helper dependency; usage varies by module and requires inspection |
-| Yup | `^1.6.1` | Schema validation dependency; usage varies by module and requires inspection |
-| `jwt-decode` | `^4.0.0` | JWT decoding dependency; does not itself validate a token |
-| Nivo bar/pie/core | `^0.99.0` | Charting dependencies |
-| D3 | `^7.9.0` | Data visualization utilities |
-| TinyMCE React / TinyMCE | `^6.2.1` / `^8.3.2` | Rich-text editing dependencies |
-| `react-datepicker` | `^8.4.0` | Date-picker dependency |
-| `lucide-react` | `^0.506.0` | Icon dependency |
-| `qrcode` | `^1.5.4` | QR-code generation dependency |
-| `sweetalert2` | `^11.19.1` | Alert/dialog dependency |
-| `uuid` | `^11.1.0` | UUID utility |
-| `@fontsource/poppins` | `^5.2.5` | Poppins font assets |
-| `ldrs` | `^1.1.6` | Loader dependency |
+| React / React DOM | `^18.2.0` | UI and component state |
+| React Router DOM | `^6.22.3` | Browser routing and nested routes |
+| Vite / React plugin | `^6.2.0` / `^4.3.4` | Dev server and production build |
+| Material UI / Emotion | `^5.15.13` / `^11.11.x` | Components, layout, and styling |
+| Ant Design | `^5.24.7` | Tables, forms, notifications, and confirmation dialogs |
+| Axios | `^1.8.4` | HTTP integrations |
+| Framer Motion | `^12.7.3` | Layout and navigation animations |
+| Nivo / D3 | `^0.99.0` / `^7.9.0` | Dashboard visualizations |
+| TinyMCE React / TinyMCE | `^6.2.1` / `^8.3.2` | Rich text editing |
+| Formik / Yup | `^2.4.6` / `^1.6.1` | Form-related dependencies; usage varies by page |
+| Other declared libraries | See `package.json` | Icons, QR codes, dates, alerts, loaders, and utilities |
 
-### 2.1 Build scripts
+`package-lock.json` is committed. At the snapshot date, `npm ls --depth=0` reports installed React 18.3.1, Vite 6.4.5, React Router 6.30.6, MUI 5.18.0, and Ant Design 5.26.5. The lockfile, rather than the declared ranges above, is authoritative for a reproducible install.
 
-The reviewed `package.json` defines:
+### Available npm scripts
 
-```json
-{
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  }
-}
-```
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start the Vite development server |
+| `npm run build` | Create the production bundle in `dist/` |
+| `npm run preview` | Serve the built bundle locally |
+| `npm run lint` | Run ESLint across the repository |
 
-### 2.2 Runtime and deployment base
+There is no test script or test-runner configuration in `package.json`.
 
-The reviewed `vite.config.js` sets:
-
-```js
-base: "/wayabroadadmin/"
-```
-
-The package manifest also declares the homepage as `https://wayabroad.in/wayabroadadmin/`. This indicates a deployment intended to be served under the `/wayabroadadmin/` path. Confirm that the production server's static files and SPA fallback match this path.
-
----
-
-## 3. Project Directory Structure
-
-The complete repository tree was not available in the reviewed material. The following is a **partial, code-confirmed reference** of directories and files imported by `src/App.jsx` and the education hierarchy components. File and folder casing should be preserved exactly, especially on case-sensitive deployment systems.
+## 3. Repository layout
 
 ```text
 project-root/
+├── .env.development              # Local API configuration; values are not documented here
+├── .env.production               # Production API configuration; values are not documented here
+├── .gitignore
+├── index.html
 ├── package.json
-├── package-lock.json                 # Expected for npm reproducibility; verify present
+├── package-lock.json
+├── PROJECT_DOCUMENTATION.md
 ├── vite.config.js
-├── index.html                        # Vite entry HTML; verify actual file
 └── src/
-    ├── App.jsx                       # Main route tree
-    ├── Components/
-    │   ├── AllLogin/
-    │   │   └── SidebarLoginContainer # Lazy-loaded public/login entry
-    │   ├── Common/
-    │   │   ├── PrivateRoute          # Admin route wrapper
-    │   │   ├── LoadingOverlay        # Loading UI
-    │   │   └── ErrorBoundary         # Error boundary wrapper
-    │   ├── Layouts/
-    │   │   ├── Layout.jsx            # Shared admin shell and Outlet
-    │   │   ├── Header                # Header component
-    │   │   ├── Sidebar               # Role-filtered sidebar
-    │   │   └── Theme.jsx             # MUI theme
-    │   ├── MainDash/
-    │   │   └── MainDashboard
-    │   ├── Branch/
-    │   │   └── CreateBranch.jsx
-    │   ├── InquiryManagement/
-    │   │   ├── InquirySidebar.jsx
-    │   │   └── Pages/
-    │   │       ├── AbroadInquiryForm.jsx
-    │   │       ├── AbroadInquiryList.jsx
-    │   │       ├── AbroadInquiryTodo.jsx
-    │   │       ├── AbroadInquiryFeedback.jsx
-    │   │       ├── AbroadInquiryDashboard.jsx
-    │   │       └── AbroadInquiryQR.jsx
-    │   ├── Jobs/
-    │   │   ├── JobService.js
-    │   │   ├── JobsSidebar.jsx
-    │   │   ├── JobForm.jsx
-    │   │   ├── JobList.jsx
-    │   │   ├── JobApplications.jsx
-    │   │   └── JobSettings.jsx
-    │   ├── Courses/
-    │   │   └── Continent/
-    │   │       ├── ContinentRelation.jsx
-    │   │       ├── ContinentService
-    │   │       ├── CourseEntityRoute.jsx
-    │   │       ├── Country.jsx / CountryService
-    │   │       ├── State.jsx / StateService
-    │   │       ├── City.jsx / CityService
-    │   │       ├── University.jsx / UniversityService
-    │   │       ├── College.jsx / CollegeService
-    │   │       ├── Stream.jsx / StreamService
-    │   │       └── Course.jsx / CourseService
-    │   ├── Settings/
-    │   ├── Partner/
-    │   ├── Application/
-    │   ├── Register/
-    │   ├── ContactUs/
-    │   ├── Marketing/
-    │   ├── ScholarShip/
-    │   └── Blog/
-    └── assets/
-        └── Images/
-            └── LOGO.png
+    ├── App.jsx                   # Route tree and application composition
+    ├── main.jsx                  # React root and BrowserRouter
+    ├── App.css
+    ├── index.css
+    ├── Admin/api/                # Course API module
+    ├── assets/                   # Shared images and static assets
+    └── Components/
+        ├── AllLogin/             # Login screens and login services
+        ├── Application/          # Application dashboard, create, list, details
+        ├── Blog/                 # Blog management and service
+        ├── Branch/               # Branch and staff management
+        ├── Common/               # Auth guard, HTTP client, validation, shared UI
+        ├── ContactUs/            # Contact Us list, form, and navigation
+        ├── Courses/Continent/    # Continent-to-course hierarchy and services
+        ├── FindeCouese/          # Course Finder page (source spelling retained)
+        ├── IncomeExpense/        # Income/expense screen
+        ├── InquiryManagement/    # Inquiry pages, filters, and services
+        ├── Jobs/                 # Jobs dashboard, forms, lists, and settings
+        ├── Layouts/              # Header, sidebar, layout, theme, navigation
+        ├── MainDash/             # Main dashboard and service
+        ├── Marketing/            # Exam preparation and web inquiry pages
+        ├── OtherPages/           # Miscellaneous pages
+        ├── Partner/              # Partner forms, lists, details, and service
+        ├── Register/             # Registration, QR, and service
+        ├── ScholarShip/          # Scholarship pages, settings, and services
+        ├── Settings/             # Course/stream/blog category/conduct-by pages
+        └── Utils/                # Secondary Axios client
 ```
 
-**Important:** This tree is not a complete inventory. Some extensions are omitted in imports in `App.jsx`; use the actual repository to confirm each filename. Do not create missing files just because they appear as inferred placeholders above.
+The repository is JavaScript/JSX; there are no TypeScript source files. Some filenames retain historical misspellings (for example `FindeCouese`, `AppicationCreate`, `ReistrationServices`, and `ScolarshipSidebar`); import paths are case-sensitive on many deployment hosts.
 
-### 3.1 Key files
-
-| File | Responsibility |
-|---|---|
-| `src/App.jsx` | Declares public and protected routes; imports module pages and shared wrappers |
-| `src/Components/Common/PrivateRoute` | Wraps the `/wayabroadadmin/admin` route tree; exact authorization logic needs source review |
-| `src/Components/Layouts/Layout.jsx` | Header/sidebar shell, responsive sidebar state, nested route outlet and footer |
-| `src/Components/Layouts/Sidebar.jsx` | Role-filtered navigation, collapsible Courses submenu and active route styling |
-| `src/Components/Layouts/Theme.jsx` | MUI theme configuration |
-| `src/Components/Courses/Continent/CourseEntityRoute.jsx` | Shared wrapper for Country, State, City, University, College, Stream and Course pages |
-| `src/Components/Courses/Continent/ContinentRelation.jsx` | Continent CRUD screen and entry point into the education hierarchy |
-| `src/Components/Courses/Continent/*Service*` | API/service integration for hierarchy entities; exact endpoint definitions require service-file inspection |
-
----
-
-## 4. Architecture Diagram
-
-### 4.1 Runtime architecture
+## 4. Application architecture
 
 ```mermaid
 flowchart TD
-    Browser[Browser]
-    App[React App.jsx]
-    Router[React Router Routes]
-    Guard[PrivateRoute]
-    Layout[Admin Layout]
-    Sidebar[Header and Sidebar]
-    Pages[Module Pages]
-    EntityRoute[CourseEntityRoute]
-    Services[Frontend Service Modules]
-    API[Backend HTTP API]
-    DB[(Backend Database)]
-
-    Browser --> App
-    App --> Router
-    Router -->|Public login/register| Pages
-    Router --> Guard
-    Guard --> Layout
-    Layout --> Sidebar
-    Layout --> Pages
-    Pages --> Services
-    EntityRoute --> Pages
-    EntityRoute --> Services
-    Services --> API
-    API --> DB
+    Browser --> Main[main.jsx]
+    Main --> Router[BrowserRouter]
+    Router --> App[App.jsx]
+    App --> Public[Public login and registration pages]
+    App --> Guard[PrivateRoute]
+    Guard --> Layout[Header, Sidebar, Outlet]
+    Layout --> Pages[Feature pages]
+    Pages --> Services[Feature service modules]
+    Services --> Clients[Axios clients or direct fetch]
+    Clients --> API[Backend APIs]
 ```
 
-The backend/database boxes show the expected integration pattern. The backend implementation and database schema were not supplied for this documentation pass, so their internal design is not confirmed.
+1. `src/main.jsx` mounts the app under `BrowserRouter` and React `StrictMode`.
+2. `src/App.jsx` declares public routes, a protected admin route tree, and a catch-all redirect.
+3. The protected tree renders `PrivateRoute` and the shared `Layout`.
+4. The layout renders a header, role-filtered sidebar, nested route content, and footer.
+5. Feature pages call service modules or, in some older areas, use a client directly.
 
-### 4.2 Typical data flow
+The shared interface uses Material UI and Ant Design together. Components should follow conventions in the feature folder they modify rather than assuming a single UI library.
 
-1. A user opens a route.
-2. React Router selects a route element from `App.jsx`.
-3. Protected admin routes are wrapped by `PrivateRoute` and render the shared `Layout`.
-4. The page component reads local UI state and, where applicable, session values such as `role`, `email`, and `branchCode`.
-5. The component calls a service function.
-6. The service communicates with a backend endpoint.
-7. The component stores the returned data in React state and renders the result.
-8. Create/update/delete actions call service functions and then commonly refresh the list or show a message.
+## 5. Routes and access model
 
-The exact HTTP request and response formats must be read from the relevant service and backend controller. Do not infer them from component names.
+### Public and protected routes
 
----
-
-## 5. Module-wise Documentation
-
-This section lists modules proven by `App.jsx` route imports and route definitions. The existence of a route does not prove every feature is complete or that every API succeeds.
-
-| Module | Main route(s) | Main component(s) visible in route config | Current evidence / notes |
-|---|---|---|---|
-| Login | `/wayabroadadmin` | `SidebarLoginContainer` (lazy-loaded) | Public entry. Authentication implementation needs inspection. |
-| Public Registration | `/wayabroadadmin/register` | `PublicRegistration` | Public registration route exists. API and validation need inspection. |
-| Main Dashboard | `/wayabroadadmin/admin/dashboard` | `MainDashboard` | Dashboard route exists. Data widgets/endpoints need inspection. |
-| Branch | `/wayabroadadmin/admin/CreateBranch` | `CreateBranch` | Branch page route exists. |
-| Income & Expense | `/wayabroadadmin/admin/incomeexpense` | `IncomeExpense` | Route exists; financial calculations and APIs need inspection. |
-| Course Finder | `/wayabroadadmin/admin/CourceFinder` | `CourseFinder` | Route config uses this spelling. Sidebar configuration contains a trailing space in the segment; see routing limitations. |
-| Partner Details | `/wayabroadadmin/admin/partner` | `PartnerSidebar`, nested `AddPartner`, `PartnerList`, `PartnerWebList` | Parent and nested routes exist. |
-| Inquiry Management | `/wayabroadadmin/admin/abroadinquiry` | `InquirySidebar`, dashboard/form/list/todo/feedback/QR pages | Nested routes are explicitly configured. The Day 4 update changes the Inquiry List filters, status tabs, record count and page-size control; see section 5.5. |
-| Application Management | `/wayabroadadmin/admin/application` | `ApplicationSidebar`, `ApplicationDashboard`, `AppicationCreate`, `ApplicationList` | Index redirects/rendering are configured. `AppicationCreate` is the actual imported spelling. |
-| Registration Management | `/wayabroadadmin/admin/registration` | `RegistrationSidebar`, `RegisterForm`, `RegisterList`, `RegistrationQRForm` | Create/list/edit/QR paths exist. |
-| Contact Us | `/wayabroadadmin/admin/ContactUs` | `ContactUsSidebar`, `ContactUsList`, `ContactUsForm` | Route exists, but its sidebar navigation entry is commented out in the reviewed navigation config. |
-| Marketing | `/wayabroadadmin/admin/Marketing` | Both `BlogManagement` and `MarketingSideBar` are declared for the same parent path | **Route conflict risk:** duplicate parent route declarations exist in `App.jsx`; verify intended behavior and consolidate carefully. |
-| Courses | `/wayabroadadmin/admin/courses/*` | `ContinentRelation`, `CourseEntityRoute` | Entity routes exist for continent through course. Details in sections 6–8. |
-| Jobs Management | `/wayabroadadmin/admin/jobs/*` | `JobsSidebar`, `JobForm`, `JobList`, `JobApplications`, `JobSettings` | Added for `superAdmin` navigation; create/list/applications/settings subroutes and API service are documented in section 5.4. |
-| Settings | `/wayabroadadmin/admin/settings` | `SettingSidebar`, stream/course/blog category/conduct-by pages | Nested settings routes exist. |
-| Scholarship | `/wayabroadadmin/admin/scholarship` | `ScholarshipSidebar`, form/list/lead-list/settings | Lead-form route is commented out. |
-| Blog Management | `/wayabroadadmin/admin/blog` | `BlogManagement` | Parent route and index route render `BlogManagement`; outlet behavior needs inspection. |
-| Admin Profile placeholder | `/wayabroadadmin/admin/Admin-Profile` | Inline “Settings Page Under Construction” | Explicit placeholder in route config. |
-
-### 5.1 Course Finder versus Courses
-
-These are separate route concepts:
-- **Course Finder** is configured as `/wayabroadadmin/admin/CourceFinder` in `App.jsx`.
-- **Courses** is configured under `/wayabroadadmin/admin/courses` and manages the education hierarchy.
-
-The unusual `CourceFinder` spelling should not be silently corrected without checking existing links and deployment expectations.
-
-### 5.2 Education hierarchy entity screens
-
-The shared route wrapper configures these child screens:
-
-| Entity page | Component | Parent selection loaded through |
-|---|---|---|
-| Country | `Country` | `getAllContinents(role, email)` |
-| State | `State` | `getAllCountries({ role, email })` |
-| City | `City` | `StateService.getAllStates(role, email)` |
-| University | `University` | `CityService.getAllCities(role, email)` |
-| College | `College` | `getAllUniversity({ role, email, branchCode })` |
-| Stream | `Stream` | `getAllColleges({ role, email, branchCode })` |
-| Course | `Course` | `getAllStreams({ role, email, branchCode })`, plus colleges for the create context |
-
-The route wrapper renders a parent selector before rendering the corresponding entity component. The Course page also requires a College selection for the create context in the reviewed implementation.
-
-### 5.3 Common page-level behaviors seen in reviewed hierarchy components
-
-`ContinentRelation.jsx`, `City.jsx`, and `Course.jsx` excerpts show patterns including:
-- React local state for fetched records, dialogs, editing state, search, loading and pagination.
-- Service calls inside async functions, commonly triggered by `useEffect`.
-- Error messages through Ant Design `message`.
-- Material UI layout/forms/dialogs and Ant Design tables/search controls.
-- Local filtering and client-side page slicing in at least some components.
-- Create/update/delete actions routed through service functions.
-
-These behaviors should not be assumed for every module without reviewing its component code.
-
-### 5.4 Jobs Management — Day 3 implementation
-
-The Jobs Management frontend was added as a separate admin section and uses the existing React Router/admin sidebar architecture. The Jobs navigation entry is intended for the `superAdmin` role. The addition should preserve existing Courses navigation behavior.
-
-**Files added**
-- `src/Components/Jobs/JobService.js` — centralizes job CRUD/search, job-settings and application API calls.
-- `src/Components/Jobs/JobsSidebar.jsx` — nested navigation for Jobs Management subpages.
-- `src/Components/Jobs/JobForm.jsx` — Create Job / Edit Job form.
-- `src/Components/Jobs/JobList.jsx` — searchable/filterable job listing, pagination and supported actions.
-- `src/Components/Jobs/JobApplications.jsx` — application listing, details and supported status management.
-- `src/Components/Jobs/JobSettings.jsx` — master-data management for the six existing settings resources.
-
-**Files modified**
-- `src/App.jsx` — adds nested Jobs routes.
-- `src/Components/Layouts/SidebarNavigation.jsx` — adds Jobs Management navigation for `superAdmin`.
-- `src/Components/Layouts/Sidebar.jsx` — maintains Jobs submenu active/expanded state separately while preserving Courses submenu behavior.
-
-**Routes**
-
-| Route under `/wayabroadadmin` | Component / behavior |
+| Route | Page / behavior |
 |---|---|
-| `/admin/jobs` | `JobsSidebar`; index redirects to `jobs/create` |
-| `/admin/jobs/create` | `JobForm` |
-| `/admin/jobs/list` | `JobList` |
-| `/admin/jobs/applications` | `JobApplications` |
-| `/admin/jobs/settings` | `JobSettings` |
+| `/` | Redirect to `/wayabroadadmin` |
+| `/wayabroadadmin` | Login container |
+| `/wayabroadadmin/register` | Public registration |
+| `/wayabroadadmin/public-inquiry` | Public inquiry registration |
+| `/wayabroadadmin/admin/*` | Protected admin area |
+| `*` | Redirect to `/wayabroadadmin` |
 
-**API integration documented for this implementation**
+### Admin route families
 
-- Jobs: `POST /admin/jobs`, `GET /admin/jobs/{id}`, `PUT /admin/jobs/{id}`, `DELETE /admin/jobs/{id}`, and `GET /admin/jobs/search`.
-- Applications: `GET /job-applications/admin/search`, `GET /job-applications/admin/{id}`, `PUT /job-applications/admin/{id}/status`, and `DELETE /job-applications/admin/{id}`. The delete operation deactivates an application according to the documented backend behavior.
-- Job Settings: `/admin/job-settings/education`, `/sector`, `/role`, `/currency`, `/job-type`, and `/location`. The current documented relationships are Education → Sector → Role; Sector options are filtered by Education and Role options by Sector.
-- The originally documented Job payload uses `jobTitle`, `educationId`, `sectorId`, `jobRoleId`, `skill`, `openings`, `locationId`, `salary`, `currencyId`, `jobTypeId`, `description`, and `active`. Country/free-text Location, multi-select Skills, Work Type and Experience Level changes discussed for Day 5 are not represented as implemented in this document.
-- The currently documented application statuses are `PENDING`, `SHORTLISTED`, `REJECTED`, and `HIRED`. The application search parameters documented for this implementation are `jobId`, `status`, `applicantEmail`, `page`, and `size`.
+All paths below are relative to `/wayabroadadmin/admin`.
 
-**Verification status and cautions**
-
-The original frontend source package used for the Jobs implementation did not include `package.json` or a lockfile, and no live backend was available. Implementation notes record JSX/JavaScript syntax checks and relative-import checks, but not a full Vite build or live API CRUD verification. Validate Jobs workflows against the actual repository and an authorized test account before release. The shared Axios configuration was separately noted to contain a hardcoded JWT fallback and token logging; this was not modified as part of the Jobs work and should be addressed before production deployment.
-
-### 5.5 Inquiry List UI — Day 4 implementation
-
-The Day 4 update is limited to the Inquiry List UI; no backend/API contract changes were made.
-
-**Files modified**
-- `src/Components/InquiryManagement/Pages/AbroadInquiryList.jsx`
-- `src/Components/InquiryManagement/Pages/InquiryFilter.jsx`
-
-**Changes**
-- Removed the Continent, State and Status dropdown filters from the filter area.
-- Added a Passport Yes/No dropdown using the existing `hasPassport` field.
-- Removed the Total count card and reworked the nine existing status counters as selectable tabs. Selecting a tab applies the existing status filter; clicking the selected tab again clears it.
-- Made status tabs fit across desktop width and scroll horizontally on smaller screens.
-- Added a page-size selector next to the record-count label while retaining the existing page-size options.
-- Corrected the zero-results range so the UI does not display a misleading `1-0` count.
-
-**API and test notes**
-
-The Passport filter is applied client-side to records returned by the existing inquiry filtering API. If the API returns only a server-paginated subset, Passport results and counts are limited to that subset; complete-dataset filtering would require backend support. The Day 4 implementation notes report JSX syntax checks passing for both modified files, but a full Vite build, browser interaction tests and live API tests were not run.
-
----
-
-## 6. Routing and Navigation
-
-### 6.1 Base paths
-
-- Root `/` redirects to `/wayabroadadmin`.
-- Public login route: `/wayabroadadmin`.
-- Public registration route: `/wayabroadadmin/register`.
-- Protected admin route parent: `/wayabroadadmin/admin`.
-- Vite deployment base: `/wayabroadadmin/`.
-
-### 6.2 Main routes
-
-| Route | Rendered component / behavior |
+| Path | Page / behavior |
 |---|---|
-| `/` | Redirects to `/wayabroadadmin` |
-| `/wayabroadadmin` | `SidebarLoginContainer` |
-| `/wayabroadadmin/register` | `PublicRegistration` |
-| `/wayabroadadmin/admin` | `PrivateRoute` → `Layout` |
-| `/wayabroadadmin/admin/dashboard` | `MainDashboard` |
-| `/wayabroadadmin/admin/CreateBranch` | `CreateBranch` |
-| `/wayabroadadmin/admin/incomeexpense` | `IncomeExpense` |
-| `/wayabroadadmin/admin/CourceFinder` | `CourseFinder` |
-| `/wayabroadadmin/admin/partner` | `PartnerSidebar` index → `AddPartner` |
-| `/wayabroadadmin/admin/partner/list` | `PartnerList` |
-| `/wayabroadadmin/admin/partner/web` | `PartnerWebList` |
-| `/wayabroadadmin/admin/abroadinquiry` | `InquirySidebar` index → `AbroadInquiryDashboard` |
-| `/wayabroadadmin/admin/application` | `ApplicationSidebar` index → `ApplicationDashboard` |
-| `/wayabroadadmin/admin/registration` | `RegistrationSidebar` index → `RegisterForm` |
-| `/wayabroadadmin/admin/ContactUs` | `ContactUsSidebar` index → `ContactUsList` |
-| `/wayabroadadmin/admin/Marketing` | Duplicate route definitions; see limitations |
-| `/wayabroadadmin/admin/jobs` | `JobsSidebar` parent; redirects to `jobs/create` |
-| `/wayabroadadmin/admin/jobs/create` | `JobForm` (create/edit; edit ID is passed through `?editId=<id>`) |
-| `/wayabroadadmin/admin/jobs/list` | `JobList` |
-| `/wayabroadadmin/admin/jobs/applications` | `JobApplications` |
-| `/wayabroadadmin/admin/jobs/settings` | `JobSettings` |
-| `/wayabroadadmin/admin/courses` | Redirects to `courses/continent` |
-| `/wayabroadadmin/admin/courses/continent` | `ContinentRelation` |
-| `/wayabroadadmin/admin/courses/country` | `CourseEntityRoute entity="country"` |
-| `/wayabroadadmin/admin/courses/state` | `CourseEntityRoute entity="state"` |
-| `/wayabroadadmin/admin/courses/city` | `CourseEntityRoute entity="city"` |
-| `/wayabroadadmin/admin/courses/university` | `CourseEntityRoute entity="university"` |
-| `/wayabroadadmin/admin/courses/college` | `CourseEntityRoute entity="college"` |
-| `/wayabroadadmin/admin/courses/stream` | `CourseEntityRoute entity="stream"` |
-| `/wayabroadadmin/admin/courses/course` | `CourseEntityRoute entity="course"` |
-| `/wayabroadadmin/admin/settings` | `SettingSidebar` index redirects to `settings/stream` |
-| `/wayabroadadmin/admin/scholarship` | `ScholarshipSidebar` index → `ScholarShipForm` |
-| `/wayabroadadmin/admin/blog` | `BlogManagement` parent and index |
-| `*` | Redirects to `/wayabroadadmin` |
+| `dashboard` | Main dashboard |
+| `Admin-Profile` | Inline “Settings Page Under Construction” placeholder |
+| `CreateBranch` | Branch creation/management page |
+| `incomeexpense` | Income and expense |
+| `CourceFinder` | Course Finder |
+| `partner` | Partner sidebar; index renders Add Partner |
+| `partner/list`, `partner/web` | Partner list and web partner list |
+| `application/dashboard`, `application/create`, `application/list` | Application dashboard, create, list |
+| `registration`, `registration/create`, `registration/edit/:id`, `registration/list`, `registration/qr` | Registration form, edit, list, QR |
+| `ContactUs`, `ContactUs/create`, `ContactUs/edit/:id` | Contact Us list and form |
+| `abroadinquiry` and nested inquiry pages | Dashboard, form, list, todo, feedback, and QR |
+| `Marketing/exampreparationlist`, `Marketing/webinquirylist`, `Marketing/registrationweblist` | Marketing pages under Marketing sidebar |
+| `courses/continent` through `courses/course` | Education hierarchy management |
+| `courses/stream` | Legacy redirect to the canonical Stream route |
+| `jobs/dashboard`, `jobs/create`, `jobs/list`, `jobs/applications`, `jobs/applications/add`, `jobs/settings` | Jobs dashboard, job CRUD, applications, manual application, settings |
+| `settings/stream`, `settings/course`, `settings/blogCourses`, `settings/conduct-by` | System settings; settings index redirects to Stream |
+| `scholarship`, `scholarship/list`, `scholarship/lead-list`, `scholarship/settings` | Scholarship form, list, lead list, settings |
+| `blog` | Blog management |
 
-Nested route details for every child page are in `src/App.jsx`; this table intentionally focuses on the main route families.
+Nested route details are defined in [App.jsx](./src/App.jsx).
 
-### 6.3 Shared layout and outlet
+### Authentication and role visibility
 
-The admin parent route renders `Layout`, which contains:
-- `Header`
-- `Sidebar`
-- `Outlet` for the selected child route
-- A footer with a Wayabroad/PJSoftTech link and copyright text
+- `PrivateRoute` checks whether `sessionStorage.authToken` exists; without it, the user is redirected to the login route.
+- Login pages store token and role/session fields in `sessionStorage`. Sidebar entries use role lists to control visibility.
+- The Jobs sidebar exposes dashboard/list/applications to `superAdmin` and `branch`; Create Job and Job Settings are limited to `superAdmin`. `JobsSidebar` also redirects branch users away from the create and settings paths.
+- This is frontend navigation behavior, not a security boundary. The backend must validate tokens, roles, and record scope on every protected API request.
 
-The layout uses MUI breakpoints to set the sidebar closed on small screens and uses Framer Motion to animate the content region.
+## 6. Feature areas
 
-### 6.4 Sidebar behavior
+This inventory summarizes the current route components and service structure; it does not imply that every backend endpoint is available in every environment.
 
-The reviewed `Sidebar.jsx`:
-- Reads `role` from `sessionStorage`.
-- Filters `NAVIGATION` entries using each entry's `roles` list.
-- Uses React Router's `useLocation` and `useNavigate`.
-- Expands the Courses submenu when a course route is active.
-- Animates the sidebar between approximately 220 px and 50 px.
-- Displays tooltips when collapsed.
+| Area | Current implementation in source |
+|---|---|
+| Login and public access | Super Admin, Branch, and Staff login screens; login, OTP/password reset and branch mapping service calls; public registration and public inquiry routes. |
+| Main dashboard | Main admin dashboard with a separate dashboard service. |
+| Branch | Branch creation and staff management components/services. |
+| Inquiry Management | Dashboard, inquiry form/list, todo, feedback, QR, detail/edit/filter components, and dedicated service modules. |
+| Application Management | Application dashboard, create, list, detail modal, edit dialog, filters, document UI, and application services. |
+| Registration | Registration form/list/edit dialog, filters, QR generation, and registration services. |
+| Partner | Add/edit partner, partner list/web list, detail modal, filters, document upload, and partner service. |
+| Contact Us | Contact Us list/form and separate sidebar components. |
+| Marketing | Exam Preparation, Web Inquiry, and Registration Web list route components. The Registration Web list is present in the route tree; verify its current completeness before treating it as a finished workflow. |
+| Courses | Continent → Country → State → City → University → College → Stream → Course screens and entity services. `CourseEntityRoute` handles parent selection and route context. |
+| Course Finder | Separate discovery page at the legacy `CourceFinder` route. |
+| Jobs Management | Dashboard, job list, create/edit form, row-detail/edit dialog, application list and status workflow, manual application, settings, country setting dialog, and a shared `JobService`. |
+| Scholarship | Scholarship form/list, lead form/list, settings, category/type/study-location services, filters, rich-text descriptions, and file handling. The list UI treats the existing `testDate` field as a month, supports a Scholarship Link column, and validates Amount as a non-negative number. |
+| Blog | Blog management and service. |
+| Settings | Stream, course, blog category, and conduct-by management. |
+| Income & Expense | Financial management page. |
 
-The sidebar is a UI navigation filter; it is not a substitute for backend authorization.
+### Education course hierarchy
 
-### 6.5 Query parameters for hierarchy pages
-
-The hierarchy wrapper reads and updates parent IDs in the query string. Examples include:
+The frontend navigation model is:
 
 ```text
-/wayabroadadmin/admin/courses/country?continentId=12
-/wayabroadadmin/admin/courses/state?countryId=34&continentId=12
-/wayabroadadmin/admin/courses/city?stateId=56&countryId=34&continentId=12
-/wayabroadadmin/admin/courses/university?cityId=78&stateId=56&countryId=34
-/wayabroadadmin/admin/courses/college?universityId=90&cityId=78&stateId=56&countryId=34
-/wayabroadadmin/admin/courses/stream?collegeId=123&universityId=90
-/wayabroadadmin/admin/courses/course?streamId=456&collegeId=123
+Continent → Country → State → City → University → College → Stream → Course
 ```
 
-These are illustrative examples only; the numeric IDs are placeholders.
+Parent IDs are passed as route context/query parameters by `CourseEntityRoute`. Preserve the correct parent ID when moving between entity levels; confirm any foreign-key or payload changes with the backend. The actual database relationships are not part of this repository.
 
-### 6.6 Direct URL, refresh, and browser history
+### Jobs Management details
 
-- The route tree supports explicit URLs for each entity page.
-- The hierarchy wrapper can select a parent using the relevant query parameter.
-- Parent selection changes query parameters through React Router's `setSearchParams`.
-- Back buttons navigate to parent entity routes and retain selected ancestor context according to the wrapper's configured mapping.
-- The owner reported forward and backward navigation working in the local environment.
+- Job List includes overview cards, filters for keyword, education, sector/role, country, job type, work type, experience, salary and active status, plus pagination and delete confirmation.
+- Filter changes are debounced and reload the results automatically. Experience-range filtering is applied to all server-filtered pages fetched by the client; other filters use the search endpoint and its paginated response.
+- Clicking a row opens `JobDetailDialog`. The dialog initially shows details and loads the full job record. An authorized user can choose **Edit** to enter an in-dialog edit form; the explicit `type="button"` and `preventDefault()` guard prevents that action from acting as a submit. **Update** is the form's explicit submit button.
+- Job Applications provides overview/status summaries, search/filter controls, detail view, status update, deactivation, and manual application navigation.
+- Job settings cover education, sector, role, currency, job type, location, country, and work type.
+- The frontend status labels currently include `PENDING`, `SHORTLISTED`, `INTERESTED`, `PROCESS_1`, `PROCESS_2`, `APPLY_LATER`, and `SELECTED`. Treat the server enum as authoritative.
 
-**Deployment requirement:** Directly refreshing a nested SPA URL normally requires the web server to serve the app's `index.html` for matching frontend routes. This must be verified on the production host. A Vite build alone does not configure the web server's fallback rules.
+## 7. API integration and configuration
 
----
+### HTTP clients
 
-## 7. Hierarchical Data Flow
+The current source has more than one HTTP integration pattern:
 
-### 7.1 Relationship model
+- `Components/Common/axiosConfig.js` uses `VITE_API_BASE_URL` (fallback `http://localhost:8080`), attaches the current bearer token unless a request sets `skipAuth`, and shows a session-expired alert/redirect for authenticated 401 responses.
+- `Components/Utils/axiosConfig.js` uses `VITE_ADMIN_API_BASE_URL` (same localhost fallback) and attaches the current token.
+- `AllLogin/LoginService.js` creates a separate Axios client using `VITE_ADMIN_API_BASE_URL`. Some pages and services also use direct `fetch` or direct Axios calls.
+- Course image/asset URLs in some components use `VITE_API_URL`.
 
-The education management flow is:
+The environment files contain local values and are intentionally not reproduced in this document. The variable names found in source are `VITE_API_BASE_URL`, `VITE_ADMIN_API_BASE_URL`, `VITE_API_URL`, and Vite's `BASE_URL`. Do not place credentials or private secrets in client-exposed Vite variables.
 
-```mermaid
-flowchart TD
-    Continent --> Country
-    Country --> State
-    State --> City
-    City --> University
-    University --> College
-    College --> Stream
-    Stream --> Course
-```
+### Service boundaries and verified Jobs API paths
 
-This diagram represents the intended management/navigation sequence reflected in the frontend. Actual database foreign keys and server-side referential constraints require backend schema confirmation.
+Most feature areas have service modules that encapsulate API requests, though this pattern is not universal. The Jobs service (`Components/Jobs/JobService.js`) currently references:
 
-### 7.2 Parent IDs and route context
-
-| Page being managed | Parent context parameter | Parent collection loader in `CourseEntityRoute.jsx` |
-|---|---|---|
-| Country | `continentId` | `getAllContinents(role, email)` |
-| State | `countryId` | `getAllCountries({ role, email })` |
-| City | `stateId` | `StateService.getAllStates(role, email)` |
-| University | `cityId` | `CityService.getAllCities(role, email)` |
-| College | `universityId` | `getAllUniversity({ role, email, branchCode })` |
-| Stream | `collegeId` | `getAllColleges({ role, email, branchCode })` |
-| Course | `streamId` | `getAllStreams({ role, email, branchCode })` |
-| Course create context | `collegeId` | `getAllColleges({ ...credentials })` |
-
-`getId(item)` in the wrapper converts `item.id` to a string for selector values. A missing ID becomes an empty string. Display labels use known field fallbacks such as `continentname`, `country`, `state`, `city`, `universityName`, `collegeName`, `name`, and finally a generated label using the record ID.
-
-### 7.3 Forward navigation
-
-The route tree exposes each entity page independently. The individual entity components and route wrapper use navigation and query parameters to move to related child pages while retaining IDs that establish context. The exact click handlers should be checked in each entity file when changing the flow.
-
-The owner confirmed the forward hierarchy worked in their environment:
-Continent → Country → State → City → University → College → Stream → Course.
-
-### 7.4 Backward navigation
-
-`CourseEntityRoute.jsx` defines a `goBack` handler mapping each child page to its parent route:
-
-| Current page | Back target |
+| Purpose | Endpoint |
 |---|---|
-| Country | Continent |
-| State | Country |
-| City | State |
-| University | City |
-| College | University |
-| Stream | College |
-| Course | Stream |
+| Search jobs | `GET /admin/jobs/search` |
+| Read job | `GET /admin/jobs/{id}` |
+| Create/update/delete job | `POST /admin/jobs`, `PUT /admin/jobs/{id}`, `DELETE /admin/jobs/{id}` |
+| Job settings | `/admin/job-settings/{education,sector,role,currency,job-type,location,country,work-type}` |
+| Search applications | `GET /job-applications/admin/search` |
+| Read application | `GET /job-applications/admin/{id}` |
+| Update application status | `PUT /job-applications/admin/{id}/status` |
+| Deactivate application | `DELETE /job-applications/admin/{id}` |
+| Submit application | `POST /job-applications/apply` (multipart form data) |
 
-It copies a configured list of ancestor query parameters to the destination. Descendant IDs are intentionally not copied to avoid stale selections leaking into another hierarchy branch.
+The service attaches session `role` and `email` parameters to relevant requests. These values are caller context, not proof of authorization. Other module endpoint contracts are maintained in their respective service files and are not exhaustively catalogued here; consult those files and the backend API specification before changing request/response shapes.
 
-The owner confirmed backward navigation was working after the latest changes.
+### Deployment base
 
-### 7.5 Missing or unavailable data
+`vite.config.js` sets `base: "/wayabroadadmin/"`, and `package.json` declares the matching homepage. The deployment host must serve built assets at this prefix and return the SPA entry point for supported nested routes. Production routing, CORS, TLS, and API availability are outside this repository.
 
-The reviewed wrapper:
-- Shows a loading spinner while parent options load.
-- Shows an error alert if the main parent-options request fails.
-- Shows an informational prompt when no parent is selected.
-- Requires both Stream and College selections before rendering the Course component in the standalone route.
-- Silently falls back to an empty college list if the additional college-options request fails; this can leave Course creation unavailable without an obvious error.
+## 8. Local development and verification
 
-### 7.6 Course-specific context
+### Setup
 
-In `Course.jsx`, the list fetch calls `getAllCourses({ email, role, streamId: stream.id })`. The create flow derives `collegeId` from `collegeIdProp ?? stream?.id`, then passes it to `createCourse`. The wrapper supplies `collegeIdProp` from the selected college. This is a frontend contract that should be checked with the backend developer, because the field names and meaning of IDs are critical.
-
-The course payload includes fields such as `courseName`, `description`, `tutionFees`, `applicationFees`, `duration`, `intake`, `academicRequirements`, `englishExamRequirements`, `instituteRank`, `examType`, `examScore`, `location`, `city`, `additionalRequirements`, `scholarship`, `hostel`, `hostelFees`, `websiteLink`, `applicationLink`, `courseDetials`, `contractType`, and `streamName`. Some spellings (for example, `tutionFees` and `courseDetials`) appear in the existing frontend code and must not be renamed without an agreed API migration.
-
----
-
-## 8. API and Backend Dependencies
-
-### 8.1 Integration pattern
-
-The reviewed hierarchy components import service functions rather than embedding all HTTP endpoint details directly in the JSX. The exact URL, HTTP method, headers, payload serialization and response transformation are defined in each service file and must be inspected before API changes.
-
-The frontend reads these values from `sessionStorage` in reviewed hierarchy files:
-- `role`
-- `email`
-- `branchCode` (where relevant)
-
-Do not treat these client-side values as trusted authorization evidence. The server must independently validate the current user and permissions.
-
-### 8.2 Known service functions from reviewed source
-
-| Service file / module | Function(s) seen in component source | Used for |
-|---|---|---|
-| `ContinentService` | `getAllContinents`, `createContinent`, `updateContinent`, `deleteContinent`, `getContinentById` | Continent list and CRUD |
-| `CountryService` | `getAllCountries` | Loading country choices and likely Country operations; inspect service/component for full inventory |
-| `StateService` | `getAllStates` | Loading state choices and state-related operations |
-| `CityService` | `getAllCities` | Loading city choices and city-related operations |
-| `UniversityService` | `getAllUniversity` | Loading university choices |
-| `CollegeService` | `getAllColleges` | Loading college choices |
-| `StreamService` | `getAllStreams` | Loading stream choices |
-| `CourseService` | `getAllCourses`, `createCourse`, `updateCourse`, `deleteCourse`, `getAllStreams`, `getAllCoursesName` | Course list and CRUD-related operations |
-
-The table is not an exhaustive endpoint inventory. Function signatures are not uniform across modules, so check the current service definitions before reusing calls.
-
-### 8.3 API inventory template for a full audit
-
-Fill in this table directly from service files and, where available, backend controller documentation:
-
-| Feature | Service file | Function | HTTP method | Endpoint | Request parameters/payload | Response shape | Error handling |
-|---|---|---|---|---|---|---|---|
-| List continents | `ContinentService` | `getAllContinents` | Verify | Verify | `role`, `email` passed to function | Array expected by component | Component shows error message |
-| Create continent | `ContinentService` | `createContinent` | Verify | Verify | Inspect service and form payload | Verify | Verify |
-| Update continent | `ContinentService` | `updateContinent` | Verify | Verify | Inspect service and form payload | Verify | Verify |
-| Delete continent | `ContinentService` | `deleteContinent` | Verify | Verify | Record ID plus context as defined by service | Verify | Verify |
-| List courses | `CourseService` | `getAllCourses` | Verify | Verify | Component passes `{ email, role, streamId }` | Component expects array | Component displays message on failure |
-| Create course | `CourseService` | `createCourse` | Verify | Verify | Payload, thumbnail/image, role/email, college ID passed from component | Verify | Component displays message on failure |
-| Update course | `CourseService` | `updateCourse` | Verify | Verify | ID, payload, thumbnail/image, role/email | Verify | Component displays message on failure |
-| Delete course | `CourseService` | `deleteCourse` | Verify | Verify | ID, role/email | Verify | Component displays message on failure |
-
-Do not fill “Verify” cells with guessed URLs or response structures.
-
-### 8.4 Loading and error states
-
-In reviewed hierarchy components:
-- `LoadingOverlay` is used for API loading feedback.
-- `CircularProgress` appears in the route wrapper.
-- Ant Design `message` is used for success/error feedback in CRUD pages.
-- `CourseEntityRoute` displays a Material UI `Alert` for parent-option load errors.
-- Course's college-options fetch catches errors by setting an empty array; consider a visible error state as a future improvement.
-
-### 8.5 Backend questions to resolve
-
-1. What are the canonical endpoint URLs and HTTP methods for each hierarchy service?
-2. Which fields are required for each create/update payload?
-3. Are IDs globally unique across entity types, or only unique within each table?
-4. Does the server filter records by `role`, `email`, or `branchCode`, and how is authorization enforced?
-5. What is the canonical Course create contract for `streamId` and `collegeId`?
-6. How are image uploads represented: multipart `FormData`, URL strings, or another format?
-7. What response shape is guaranteed for list endpoints: raw array, wrapper object, or paginated result?
-8. Which error response schema should the UI expect?
-9. Are search and pagination server-side or should the frontend process all returned records?
-10. What CORS and production API base URL configuration is required?
-
----
-
-## 9. Shared Components and UI Design
-
-### 9.1 Shared shell
-
-| Component | Responsibility |
-|---|---|
-| `Layout.jsx` | Header/sidebar frame, responsive content margin, route outlet, footer |
-| `Header` | Header UI; detailed behavior needs source review |
-| `Sidebar.jsx` | Role-filtered navigation, collapse/expand, active state, Courses submenu |
-| `Theme.jsx` | MUI theme |
-| `PrivateRoute` | Route guard wrapper; exact logic must be audited |
-| `LoadingOverlay` | Loading feedback |
-| `ErrorBoundary` | Error boundary component imported by `App.jsx`; whether/how it is applied needs inspection |
-
-### 9.2 UI libraries in the hierarchy screens
-
-The reviewed education screens combine:
-- **Material UI:** `Box`, `Button`, `Dialog`, `TextField`, `Stack`, `IconButton`, `Typography`, `CircularProgress`, `MenuItem`, `FormControl`, `Select`, `Alert`.
-- **Ant Design:** `Table`, `Input.Search`, `Popconfirm`, `message`.
-- **React hooks:** `useState`, `useEffect`, `useMemo`.
-- **React Router:** `useNavigate`, `useSearchParams`.
-- **Framer Motion:** layout/sidebar transitions.
-
-### 9.3 Search, filters, and pagination
-
-In reviewed hierarchy pages, search is performed locally against already-fetched arrays and pagination slices the filtered array. `ContinentRelation.jsx` and `Course.jsx` show page-size options `[10, 20, 25, 50]`; `City.jsx` has similar local state and search behavior.
-
-Before adding a new table, confirm:
-- whether the endpoint returns all rows or a page;
-- whether search should be local or server-side;
-- how total count is obtained;
-- how the current page resets after search, page-size changes, or deletion;
-- whether the API uses zero-based or one-based page numbering;
-- whether sorting is local or server-side.
-
-Do not mix server pagination with local slicing unless explicitly designed.
-
-### 9.4 Forms and uploads
-
-Course form state includes image fields (`thumbnail`, `image`) and many course metadata fields. The actual multipart encoding and backend upload behavior are implemented in `CourseService` or backend endpoints and must be verified there. Client-side checks do not replace server-side file validation.
-
-### 9.5 Reuse guidelines
-
-- Keep shared layout behavior in `Layout.jsx`, `Header`, `Sidebar`, and common components.
-- Keep endpoint construction and HTTP requests in service modules.
-- Keep route-specific UI in module components.
-- Avoid duplicating hierarchy parent selection/navigation logic; use `CourseEntityRoute` where it fits the current architecture.
-- Preserve existing MUI/Ant Design conventions in nearby files unless there is an agreed component-system migration.
-
----
-
-## 10. Development Environment Setup
-
-### 10.1 Prerequisites
-
-Verified from project configuration:
-- Node.js and npm are required to run the Vite/npm scripts.
-- The project uses React 18 and Vite 6 dependency ranges.
-- A supported Node.js version is not specified in the available `package.json`; use the team's agreed Node LTS version and confirm it in CI/deployment configuration.
-
-### 10.2 Install dependencies
-
-From the directory containing `package.json`:
+Use the Node.js/npm version approved for the project. From the repository root:
 
 ```bash
-npm install
-```
-
-If the repository commits `package-lock.json`, prefer `npm ci` for a reproducible clean install in CI or a clean checkout.
-
-### 10.3 Start development server
-
-```bash
+npm ci
 npm run dev
 ```
 
-Vite prints the local URL and port in the terminal. Do not assume the port is always `5173`; it can change if the default port is occupied or configuration differs.
+Use `npm install` only when intentionally changing dependencies. Configure the required `VITE_*` API values in the appropriate local environment file; do not commit secrets.
 
-### 10.4 Lint
+### Build, lint, and preview
 
 ```bash
 npm run lint
-```
-
-The script runs `eslint .`. Fix newly introduced lint issues and review existing baseline failures separately.
-
-### 10.5 Production build
-
-```bash
 npm run build
-```
-
-Vite writes the production output to `dist/` by default unless build configuration changes that behavior. Verify build completion and test the output before deployment.
-
-### 10.6 Preview the production build
-
-```bash
 npm run preview
 ```
 
-Open the URL printed by Vite. This previews the built frontend locally; it does not reproduce every production server, domain, CORS, authentication, or reverse-proxy behavior.
+### Verification snapshot on 18 November 2026
 
-### 10.7 Environment variables and API base URL
+- `npm run build` completed successfully. Vite reported existing duplicate object-key warnings in `AbroadInquiryForm.jsx`, `CourseFinder.jsx`, and `Sidebar.jsx`, plus a mixed static/dynamic import warning for `StaffService.js` and a large bundle warning.
+- `npx eslint src/Components/Jobs/JobDetailDialog.jsx` passed after the latest Job List Edit-action safeguard.
+- `npm run lint` did **not** pass: ESLint reported 150 errors and 35 warnings across the repository. Findings include unused variables, undefined names, duplicate object keys, and hook-dependency warnings. The full lint report should be reviewed and cleaned up separately; this documentation update does not fix those unrelated issues.
+- There is no configured automated unit/integration test command. Validate critical flows manually against an authorized test backend, including direct route refresh and role-restricted actions.
 
-The reviewed excerpts do not establish a complete frontend `.env` contract or a single API base URL. Search service modules for:
-- hard-coded `http://` or `https://` origins;
-- `import.meta.env`;
-- Axios instances and interceptors;
-- token/header configuration;
-- upload URL handling.
+### High-value smoke tests
 
-Never commit credentials, private keys, tokens, passwords, or production secrets. If a frontend environment variable is used by Vite, remember that values exposed to client-side code are not secret.
+- Login, session expiry, logout/redirect, and role-specific sidebar visibility.
+- Direct access and refresh for nested routes.
+- Course hierarchy parent selection and forward/back navigation.
+- Job List row click opens detail only; Edit opens the edit form without submitting; Update submits once; Cancel/Close do not submit.
+- Job filters work together, clear/reset correctly, and retain correct pagination.
+- Job application status update and deactivation against the backend-supported status set.
+- Scholarship create/edit prefill, month conversion, file handling, link rendering, and Amount validation.
+- Loading, empty, API error, validation, and success states for changed module workflows.
 
-### 10.8 Deployment base path
+## 9. Known caveats
 
-`vite.config.js` currently uses `/wayabroadadmin/`. If the app is deployed under a different path, coordinate the Vite base, router strategy, static asset paths, and web-server SPA fallback before changing it.
+1. **Duplicate Marketing route:** `App.jsx` declares two sibling routes with `path="Marketing"`—one renders `BlogManagement`, another renders `MarketingSideBar` and nested Marketing pages. Consolidate only after confirming intended behavior and preserving existing links.
+2. **Course Finder path mismatch:** the route is `CourceFinder`, while the navigation segment is `/CourceFinder ` with a trailing space. This can prevent navigation from matching the route.
+3. **Mixed API configuration:** multiple Axios clients and direct requests use different environment variable names and fallback patterns. Review carefully before centralizing them; a shared change can affect several modules.
+4. **Frontend access controls are not authorization:** `PrivateRoute` checks for token presence and navigation entries filter by role, but only the backend can enforce permissions and record scope.
+5. **Application statuses:** the frontend declares seven status values. Confirm the current backend enum and allowed transitions before modifying labels or actions.
+6. **Legacy field names:** several pages/services use historic spellings and backend-specific field names. Do not normalize these without coordinated API changes.
+7. **Production behavior is unverified:** this repository does not include backend source, API specification, database schema, deployment-server config, or a production browser test.
 
----
+## 10. Maintenance guidance
 
-## 11. Running and Testing the Application
+- Keep route definitions in `src/App.jsx` and sidebar navigation entries synchronized. Check casing, trailing whitespace, nested paths, and role visibility together.
+- Keep API request logic in the established feature service where feasible. Preserve request parameters, payloads, response normalization, authentication behavior, and error visibility.
+- Before adding filters, establish whether data is paginated by the server or fully loaded in the browser. Do not paginate an already paginated response a second time.
+- For async React effects, handle unmount/stale responses and clear loading state on both success and failure.
+- Make non-submit buttons inside forms explicitly `type="button"`; reserve `type="submit"` for the intended form action.
+- Preserve parent/child IDs in the course hierarchy and reset descendant selections when the parent changes.
+- Keep production secrets out of source, docs, and client-side variables.
+- Before a code change is committed, review `git diff`, run targeted lint/tests, and run a production build when appropriate. Keep generated `dist/`, `node_modules/`, archives, and local configuration out of commits unless explicitly required.
 
-### 11.1 Minimum local smoke test
+## 11. Recent change history
 
-1. Install dependencies.
-2. Run `npm run dev`.
-3. Confirm the login route loads.
-4. Confirm public registration route loads if its backend dependencies are available.
-5. Log in with an authorized test account provided through the team's approved process.
-6. Confirm the admin layout and role-filtered sidebar render.
-7. Open each route family relevant to the current change, including Jobs Management (`create`, `list`, `applications`, `settings`) and Inquiry List.
-8. For Jobs, verify authorized sidebar visibility, create/edit prefill, job search and filters, pagination, delete confirmation, application details/status updates, and each Job Settings CRUD flow against a test backend.
-9. For Inquiry List, verify the Passport Yes/No filter, each status tab and clear behavior, responsive horizontal scrolling, page-size changes, and the zero-results count.
-10. Test loading, empty, success, and API-error states.
-11. Run `npm run lint`.
-12. Run `npm run build`.
-13. Run `npm run preview` and repeat critical navigation checks against the built output.
-
-### 11.2 Hierarchy regression checklist
-
-- [ ] Continent page loads.
-- [ ] Manage Countries passes the selected continent context.
-- [ ] Country → State navigation works.
-- [ ] State → City navigation works.
-- [ ] City → University navigation works.
-- [ ] University → College navigation works.
-- [ ] College → Stream navigation works.
-- [ ] Stream → Course navigation works.
-- [ ] Each Back action returns to the intended parent page.
-- [ ] Parent IDs are retained where needed.
-- [ ] Descendant IDs are not retained when they could refer to a different branch.
-- [ ] Direct URL with a valid parent ID selects the correct parent.
-- [ ] Missing or invalid parent ID produces a safe prompt rather than rendering unrelated data.
-- [ ] Browser Back and Forward behave correctly.
-- [ ] Refreshing a nested route works in local preview and in production hosting.
-- [ ] Course create uses the intended Stream and College context.
-- [ ] API failures are visible and do not leave permanent loading indicators.
-
-### 11.3 CRUD regression checklist
-
-For each module changed:
-- [ ] List/read works.
-- [ ] Search behavior is correct.
-- [ ] Pagination and page-size changes are correct.
-- [ ] Create validation is correct.
-- [ ] Update pre-populates the expected values.
-- [ ] Delete confirmation and refresh are correct.
-- [ ] Uploads work if supported.
-- [ ] Loading and error states are correct.
-- [ ] Role-specific navigation and server authorization are checked.
-- [ ] No unrelated route or layout behavior regressed.
-
----
-
-## 12. Known Issues and Limitations
-
-The following are code observations or verification gaps, not necessarily confirmed production bugs.
-
-### 12.1 Duplicate Marketing route
-
-`App.jsx` declares `path="Marketing"` twice under `/wayabroadadmin/admin`:
-- one route renders `BlogManagement`;
-- another renders `MarketingSideBar` and its nested marketing pages.
-
-This is a **confirmed route-definition conflict risk**. Consolidate the route only after deciding the intended canonical Marketing page and verifying all links.
-
-### 12.2 Course Finder spelling and whitespace
-
-`App.jsx` declares `CourceFinder` (spelling as in source). The reviewed navigation config uses `/wayabroadadmin/admin/CourceFinder ` with a trailing space. This mismatch can make navigation inconsistent. Confirm the actual navigation behavior and update the route/config together, checking any bookmarks or external links.
-
-### 12.3 Profile placeholder
-
-`/wayabroadadmin/admin/Admin-Profile` displays “Settings Page Under Construction”; this is an explicit placeholder.
-
-### 12.4 Scholarship lead form route
-
-The `lead-form` child route is commented out in `App.jsx`; the lead-list route remains configured.
-
-### 12.5 Contact Us sidebar entry
-
-The Contact Us navigation item is commented out in the reviewed `SidebarNavigation` configuration, while the route family remains present in `App.jsx`.
-
-### 12.6 Course page terminology and ID contract
-
-The Course form includes legacy spellings such as `tutionFees` and `courseDetials`. The wrapper separately supplies `collegeId` while loading courses using `streamId`. Verify the API contract before renaming fields or changing the relationship model.
-
-### 12.7 Error visibility for college options
-
-The Course route's additional college-options request catches errors and replaces options with an empty array. The user may see no options without a clear error explanation.
-
-### 12.8 Authentication cannot be fully certified from route declarations
-
-`PrivateRoute` is used around the admin route parent and sidebar items are filtered by session `role`. The reviewed excerpts do not show enough code to certify token validation, session expiration, or server-side permission enforcement. The backend must enforce authorization independently.
-
-### 12.9 Backend and database are not included
-
-No backend controller, database schema, migration, or API specification was supplied for this documentation pass. Endpoint paths, HTTP methods, request/response schemas, and foreign keys remain unverified.
-
-### 12.10 Build and browser integration status
-
-The hierarchy navigation was reported working by the project owner. This document does not independently run the complete repository build or test it against a live backend/production host.
-
----
-
-## 13. Future Development Guidelines
-
-### 13.1 Add a new admin page
-
-1. Create the page component in the appropriate module folder, following nearby naming and casing.
-2. Keep data access in a service module instead of embedding endpoint construction throughout JSX.
-3. Use existing shared layout, theme, loading overlay, and UI conventions.
-4. Add a route under the protected `/wayabroadadmin/admin` parent in `src/App.jsx`.
-5. If the page should appear in the sidebar, add a matching entry to the navigation configuration with the intended role list.
-6. Check that the sidebar segment exactly matches the route path; avoid leading/trailing whitespace.
-7. Test direct URL access, refresh, active navigation, and role visibility.
-8. Test loading, empty, error, success and validation states.
-9. Run lint and production build.
-
-### 13.2 Add or update a service function
-
-1. Inspect the existing service file and nearby functions.
-2. Confirm the backend endpoint, HTTP method, authentication headers, required query parameters and payload schema with the backend owner.
-3. Reuse the project's existing HTTP client/instance if one exists.
-4. Keep response normalization explicit; do not silently assume a response is always an array.
-5. Propagate useful errors so the component can display a clear message.
-6. Never log credentials or sensitive payloads.
-7. Add a test or a repeatable manual verification checklist.
-
-### 13.3 Integrate an API into a page
-
-- Use `useEffect` or an explicit event handler for the request lifecycle.
-- Track loading and error state independently where appropriate.
-- Avoid stale updates after unmount; use the project's established cancellation/cleanup approach.
-- Validate the response shape before rendering.
-- Refresh data after successful mutations.
-- Avoid duplicate requests caused by unstable dependencies.
-- Ensure a failure does not leave the UI permanently loading.
-
-### 13.4 Implement searchable tables and pagination
-
-Decide first whether the API is server-paginated or returns the full dataset.
-
-For client-side pagination:
-1. Fetch and validate the complete dataset.
-2. Apply search/filter.
-3. Calculate total items and total pages.
-4. Clamp/reset the current page after search, deletion, or page-size change.
-5. Slice the filtered data for display.
-
-For server-side pagination:
-1. Send page, page size, filter and sort parameters according to the backend contract.
-2. Render the server-returned rows.
-3. Use server-provided total count.
-4. Do not apply a second local slice to an already paginated response.
-
-### 13.5 Maintain hierarchy navigation
-
-- Use the correct entity ID for every parent relationship.
-- Preserve only relevant ancestor query parameters when moving backward.
-- Clear stale child IDs when changing a parent branch.
-- Handle missing/invalid IDs with a visible, safe state.
-- Keep forward and backward flows symmetrical.
-- Verify both in-app navigation and direct URL access.
-- Coordinate any payload or foreign-key change with the backend developer.
-
-### 13.6 Authentication and authorization
-
-- Treat `sessionStorage` values as UI context only.
-- Do not rely on hidden sidebar items or client route guards as security boundaries.
-- Confirm that APIs authorize every request.
-- Avoid exposing secrets through Vite environment variables.
-- Follow the team's approved logout/session-expiry behavior.
-
-### 13.7 Git and release hygiene
-
-Before committing:
-```bash
-git status
-git diff
-npm run lint
-npm run build
-```
-
-Stage only intended source/config/documentation files. Do not commit `.env` secrets, generated archives such as `src.zip`, `node_modules`, or build artifacts unless the repository's deployment workflow explicitly requires them. Add unwanted archive names to `.gitignore`.
-
-After building:
-- Review `dist/` locally.
-- Confirm the production base path.
-- Test nested-route refresh on the target host.
-- Coordinate deployment and rollback with the responsible owner.
-
----
-
-## 14. Glossary of Important Technical Terms
-
-| Term | Meaning in this project |
+| Date | Change |
 |---|---|
-| SPA | Single-page application; React Router changes views without full document navigation |
-| Vite | Development server and frontend build tool |
-| Route | URL pattern mapped to a React component |
-| Nested route | A child route rendered inside a parent route, commonly through React Router's `Outlet` |
-| `Outlet` | Placeholder in a parent route component for the matched child route |
-| `PrivateRoute` | Wrapper intended to restrict access to a route; actual enforcement depends on its implementation and backend |
-| Service module | Frontend module responsible for calling backend APIs |
-| CRUD | Create, Read, Update, Delete |
-| Query parameter | Key/value in the URL after `?`, used here to retain hierarchy IDs |
-| Parent ID | Identifier used to select the related parent entity |
-| Client-side filtering | Filtering records in the browser after fetching them |
-| Client-side pagination | Dividing a local array into pages in the browser |
-| Server-side pagination | Backend returns only a requested page and usually a total count |
-| Build | Bundling and optimizing the frontend for deployment |
-| `dist/` | Default Vite production output directory |
-| Base path | URL prefix from which the built frontend assets are served |
-| CORS | Browser-enforced policy controlling cross-origin API requests |
-| Authorization | Server-side decision about what an authenticated user may do |
-| Regression test | Check that a new change has not broken existing behavior |
-| Foreign key | Database relationship constraint; must be confirmed in backend schema |
-
----
-
-## 15. Missing Information and Verification Checklist
-
-To turn this into a fully audited, release-grade reference, inspect or obtain:
-
-### Repository files
-- [ ] Current full repository tree (especially all files under `src/`).
-- [ ] `package-lock.json` and the Node version used by the team/CI.
-- [ ] `main.jsx` or actual React bootstrap file.
-- [ ] Full `PrivateRoute`, login/logout, token/session, and permission implementation.
-- [ ] Full `Header`, `ErrorBoundary`, `LoadingOverlay`, theme and navigation configuration.
-- [ ] All service files and any shared Axios instance/interceptors.
-- [ ] Relevant `.env.example` (with no real secrets) and environment variable names.
-- [ ] ESLint configuration and any test configuration.
-
-### API/backend contract
-- [ ] API base URL(s) by environment.
-- [ ] Endpoint, method, headers, payload, response and error schema for each service function.
-- [ ] Backend controllers or OpenAPI/Swagger document.
-- [ ] Database schema/foreign keys for Continent, Country, State, City, University, College, Stream and Course.
-- [ ] Course create/update requirements for `streamId`, `collegeId`, upload fields and legacy field names.
-- [ ] Authentication and role authorization contract.
-- [ ] Pagination, sorting, filtering and upload limits.
-
-### Runtime and deployment
-- [ ] Actual production host and static-file configuration.
-- [ ] SPA fallback behavior for refreshing nested routes.
-- [ ] Production API connectivity, CORS and TLS behavior.
-- [ ] Confirmed commands/versions from the team's deployment environment.
-- [ ] Results of `npm run lint`, `npm run build`, and the hierarchy smoke test.
-
-### Module audit
-- [ ] Open each route's component and list its implemented actions.
-- [ ] Map each action to service functions and API endpoints.
-- [ ] Confirm which modules are active, placeholders, deprecated or hidden from navigation.
-- [ ] Resolve the duplicate Marketing route and Course Finder path mismatch.
-- [ ] Verify `BlogManagement` parent/index route behavior.
-- [ ] Confirm whether Contact Us should appear in the sidebar.
-- [ ] Confirm whether the Scholarship lead-form route is intentionally disabled.
-- [ ] Verify the duplicate Marketing parent route in the current local `App.jsx`; no fix has been applied.
-- [ ] Confirm the authoritative Web Inquiry data source (legacy Contact Us endpoints versus `/form-submission`) with the backend owner.
-- [ ] Verify role/branch data scoping for `getAllExamsPreparation` and `/form-submission` endpoints.
-- [ ] Confirm allowed Web Inquiry status values before adding status editing or counts.
-- [ ] Confirm whether the current local Web Inquiry component includes the Status column shown in screenshots.
-
----
-
-## Change Log
-
-| Date | Update |
-|---|---|
-| 12 October 2026 | Initial documentation generated from available `App.jsx`, `Sidebar.jsx`, navigation/package excerpts, and education hierarchy components. Forward and backward hierarchy navigation was reported working by the project owner. Full backend and repository audit remains pending. |
-| 19 October 2026 | Updated the module directory, route table, test checklist and module documentation with the Day 3 Jobs Management frontend and Day 4 Inquiry List UI changes. Day 5 Job form-field changes are intentionally not included. Build and live API validation remain pending in the actual project environment. |
-
-## 16. Subsequent Change Log — 20–28 October 2026
-
-> **Evidence note:** This section records requirements and progress discussed after the original Day 1–Day 4 document. A request being discussed or a prompt being prepared does not prove that code was implemented. Only explicitly confirmed work is labeled completed; all other items require checking against the current frontend repository before being marked done.
-
-### 16.1 Job Management — Create Job form
-
-**Requirements discussed; implementation needs repository verification**
-
-- Arrange the Create Job form into a more compact, professional layout with balanced field widths and consistent spacing. Proposed grouping:
-  - Job Title + Job Type
-  - Sector + Job Role
-  - Education + Level of Experience
-  - Skills multi-select + Number of Openings
-  - Country + Location + Work Type
-  - Salary + Currency
-  - full-width Job Description
-  - Active control and aligned Cancel/Create Job actions
-- Preserve all existing fields, API payloads, validations, and submission behavior during layout-only work.
-- A validation issue was observed: selected Skills tags (e.g. Python, ML, AI, SQL) were visible, but browser validation still showed “Please fill out this field.” Root-cause hypothesis: the required text-entry input may be validated instead of the selected-skills collection. This must be verified in code. Expected behavior: no selected skills blocks submission; one or more selected skills pass Skills validation even if the text-entry input is empty; removing all selected skills restores required validation.
-
-### 16.2 Job Management — Job List filters
-
-**Requirements discussed; implementation needs repository verification**
-
-- Verify every existing Job List filter actually filters records and works with other filters and pagination.
-- Replace separate Min Salary and Max Salary controls with one Salary Range control, preferably a two-handle slider if compatible with the existing project.
-- Use actual salary data or a backend-supported range; do not invent range bounds or currency assumptions.
-- Keep minimum ≤ maximum, allow clearing/resetting, reset pagination when criteria change, and preserve all other filters and actions.
-- Change filtering from requiring a Search-button click to automatic updates when filter values change. Use approximately 300 ms debounce for keyword input to limit API calls; dropdown and salary-range changes should apply automatically. The Clear action should reset all filters and refresh results. Ensure stale responses cannot overwrite newer results where asynchronous requests are used.
-- Do not invent API parameters or change backend contracts; document missing server-side filtering support if necessary.
-
-### 16.3 Job Management — Job Applications statuses and filter analysis
-
-**Requirements discussed; backend values and implementation need verification**
-
-- Backend developer reportedly updated application status values. Inspect the latest backend source/API and synchronize the frontend Status filter, labels, badges, and related mappings with verified values. Do not assume the earlier documented statuses (`PENDING`, `SHORTLISTED`, `REJECTED`, `HIRED`) are still authoritative.
-- Audit the backend models, responses, and filtering/query capabilities to recommend additional useful Job Applications filters. Candidate fields to evaluate include Country, Job/Job Title, Sector, Job Role, Job Type, applicant name/email/phone, application date range, education, experience level, source, assigned staff, or branch where supported.
-- Distinguish filters already supported by the API, filters possible with existing complete client data, filters requiring backend support, and unsuitable/redundant filters.
-- The additional filter recommendations should be presented for approval before implementation. Do not add filters just because a similarly named field exists in a related Job entity; verify its relationship to application records.
-
-### 16.4 Scholarship Management
-
-**Requirements discussed; implementation needs repository verification**
-
-- Edit Scholarship must contain the same fields as Create/Add Scholarship and load each saved value into the matching input. Verify field-name mapping, asynchronous dropdown loading, dependent fields, and update payloads. Reopening a saved scholarship should show the updated values without clearing unrelated data.
-- Rename **Test Date** to **Test Month** and allow selecting a month only (January–December), without requiring a day or year. Check the current API format first; if the backend expects a full date and a safe frontend mapping is not possible, document the dependency rather than silently submitting an incorrect value.
-- Add a **Scholarship Link** column to Scholarship List using the actual API field. Render valid links as clickable links opened safely in a new tab; show a placeholder when absent. Do not fabricate URLs.
-- Relax unnecessary Amount field restrictions while preserving numeric validation, allowing valid integers and decimals and zero if consistent with business rules. Do not impose an arbitrary maximum; preserve existing required/optional behavior, currency fields, and backend payload types.
-
-### 16.5 Inquiry Management — Inquiry List
-
-**Responsive status-tab improvement explicitly confirmed complete by the user; later spacing/removal request requires verification**
-
-- The user confirmed that the responsive status-tab overlap fix was completed. The intended behavior is that the nine status tabs do not overlap when the browser is resized; desktop may show a row, while narrower layouts should wrap or use contained horizontal scrolling.
-- Status tabs include: `INTERESTED`, `NOT INTERESTED`, `CONNECTING`, `RINGING / SWITCH OFF`, `CALL BACK`, `OFFICE VISIT`, `PROCESSING`, `APPLICATION`, and `CNI`.
-- A subsequent requested UI change was to remove the visible **“Filter inquiries”** heading and **“Clear filters”** action from the filter section while preserving the underlying filters and filtering logic.
-- Add moderate, consistent spacing between Dashboard/Inquiry List navigation, filters, status tabs, record summary, and table. Avoid excess whitespace.
-- The remove-heading/remove-Clear action and spacing changes were requested after the confirmed responsive fix; verify their implementation in the current repository before treating them as complete.
-
-### 16.6 Application Management
-
-**Requirements discussed; implementation needs repository verification**
-
-- Fix active navigation highlighting: Application Management should remain active on its Dashboard, Create Application, and List routes, with the correct child item highlighted. Direct navigation and page refresh should also select the correct state. Inspect actual React Router paths and avoid a one-route hardcoded fix.
-- Standardize **Application Management → List** visually with **Inquiry Management → Inquiry List**. Reuse its layout patterns (navigation/content spacing, filter controls, table header/rows, typography, borders, record summary, pagination, responsive table scrolling) while retaining Application List’s own fields, filters, records, API mappings, permissions, and row actions.
-- Do not copy Inquiry List’s business logic or data into Application Management. Do not alter unrelated modules.
-
-### 16.7 Registration Management
-
-**Requirements discussed; implementation needs repository verification**
-
-- Redesign **Registration Form** as a professional, compact, responsive form while preserving all existing fields, required indicators, validations, Stream → Course behavior, API payloads, submission flow, and success/error states. Proposed grouping includes Name, Email, Mobile Number; Stream and Course Name; Location and Amount; and a clearly aligned Submit action. Preserve any additional fields found in the actual form.
-- Standardize **Registration List** visually with **Application Management → List**, using the latter as the primary reference for spacing, filters, table styling, typography, pagination, and responsive behavior.
-- Retain Registration List’s own data, fields, filters, actions, and supported pagination. Preserve Registration Management navigation options: Registration Form, Registration List, and Generate QR Code. Do not redesign Generate QR Code as part of the list task.
-
-### 16.8 Marketing module
-
-**Audit requested; proposed enhancements are suggestions, not implemented features**
-
-Screenshots reviewed on 28 October 2026 show two visible tabs:
-
-1. **Exam Preparation List** — columns shown: ID, Name, Contact Number, Exam Name, Actions.
-2. **Web Inquiry List** — columns shown: ID, Name, Email, Phone, Continent, Courses, Status, Actions.
-
-The screenshots alone do not prove these are the only Marketing routes/pages; verify the sidebar, route configuration, components, service files, and backend endpoints before concluding the module inventory.
-
-Potential enhancements to evaluate against actual data and APIs:
-- Exam Preparation List: search by name/contact/exam, exam-wise filtering, date or preparation-status filtering only if those fields exist, and consistent empty states/pagination/record counts.
-- Web Inquiry List: search by name/email/phone, filters for Continent/Course/Status, inquiry date range if available, consistent status badges, and status updates only if supported.
-- Optional dashboard cards for total web inquiries, exam registrations, status-wise counts, recent inquiries, and follow-ups only when reliable existing data or approved backend endpoints support them.
-- Optional lead follow-up tracking (date, assigned staff, remarks) only if the current model/workflow supports it or the backend team agrees to the required API changes.
-
-No new Marketing pages or features have been confirmed as implemented. First audit the complete module and provide prioritized recommendations; wait for approval before adding features.
-
-### 16.9 Marketing module — source-level audit on 28 October 2026
-
-**Audit completed against the available frontend archive and backend Java archive; no application code was changed. The user's current local working tree may differ from the archived frontend, so re-check before implementing.**
-
-#### Routes and navigation found in the reviewed frontend archive
-
-- `src/App.jsx` contains two sibling route declarations with the same `path="Marketing"`: one renders `BlogManagement`, and another renders `MarketingSideBar` with nested Marketing pages. This is a confirmed duplicate route-definition risk in the archive, not proof of the exact runtime behavior in the user's current local copy.
-- The nested route paths found are:
-  - `/wayabroadadmin/admin/Marketing/exampreparationlist`
-  - `/wayabroadadmin/admin/Marketing/webinquirylist`
-  - `/wayabroadadmin/admin/Marketing/registrationweblist`
-- The parent `/wayabroadadmin/admin/Marketing` is intended to render the Marketing navigation container. The main sidebar entry points to that parent and the reviewed navigation config limits it to `superAdmin`.
-- `RegistrationWebList.jsx` exists as a placeholder, its route is defined, and its Marketing sidebar item is commented out. Do not treat it as a completed Registration list or enable it without a separate approved task.
-- No route changes have been applied. The proposed minimal fix is to remove the standalone duplicate `Marketing` route that renders `BlogManagement`, after confirming Blog Management remains available through its own `/blog` route and checking the current local `App.jsx`.
-
-#### Exam Preparation List
-
-- Reviewed component: `src/Components/Marketing/ExamPreparationList.jsx`.
-- Existing UI in the archive: ID, Name, Contact Number, Exam Name, Actions; sorting by ID/Name; an Exam Name filter; pagination/page-size selection; edit and delete flows; loading/error feedback.
-- The edit dialog's visible exam options in the reviewed archive are TOEFL, IELTS, GRE, GMAT, SAT, ACT, and PTE.
-- Service endpoints found in the archived `Marketing.js`: `GET /getAllExamsPreparation`, `GET /getExamPreparationById/{id}`, `PUT /updateExamPreparation/{id}`, and `DELETE /deleteExamPreparation/{id}`. Get-by-ID/update/delete calls include `role`/`email` query parameters, while the list call does not pass role/email through to the request.
-- The corresponding archived backend entity includes `id`, `name`, `contactNumber`, `examName`, `createdByEmail`, and `role`; no creation date, status, remarks, assignment, or follow-up date was found in that entity.
-- This creates a role/data-scope question to confirm with the backend owner: the list endpoint in the archive accepts no role/email parameters and appears to return all records. Do not assume this is secure or branch-scoped without server-side authorization confirmation.
-
-#### Web Inquiry List
-
-- Reviewed component: `src/Components/Marketing/ContactUsList.jsx`.
-- Existing UI in the reviewed archive: ID, Name, Email, Phone, Continent, Courses, Actions; sorting by ID/Name; a Continent filter; pagination; edit/delete flows; loading/error feedback.
-- **Screenshot/source discrepancy:** the screenshots show a Status column, but the reviewed `ContactUsList.jsx` archive does not render one. Verify the current local version before changing the table.
-- Legacy service calls found: `GET /getAllContactUs`, `PUT /updateContactUS/{id}`, and `DELETE /deleteContactUs/{id}`. The legacy Contact Us entity in the reviewed backend archive contains `id`, `name`, `email`, `phnNo`, `continent`, and `courses`, without status/date/remarks/assigned-staff/follow-up fields.
-- The reviewed backend archive also contains a separate `/form-submission` controller and response DTO with `id`, `formType`, `name`, `email`, `phoneNumber`, `continentId`, `continentName`, `courseId`, `courseName`, `status`, `createdByEmail`, `role`, and `branchCode`. The form-type enum includes `CONTACT_US`, `COUNSELLING`, and `SIGNUP`.
-- The form-submission controller supports listing/filtering by form type and has get-one/update/delete operations. The update API can update `status`; however, the reviewed model does not define a fixed status enum or authoritative allowed status list. Confirm the expected workflow/status values before implementing status controls.
-- The newer form-submission model is not identical to the legacy Contact Us model. Switching Web Inquiry to `/form-submission` requires confirming which dataset is authoritative and mapping field names/IDs correctly. No API migration was implemented during this audit.
-
-#### Marketing recommendations and dependencies
-
-Priority order:
-1. Resolve/verify duplicate route behavior and confirm the authoritative Web Inquiry data source.
-2. Review role/branch scoping for Exam Preparation list retrieval.
-3. Add global search, record summaries, clear-filter behavior, and consistent empty/error states to existing lists; client-side search is frontend-only only when the returned dataset is complete.
-4. If `/form-submission` is approved as the source, display/update status only using agreed status values and verified API behavior.
-5. Add date-range filtering only if a trustworthy date field and API support are available. Add remarks, assigned staff, follow-up dates/reminders only after backend model/API support is agreed.
-6. Consider a Marketing summary dashboard only after the source of truth, access scope, and status definitions are reliable.
-
-No Marketing UI, route, service, API, or backend code was changed during this audit. All recommendations are pending approval and implementation.
-
-### 16.10 Cross-cutting implementation and safety rules
-
-- Preserve existing data, field mappings, validation, routes, permissions, API contracts, and working functionality unless a requirement explicitly calls for a change.
-- Do not modify backend code or database schemas as part of frontend-only tasks.
-- If a backend field, endpoint, or filtering capability is missing, implement only the frontend UI that can be built safely, document the exact dependency, and avoid fake data or invented contracts.
-- Modify only files necessary for the approved task; provide complete updated code for changed files rather than replacing the entire `src` folder.
-- Verify the actual source and test outcomes before marking a task complete. Separate planned/requested work from implemented and verified work.
-
-### 16.11 Implementation status tracker — as of 28 October 2026
-
-Use this tracker to avoid treating a request, code draft, or generated ZIP as a completed production change. Status is based on the conversation and available artifacts; the current local repository has not been exhaustively diffed against all delivered files.
-
-| Module/task | Status supported by available evidence | Next verification/action |
-|---|---|---|
-| Jobs Management — compact Create Job layout | Requested; actual local implementation not verified | Inspect current `JobForm.jsx` and compare with approved layout |
-| Jobs Management — Skills multi-select validation | Issue reported; fix status not independently verified | Test empty selection, selected skills, removing all skills, and submission |
-| Jobs Management — Job List Salary Range and automatic filtering | Requirements and implementation discussion recorded; current code behavior needs verification | Test combined filters, debounce, reset, page reset, min/max bounds, and backend parameter contract |
-| Job Applications — backend status/filter integration | Backend changes reported by user/developer discussion; exact current values and frontend mapping need verification | Inspect current backend DTO/controller and frontend status mapping before changing filters |
-| Scholarship — Edit form parity, Test Month, Scholarship Link, Amount validation | Requirements recorded; implementation status not verified against current local repository | Compare Add/Edit fields, API payloads and list columns; test month and numeric edge cases |
-| Inquiry Management — responsive status tabs | User explicitly confirmed the responsive tab-overlap fix was completed | Keep as user-confirmed; browser/build regression test still not documented |
-| Inquiry Management — remove “Filter inquiries” heading and “Clear filters”; spacing | Requested; current implementation needs verification | Inspect `AbroadInquiryList.jsx` and `InquiryFilter.jsx` |
-| Application Management — active navigation state | Requested; implementation needs verification | Test dashboard/create/list route active states and direct refresh |
-| Application Management — list UI matches Inquiry List | Requested; implementation needs verification | Compare current list/filter/table styling while preserving application-specific behavior |
-| Registration Management — Registration Form redesign | Draft/generated artifacts were discussed; merge into current local project and behavior need verification | Compare form fields, validation, Stream/Course dependency and submit flow |
-| Registration Management — Registration List UI matches Application List | Draft/generated artifacts were discussed; merge into current local project and behavior need verification | Verify actual local list and retain existing actions/data/filters |
-| Marketing — duplicate route | Source-level issue found in archived frontend; no fix applied | Verify current local `App.jsx`, then apply only after approval |
-| Marketing — `/form-submission` integration | Discussed, and an update ZIP/code draft was generated; not verified as merged or live-tested | Confirm authoritative data source and exact backend contract, then test response shape |
-| Marketing — search/status/date/follow-up/dashboard enhancements | Recommendations only | Prioritize and approve individually before implementation |
-
-#### Test evidence policy
-
-- Do not mark a task “implemented and verified” solely because code was drafted, pasted in chat, or included in a generated ZIP.
-- For this update, no application source files were modified and no app build, browser test, or live API test was run.
-- Previously documented test claims remain scoped to the original notes: the Inquiry List responsive fix was confirmed by the user; the Day 3/Day 4 source notes report limited syntax checks, not a full Vite build or live API validation.
-- The Marketing route and API findings above are source-level findings from the available archives; current local working-tree differences remain possible.
-
-### 16.12 Working-session checkpoint — 28 October 2026
-
-The agreed workflow is to proceed one step at a time and wait for approval before implementation. The Marketing audit is the current focus. Step 1 identified a duplicate `Marketing` parent route in the archived `App.jsx`; the user chose to stop for the day before approving or applying the fix. Therefore:
-- No routing fix has been applied.
-- No Marketing service/API/UI changes have been applied.
-- Next session should verify the current local `App.jsx` and sidebar against the archived finding, then ask for/act on approval before editing.
-- Preserve the user's local changes and backup; avoid replacing the whole `src` folder or unrelated modules.
-
-### 16.13 Change Log — 20–28 October 2026
-
-| Date | Change / discussion | Documentation status |
-|---|---|---|
-| 20 Oct 2026 | Day 1–Day 4 source-grounded project documentation identified in Library. | Existing documentation source located. |
-| 21–23 Oct 2026 | Job Management backend integration planning, Create Job layout, Skills validation issue, Job List filter verification, Salary Range UI, and automatic filtering requirements. | Requirements captured; implementation needs current-repository verification. |
-| 23 Oct 2026 | Scholarship Edit parity, Test Month, Scholarship Link column, and flexible Amount validation requirements. | Requirements captured; implementation needs current-repository verification. |
-| 26 Oct 2026 | Job Applications updated backend statuses and analysis of additional backend-supported filters requested. | Backend inspection and implementation need verification. |
-| 28 Oct 2026 | Inquiry List responsive status tabs confirmed complete; removal of filter heading/Clear action and spacing requested. Application List UI standardization, Registration Form redesign, Registration List standardization, and Marketing module audit discussed. | Status-tab fix confirmed by user; other items require repository verification. |
-| 28 Oct 2026 (later session) | Audited the available Marketing frontend/backend archives; documented routes, legacy and form-submission APIs, entity/DTO fields, screenshot/source discrepancy, role-scope question, recommendations, and step-by-step checkpoint. | Source-level findings recorded; no application code changed. Duplicate route fix and `/form-submission` migration remain pending approval/verification. |
+| 4–5 November 2026 | Job creation and Job List changes. |
+| 17 November 2026 | Expanded Job Management implementation, including dashboard, detail/edit dialog, application workflows, and job settings. |
+| 18 November 2026 | Fixed the Job List detail dialog's Edit action so it is explicitly a non-submit button and prevents a browser-default form submission; the explicit Update control remains the form submitter. |
+| 18 November 2026 | Updated this documentation to reflect the current repository routes, modules, integrations, verification state, and known caveats. |
