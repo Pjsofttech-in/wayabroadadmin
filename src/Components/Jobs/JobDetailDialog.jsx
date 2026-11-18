@@ -474,7 +474,7 @@ export default function JobDetailDialog({ open, job, canEdit = false, onClose, o
       <DialogActions sx={{ px: 2, py: 1 }}>
         {isEditing ? (
           <>
-            <Button onClick={cancelEdit} disabled={saving} sx={{ textTransform: "none" }}>
+            <Button type="button" onClick={cancelEdit} disabled={saving} sx={{ textTransform: "none" }}>
               Cancel
             </Button>
             <Button
@@ -490,11 +490,15 @@ export default function JobDetailDialog({ open, job, canEdit = false, onClose, o
           </>
         ) : (
           <>
-            <Button onClick={handleClose} sx={{ textTransform: "none" }}>Close</Button>
+            <Button type="button" onClick={handleClose} sx={{ textTransform: "none" }}>Close</Button>
             {canEdit && (
               <Button
+                type="button"
                 variant="contained"
-                onClick={startEdit}
+                onClick={(event) => {
+                  event.preventDefault();
+                  startEdit();
+                }}
                 disabled={settingsLoading || loading}
                 startIcon={settingsLoading ? <CircularProgress size={16} color="inherit" /> : null}
                 sx={{ textTransform: "none", boxShadow: "none" }}
