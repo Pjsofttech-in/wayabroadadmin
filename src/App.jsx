@@ -62,6 +62,7 @@ import JobDashboard from "./Components/Jobs/JobDashboard.jsx";
 import JobForm from "./Components/Jobs/JobForm.jsx";
 import JobList from "./Components/Jobs/JobList.jsx";
 import JobApplications from "./Components/Jobs/JobApplications.jsx";
+import SelectedJobApplications from "./Components/Jobs/SelectedJobApplications.jsx";
 import ManualApplicationForm from "./Components/Jobs/ManualApplicationForm.jsx";
 import JobSettings from "./Components/Jobs/JobSettings.jsx";
 
@@ -209,6 +210,7 @@ const App = () => {
               <Route path="list" element={<JobList />} />
               <Route path="applications" element={<JobApplications />} />
               <Route path="applications/add" element={<ManualApplicationForm />} />
+              <Route path="job-applications" element={<SelectedJobApplications />} />
               <Route path="settings" element={<JobSettings />} />
             </Route>
 

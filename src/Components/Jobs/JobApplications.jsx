@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -35,6 +35,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   searchJobApplications,
+  searchJobs, // NEW: used to map jobId -> country/sector and to build filter options
   getJobApplicationById,
   updateJobApplicationStatus,
   deactivateJobApplication,
@@ -44,20 +45,24 @@ import {
 // Only the labels shown to the admin use the "inquiry" wording.
 const STATUSES = [
   { value: "PENDING", label: "Pending", tag: "gold", color: "#D49A16", icon: <PendingActionsRounded /> },
-  { value: "SHORTLISTED", label: "Shortlisted", tag: "blue", color: "#2878C8", icon: <PlaylistAddCheckRounded /> },
   { value: "INTERESTED", label: "Interested", tag: "cyan", color: "#17A2B8", icon: <StarBorderRounded /> },
-  { value: "PROCESS_1", label: "Process 1", tag: "processing", color: "#7654B8", icon: <LooksOneRounded /> },
-  { value: "PROCESS_2", label: "Process 2", tag: "purple", color: "#9B59B6", icon: <LooksTwoRounded /> },
+  // Keep the backend enum value unchanged; only the admin-facing label is renamed.
+  { value: "SHORTLISTED", label: "Not Interested", tag: "blue", color: "#2878C8", icon: <PlaylistAddCheckRounded /> },
   { value: "APPLY_LATER", label: "Apply Later", tag: "orange", color: "#E67E22", icon: <WatchLaterRounded /> },
+  // Keep PROCESS_2 for API compatibility; display it as DND in the UI.
+  { value: "PROCESS_2", label: "DND", tag: "purple", color: "#9B59B6", icon: <LooksTwoRounded /> },
+  { value: "PROCESS_1", label: "In Process", tag: "processing", color: "#7654B8", icon: <LooksOneRounded /> },
   { value: "SELECTED", label: "Selected", tag: "green", color: "#29965A", icon: <ThumbUpAltRounded /> },
 ];
 const STATUS_BY_VALUE = Object.fromEntries(STATUSES.map((item) => [item.value, item]));
-const getStatusLabel = (status) => STATUS_BY_VALUE[status]?.label || status || "Pending";
-const getStatusColor = (status) => STATUS_BY_VALUE[status]?.tag || "default";
+export const getStatusLabel = (status) => STATUS_BY_VALUE[status]?.label || status || "Pending";
+export const getStatusColor = (status) => STATUS_BY_VALUE[status]?.tag || "default";
 
 const EMPTY_FILTERS = {
   jobId: "",
   status: "",
+  country: "", // NEW
+  sector: "", // NEW
   applicantEmail: "",
   applicantName: "",
   phone: "",
@@ -66,7 +71,7 @@ const EMPTY_FILTERS = {
 };
 const EMPTY_COUNTS = Object.fromEntries([["total", null], ...STATUSES.map((item) => [item.value, null])]);
 
-const getPageData = (response) => {
+export const getPageData = (response) => {
   const payload = response?.data ?? response;
   const pageData = payload?.data ?? payload;
   const content = Array.isArray(pageData?.content)
@@ -82,7 +87,7 @@ const getPageData = (response) => {
 };
 
 // Strict total: null when the response has no totalElements (never guessed).
-const getTotal = (response) => {
+export const getTotal = (response) => {
   const payload = response?.data ?? response;
   const pageData = payload?.data ?? payload;
   const value = pageData?.totalElements;
@@ -91,23 +96,53 @@ const getTotal = (response) => {
   return Number.isFinite(count) && count >= 0 ? count : null;
 };
 
-const getErrorMessage = (error, fallback) =>
+export const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.response?.data?.error || error?.message || fallback;
 
 // The backend search only understands jobId, status and applicantEmail, so
-// applicant name, phone and applied date are matched on the frontend.
+// applicant name, phone, country, sector and applied date are matched on the frontend.
 const SERVER_PAGE_SIZE = 100;
-const normalize = (value) => String(value ?? "").trim().toLowerCase();
-const digitsOnly = (value) => String(value ?? "").replace(/\D/g, "");
-const usesClientFilters = (f) =>
-  Boolean(f.applicantName.trim() || digitsOnly(f.phone) || f.appliedFrom || f.appliedTo);
+export const normalize = (value) => String(value ?? "").trim().toLowerCase();
+export const digitsOnly = (value) => String(value ?? "").replace(/\D/g, "");
 
-const matchesClientFilters = (item, f) => {
+// NEW: reads a plain text value from either a string or an object like { name }.
+const textOf = (value) => String(value?.name ?? value ?? "").trim();
+
+// NEW: country / sector of a job. If your API uses other keys, change only these two.
+export const getJobCountry = (job) => textOf(job?.country ?? job?.countryName);
+export const getJobSector = (job) => textOf(job?.sector ?? job?.sectorName);
+
+// NEW: country / sector of an inquiry. Uses the value on the inquiry itself and
+// falls back to its job (jobMeta is a { [jobId]: { country, sector } } lookup).
+export const getInquiryCountry = (item, jobMeta) =>
+  textOf(item?.country ?? item?.countryName ?? item?.jobCountry) ||
+  jobMeta?.[String(item?.jobId)]?.country ||
+  "";
+export const getInquirySector = (item, jobMeta) =>
+  textOf(item?.sector ?? item?.sectorName ?? item?.jobSector) ||
+  jobMeta?.[String(item?.jobId)]?.sector ||
+  "";
+
+const usesClientFilters = (f) =>
+  Boolean(
+    f.applicantName.trim() ||
+      digitsOnly(f.phone) ||
+      f.appliedFrom ||
+      f.appliedTo ||
+      f.country ||
+      f.sector
+  );
+
+const matchesClientFilters = (item, f, jobMeta) => {
   const name = normalize(f.applicantName);
   if (name && !normalize(item?.applicantName).includes(name)) return false;
 
   const phone = digitsOnly(f.phone);
   if (phone && !digitsOnly(item?.phone).includes(phone)) return false;
+
+  // NEW
+  if (f.country && normalize(getInquiryCountry(item, jobMeta)) !== normalize(f.country)) return false;
+  if (f.sector && normalize(getInquirySector(item, jobMeta)) !== normalize(f.sector)) return false;
 
   if (f.appliedFrom || f.appliedTo) {
     const applied = new Date(item?.appliedAt);
@@ -118,21 +153,21 @@ const matchesClientFilters = (item, f) => {
   return true;
 };
 
-const formatDate = (value) => {
+export const formatDate = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
     : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 };
-const formatDateTime = (value) => {
+export const formatDateTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };
-const show = (value) => (value === null || value === undefined || value === "" ? "-" : value);
+export const show = (value) => (value === null || value === undefined || value === "" ? "-" : value);
 
-function OverviewCard({ title, value, icon, color, loading, onClick, selected }) {
+export function OverviewCard({ title, value, icon, color, loading, onClick, selected }) {
   const hasValue = value !== null && value !== undefined;
   return (
     <Card
@@ -202,7 +237,7 @@ function OverviewCard({ title, value, icon, color, loading, onClick, selected })
   );
 }
 
-function Field({ label, children, sx }) {
+export function Field({ label, children, sx }) {
   return (
     <Box sx={{ minWidth: 0, ...sx }}>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
@@ -232,6 +267,9 @@ export default function JobApplications() {
   const [countsLoading, setCountsLoading] = useState(true);
   const [countsIssue, setCountsIssue] = useState("");
 
+  // NEW: jobId -> { country, sector }
+  const [jobMeta, setJobMeta] = useState({});
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -247,6 +285,7 @@ export default function JobApplications() {
   const clientCacheRef = useRef(null);
   const countsRequestRef = useRef(0);
   const detailRequestRef = useRef(0);
+  const jobMetaRef = useRef({}); // NEW: latest jobMeta for use inside loadApplications
 
   const loadApplications = useCallback(async (nextPage, nextSize, nextFilters, reuse = false) => {
     const requestId = ++requestIdRef.current;
@@ -288,7 +327,7 @@ export default function JobApplications() {
             rest.forEach((response) => combined.push(...getPageData(response).content));
           }
           matches = combined
-            .filter((item) => matchesClientFilters(item, nextFilters))
+            .filter((item) => matchesClientFilters(item, nextFilters, jobMetaRef.current))
             .sort((a, b) => Number(a.id) - Number(b.id));
           clientCacheRef.current = { key, rows: matches };
         }
@@ -344,10 +383,53 @@ export default function JobApplications() {
     });
   }, []);
 
+  // NEW: load jobs once to know each job's country and sector.
+  const loadJobMeta = useCallback(async () => {
+    try {
+      const response = await searchJobs({
+        page: 0,
+        size: 100,
+        sortBy: "jobTitle",
+        sortDir: "ASC",
+      });
+      const list = getPageData(response).content;
+      const next = {};
+      list.forEach((job) => {
+        const id = job?.id ?? job?.jobId;
+        if (id === null || id === undefined) return;
+        next[String(id)] = { country: getJobCountry(job), sector: getJobSector(job) };
+      });
+      jobMetaRef.current = next;
+      setJobMeta(next);
+    } catch (e) {
+      // Not fatal: columns and filters still use values present on the inquiry itself.
+      console.error("Failed to load job country/sector:", e);
+    }
+  }, []);
+
   useEffect(() => {
     loadApplications(0, 10, EMPTY_FILTERS);
     loadCounts();
-  }, [loadApplications, loadCounts]);
+    loadJobMeta();
+  }, [loadApplications, loadCounts, loadJobMeta]);
+
+  // NEW: dropdown options = values from the jobs list + values seen in loaded inquiries.
+  const { countryOptions, sectorOptions } = useMemo(() => {
+    const countries = new Set();
+    const sectors = new Set();
+    Object.values(jobMeta).forEach((meta) => {
+      if (meta.country) countries.add(meta.country);
+      if (meta.sector) sectors.add(meta.sector);
+    });
+    rows.forEach((row) => {
+      const country = getInquiryCountry(row, jobMeta);
+      const sector = getInquirySector(row, jobMeta);
+      if (country) countries.add(country);
+      if (sector) sectors.add(sector);
+    });
+    const sort = (set) => [...set].sort((a, b) => a.localeCompare(b));
+    return { countryOptions: sort(countries), sectorOptions: sort(sectors) };
+  }, [jobMeta, rows]);
 
   const updateFilter = (name, value) => {
     setFilters((previous) => ({ ...previous, [name]: value }));
@@ -467,6 +549,15 @@ export default function JobApplications() {
     {
       title: "Job", dataIndex: "jobTitle", key: "jobTitle", ellipsis: true,
       render: (value, record) => value || (record.jobId != null ? `Job #${record.jobId}` : "-"),
+    },
+    // NEW: Country and Sector columns
+    {
+      title: "Country", key: "country", width: 110, ellipsis: true, responsive: ["lg"],
+      render: (_, record) => text(getInquiryCountry(record, jobMeta)),
+    },
+    {
+      title: "Sector", key: "sector", width: 120, ellipsis: true, responsive: ["lg"],
+      render: (_, record) => text(getInquirySector(record, jobMeta)),
     },
     { title: "Applicant", dataIndex: "applicantName", key: "applicantName", ellipsis: true, render: text },
     { title: "Email", dataIndex: "email", key: "email", ellipsis: true, responsive: ["md"], render: text },
@@ -600,6 +691,30 @@ export default function JobApplications() {
         >
           <MenuItem value="">All</MenuItem>
           {STATUSES.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+        </TextField>
+        {/* NEW: Country filter */}
+        <TextField
+          select
+          size="small"
+          label="Country"
+          value={filters.country}
+          onChange={(event) => updateFilter("country", event.target.value)}
+          sx={{ flex: "1 1 140px", maxWidth: { sm: 170 }, minWidth: 130 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          {countryOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+        </TextField>
+        {/* NEW: Sector filter */}
+        <TextField
+          select
+          size="small"
+          label="Sector"
+          value={filters.sector}
+          onChange={(event) => updateFilter("sector", event.target.value)}
+          sx={{ flex: "1 1 140px", maxWidth: { sm: 170 }, minWidth: 130 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          {sectorOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
         </TextField>
         <Box sx={{ flex: "2 1 200px", minWidth: 0 }}>
           <Input
@@ -769,6 +884,9 @@ export default function JobApplications() {
               <Field label="Job">
                 {selected.jobTitle || (selected.jobId != null ? `Job #${selected.jobId}` : "-")}
               </Field>
+              {/* NEW */}
+              <Field label="Country">{show(getInquiryCountry(selected, jobMeta))}</Field>
+              <Field label="Sector">{show(getInquirySector(selected, jobMeta))}</Field>
               <Field label="Applicant">{show(selected.applicantName)}</Field>
               <Field label="Applied">{formatDateTime(selected.appliedAt)}</Field>
               <Field label="Email">{show(selected.email)}</Field>

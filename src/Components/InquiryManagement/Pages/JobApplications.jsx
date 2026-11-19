@@ -11,7 +11,7 @@ import { getAllCountries } from "../Courses/Continent/CountryService";
 const STATUSES = ["PENDING", "SHORTLISTED", "REJECTED", "HIRED"];
 const emptyFilters = { jobId: "", status: "", applicantEmail: "", countryId: "", sectorId: "", jobRoleId: "", jobTypeId: "" };
 const unwrapArray = (data) => Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
-const optionName = (item) => item?.name || item?.sectorName || item?.jobRoleName || item?.jobTypeName || item?.countryName || "";
+const optionName = (item) => item?.name || item?.sectorName || item?.jobRoleName || item?.jobTypeName || item?.countryName || item?.country || "";
 
 export default function JobApplications() {
   const isBranch = (sessionStorage.getItem("role") || "").toLowerCase() === "branch";
@@ -46,19 +46,18 @@ export default function JobApplications() {
   const roles = useMemo(() => options.role.filter((item) => !filters.sectorId || String(item.sector?.id ?? item.sectorId ?? "") === String(filters.sectorId)), [options.role, filters.sectorId]);
 
   const loadApplications = useCallback(async (nextPage = page, nextSize = pageSize, nextFilters = filters) => {
-    const newFiltersSelected = nextFilters.countryId || nextFilters.sectorId || nextFilters.jobRoleId || nextFilters.jobTypeId;
-    if (newFiltersSelected) {
-      setFilterNotice("Country, Sector, Job Role and Job Type controls are displayed, but the supplied /job-applications/admin/search endpoint does not accept these parameters. Search was not sent with these filters, so results are not misleadingly presented as filtered. Backend support is required.");
-      return;
-    }
+    const unsupportedFiltersSelected = nextFilters.sectorId || nextFilters.jobRoleId || nextFilters.jobTypeId;
     setLoading(true);
     setError("");
-    setFilterNotice("");
+    setFilterNotice(unsupportedFiltersSelected
+      ? "Country filtering is applied. Sector, Job Role and Job Type are not supported by the applications search endpoint and were not applied."
+      : "");
     try {
       const response = await searchJobApplications({
         jobId: nextFilters.jobId,
         status: nextFilters.status,
         applicantEmail: nextFilters.applicantEmail.trim(),
+        countryId: nextFilters.countryId,
         page: nextPage,
         size: nextSize,
       });

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -44,6 +43,11 @@ const getErrorMessage = (error) =>
   error?.message ||
   "Unable to create the application.";
 
+// NEW: Reads the country from a job object.
+// If your API uses a different key, change only this function.
+const getJobCountry = (job) =>
+  String(job?.country?.name ?? job?.country ?? job?.countryName ?? "").trim();
+
 export default function ManualApplicationForm() {
   const navigate = useNavigate();
 
@@ -55,6 +59,7 @@ export default function ManualApplicationForm() {
 
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
+  const [selectedCountry, setSelectedCountry] = useState(null); // NEW
   const [form, setForm] = useState(EMPTY_FORM);
   const [resume, setResume] = useState(null);
 
@@ -145,6 +150,30 @@ export default function ManualApplicationForm() {
     [jobs]
   );
 
+  // =====================================================
+  // NEW: COUNTRY OPTIONS + COUNTRY-FILTERED JOBS
+  // =====================================================
+
+  const countryOptions = useMemo(
+    () =>
+      [...new Set(jobOptions.map(getJobCountry).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b)
+      ),
+    [jobOptions]
+  );
+
+  const filteredJobOptions = useMemo(
+    () =>
+      selectedCountry
+        ? jobOptions.filter(
+            (job) =>
+              getJobCountry(job).toLowerCase() ===
+              selectedCountry.toLowerCase()
+          )
+        : [],
+    [jobOptions, selectedCountry]
+  );
+
   const setField = (name, value) => {
     setForm((previous) => ({
       ...previous,
@@ -188,7 +217,7 @@ export default function ManualApplicationForm() {
   };
 
   // =====================================================
-  // EXISTING FORM SUBMISSION LOGIC
+  // EXISTING FORM SUBMISSION LOGIC (+ country validation)
   // =====================================================
 
   const handleSubmit = async (event) => {
@@ -208,6 +237,12 @@ export default function ManualApplicationForm() {
 
     setError("");
     setResumeError("");
+
+    // NEW
+    if (!selectedCountry) {
+      setError("Please select a country.");
+      return;
+    }
 
     if (!selectedJob?.id) {
       setError("Please select an active job.");
@@ -441,8 +476,8 @@ export default function ManualApplicationForm() {
         elevation={0}
         sx={{
           width: "100%",
-          maxWidth: "900px", // CHANGED: Compact form width
-          mx: "auto", // CHANGED: Center alignment
+          maxWidth: "900px",
+          mx: "auto",
           border: "1px solid #E2E8F0",
           borderRadius: "8px",
           backgroundColor: "#FFFFFF",
@@ -465,58 +500,97 @@ export default function ManualApplicationForm() {
               Application Information
             </Typography>
 
-            <Autocomplete
-              fullWidth
-              size="small"
-              options={jobOptions}
-              value={selectedJob}
-              loading={loadingJobs}
-              onChange={(_, value) => {
-                setSelectedJob(value);
-
-                setField(
-                  "jobId",
-                  value?.id ? String(value.id) : ""
-                );
-              }}
-              getOptionLabel={(option) =>
-                option?.jobTitle || ""
-              }
-              isOptionEqualToValue={(option, value) =>
-                String(option.id) === String(value.id)
-              }
-              renderInput={(params) => (
-                <TextField
-                  {...params}
+            <Grid container spacing={1.5}>
+              {/* NEW: COUNTRY */}
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
                   size="small"
-                  label="Select Job *"
-                  placeholder="Search active jobs"
-                  required={!selectedJob}
-                  sx={inputStyles}
-                  InputProps={{
-                    ...params.InputProps,
-
-                    endAdornment: (
-                      <>
-                        {loadingJobs && (
-                          <CircularProgress
-                            color="inherit"
-                            size={16}
-                          />
-                        )}
-
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
+                  options={countryOptions}
+                  value={selectedCountry}
+                  loading={loadingJobs}
+                  onChange={(_, value) => {
+                    setSelectedCountry(value);
+                    setSelectedJob(null); // reset job when country changes
+                    setField("jobId", "");
                   }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      label="Country *"
+                      placeholder="Select country"
+                      required={!selectedCountry}
+                      sx={inputStyles}
+                    />
+                  )}
+                  noOptionsText={
+                    loadingJobs ? "Loading..." : "No countries found"
+                  }
                 />
-              )}
-              noOptionsText={
-                loadingJobs
-                  ? "Loading jobs..."
-                  : "No active jobs found"
-              }
-            />
+              </Grid>
+
+              {/* JOB (filtered by selected country) */}
+              <Grid item xs={12} md={8}>
+                <Autocomplete
+                  fullWidth
+                  size="small"
+                  options={filteredJobOptions}
+                  value={selectedJob}
+                  loading={loadingJobs}
+                  disabled={!selectedCountry}
+                  onChange={(_, value) => {
+                    setSelectedJob(value);
+
+                    setField(
+                      "jobId",
+                      value?.id ? String(value.id) : ""
+                    );
+                  }}
+                  getOptionLabel={(option) =>
+                    option?.jobTitle || ""
+                  }
+                  isOptionEqualToValue={(option, value) =>
+                    String(option.id) === String(value.id)
+                  }
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      label="Select Job *"
+                      placeholder={
+                        selectedCountry
+                          ? "Search active jobs"
+                          : "Select a country first"
+                      }
+                      required={!selectedJob}
+                      sx={inputStyles}
+                      InputProps={{
+                        ...params.InputProps,
+
+                        endAdornment: (
+                          <>
+                            {loadingJobs && (
+                              <CircularProgress
+                                color="inherit"
+                                size={16}
+                              />
+                            )}
+
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  noOptionsText={
+                    loadingJobs
+                      ? "Loading jobs..."
+                      : "No active jobs in this country"
+                  }
+                />
+              </Grid>
+            </Grid>
           </Box>
 
           <Box sx={sectionDividerStyles} />

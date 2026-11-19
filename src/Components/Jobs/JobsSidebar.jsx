@@ -8,6 +8,7 @@ const allItems = [
   { label: "Create Job", to: `${JOBS_BASE}/create`, roles: ["superAdmin"] },
   { label: "Job List", to: `${JOBS_BASE}/list`, roles: ["superAdmin", "branch"] },
   { label: "Job Inquiry", to: `${JOBS_BASE}/applications`, roles: ["superAdmin", "branch"] },
+  { label: "Job Applications", to: `${JOBS_BASE}/job-applications`, roles: ["superAdmin", "branch"] },
   { label: "Job Settings", to: `${JOBS_BASE}/settings`, roles: ["superAdmin"] },
 ];
 
@@ -37,7 +38,7 @@ export default function JobsSidebar() {
           overflowX: "auto",
         }}
       >
-        <Stack direction="row" spacing={1} sx={{ width: "100%", minWidth: isBranch ? 430 : 690 }}>
+        <Stack direction="row" spacing={1} sx={{ width: "100%", minWidth: isBranch ? 580 : 830 }}>
           {items.map((item) => {
             const active = pathname === item.to || (item.to.endsWith("/create") && pathname === JOBS_BASE);
             return (

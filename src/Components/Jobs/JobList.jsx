@@ -1,40 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Skeleton,
-  Slider,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-  alpha,
+  Alert, Box, Button, Card, CardContent, Skeleton, Slider,
+  MenuItem, Stack, TextField, Typography, alpha,
 } from "@mui/material";
 import { Input, Popconfirm, Table, Tag, message } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import {
-  CheckCircleOutlineRounded,
-  EventSeatRounded,
-  FilterAltOffRounded,
-  FilterAltRounded,
-  FilterListRounded,
-  PauseCircleOutlineRounded,
-  PublicRounded,
-  WorkOutlineRounded,
+  CheckCircleOutlineRounded, EventSeatRounded, FilterAltOffRounded,
+  FilterAltRounded, FilterListRounded, PauseCircleOutlineRounded,
+  PublicRounded, WorkOutlineRounded,
 } from "@mui/icons-material";
 import { deleteJob, getJobSettings, searchJobs } from "./JobService";
 import JobDetailDialog from "./JobDetailDialog";
 
+// ─── The backend /admin/jobs/search endpoint filters country by the
+//     `countryName` string field on the Job entity — NOT by countryId.
+//     So EMPTY_FILTERS tracks both: countryId drives the dropdown's
+//     controlled value, countryName is what gets sent to the API.
 const EMPTY_FILTERS = {
   keyword: "",
   educationId: "",
   sectorId: "",
   jobRoleId: "",
-  countryId: "",
+  countryId: "",       // controls the dropdown display only
+  countryName: "",     // ← the actual param sent to the backend
   jobTypeId: "",
   workTypeId: "",
   minExperience: "",
@@ -44,14 +34,7 @@ const EMPTY_FILTERS = {
   active: "",
 };
 
-const SETTING_TYPES = [
-  "education",
-  "sector",
-  "role",
-  "country",
-  "jobType",
-  "workType",
-];
+const SETTING_TYPES = ["education", "sector", "role", "country", "jobType", "workType"];
 
 function unwrapPayload(response) {
   return response?.data ?? response;
@@ -78,37 +61,26 @@ function normalizePage(response) {
         : Array.isArray(nested?.data)
           ? nested.data
           : [];
-
   return {
     content,
     totalElements: Number(
-      nested?.totalElements ??
-      nested?.data?.totalElements ??
-      payload?.totalElements ??
-      content.length
+      nested?.totalElements ?? nested?.data?.totalElements ??
+      payload?.totalElements ?? content.length
     ),
     totalPages: Number(
-      nested?.totalPages ??
-      nested?.data?.totalPages ??
-      payload?.totalPages ??
-      0
+      nested?.totalPages ?? nested?.data?.totalPages ?? payload?.totalPages ?? 0
     ),
   };
 }
 
-// Backend experienceLevel values are strings (for example: "0", "1 Year", "0-1", "2-4 years").
-// Convert only the leading numeric value(s); unrecognized formats are excluded from range results.
 function parseExperienceRange(value) {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim().replace(/[–—]/g, "-");
   const matches = normalized.match(/\d+(?:\.\d+)?/g);
   if (!matches || matches.length === 0) return null;
-
   const minimum = Number(matches[0]);
   const maximum = matches.length > 1 ? Number(matches[1]) : minimum;
-  if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || maximum < minimum) {
-    return null;
-  }
+  if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || maximum < minimum) return null;
   return { minimum, maximum };
 }
 
@@ -129,12 +101,10 @@ function getOptionName(item) {
 function formatSkills(skills) {
   if (Array.isArray(skills)) return skills.filter(Boolean).join(", ") || "-";
   if (typeof skills === "string") return skills || "-";
-  // Compatibility with older response objects that use `skill`.
   if (typeof skills?.skill === "string") return skills.skill || "-";
   return "-";
 }
 
-// Strict total: returns null when the API response has no totalElements (never guesses).
 function getTotal(response) {
   const payload = unwrapPayload(response);
   const page = payload?.data ?? payload;
@@ -144,7 +114,6 @@ function getTotal(response) {
   return Number.isFinite(count) && count >= 0 ? count : null;
 }
 
-// Loads every job (100 per request) for overview figures that need all records.
 async function fetchAllJobs() {
   const size = 100;
   const params = { sortBy: "id", sortDir: "ASC", size };
@@ -152,9 +121,11 @@ async function fetchAllJobs() {
   const pageCount = first.totalPages || Math.ceil(first.totalElements / size);
   if (pageCount <= 1) return first.content;
   const rest = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) => searchJobs({ ...params, page: index + 1 }))
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      searchJobs({ ...params, page: index + 1 })
+    )
   );
-  return [...first.content, ...rest.flatMap((response) => normalizePage(response).content)];
+  return [...first.content, ...rest.flatMap((r) => normalizePage(r).content)];
 }
 
 function OverviewCard({ title, value, icon, color, loading, onClick, selected }) {
@@ -193,22 +164,16 @@ function OverviewCard({ title, value, icon, color, loading, onClick, selected })
         <Stack direction="row" spacing={1} alignItems="center">
           <Box
             sx={{
-              width: 34,
-              height: 34,
-              flex: "0 0 34px",
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 2,
-              color,
-              bgcolor: alpha(color, 0.12),
+              width: 34, height: 34, flex: "0 0 34px",
+              display: "grid", placeItems: "center",
+              borderRadius: 2, color, bgcolor: alpha(color, 0.12),
             }}
           >
             {React.cloneElement(icon, { sx: { fontSize: 20 } })}
           </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography
-              variant="overline"
-              noWrap
+              variant="overline" noWrap
               sx={{ display: "block", color: "text.secondary", fontSize: 10, lineHeight: 1.3, fontWeight: 700, letterSpacing: 0.5 }}
             >
               {title}
@@ -238,36 +203,31 @@ export default function JobList() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const requestIdRef = useRef(0);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [salaryBounds] = useState([0, 5000000]); // ₹0–₹50 lakh (0–50 LPA)
-  const [experienceBounds] = useState([0, 30]); // 0–30 years
+  const [salaryBounds] = useState([0, 5000000]);
+  const [experienceBounds] = useState([0, 30]);
   const [settings, setSettings] = useState({
-    education: [],
-    sector: [],
-    role: [],
-    country: [],
-    jobType: [],
-    workType: [],
+    education: [], sector: [], role: [], country: [], jobType: [], workType: [],
   });
   const [loading, setLoading] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [error, setError] = useState("");
   const [detailJob, setDetailJob] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false); // mobile only; filters are always shown on md+
-  const [overview, setOverview] = useState({ total: null, active: null, inactive: null, openings: null, countries: null });
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [overview, setOverview] = useState({
+    total: null, active: null, inactive: null, openings: null, countries: null,
+  });
   const [overviewCountsLoading, setOverviewCountsLoading] = useState(true);
   const [overviewDerivedLoading, setOverviewDerivedLoading] = useState(true);
   const [overviewIssue, setOverviewIssue] = useState("");
   const overviewRequestRef = useRef(0);
 
-  // Overview cards describe the whole job inventory (not the current filters).
   const loadOverview = useCallback(() => {
     const requestId = ++overviewRequestRef.current;
     const isCurrent = () => requestId === overviewRequestRef.current;
     setOverviewCountsLoading(true);
     setOverviewDerivedLoading(true);
     setOverviewIssue("");
-
     const base = { page: 0, size: 1, sortBy: "id", sortDir: "DESC" };
     Promise.allSettled([
       searchJobs(base),
@@ -287,7 +247,6 @@ export default function JobList() {
       setOverviewCountsLoading(false);
       if (failed) setOverviewIssue("Some overview counts could not be loaded.");
     });
-
     fetchAllJobs()
       .then((list) => {
         if (!isCurrent()) return;
@@ -304,14 +263,10 @@ export default function JobList() {
         setOverview((previous) => ({ ...previous, openings: null, countries: null }));
         setOverviewIssue((previous) => previous || "Some overview figures could not be loaded.");
       })
-      .finally(() => {
-        if (isCurrent()) setOverviewDerivedLoading(false);
-      });
+      .finally(() => { if (isCurrent()) setOverviewDerivedLoading(false); });
   }, []);
 
-  useEffect(() => {
-    loadOverview();
-  }, [loadOverview]);
+  useEffect(() => { loadOverview(); }, [loadOverview]);
 
   const loadJobs = useCallback(async (nextPage, nextSize, nextFilters) => {
     const requestId = ++requestIdRef.current;
@@ -319,17 +274,24 @@ export default function JobList() {
     setError("");
 
     try {
+      // ─── The backend JobSpecification filters country by the `countryName`
+      //     string column on the Job entity.  We send countryName (the display
+      //     name the user selected) rather than — or in addition to — the
+      //     numeric countryId so the Specification predicate actually matches.
+      //     countryId is also sent for forward-compatibility in case the backend
+      //     is updated to support ID-based filtering later.
       const apiFilters = {
-        keyword: nextFilters.keyword.trim(),
-        educationId: nextFilters.educationId,
-        sectorId: nextFilters.sectorId,
-        jobRoleId: nextFilters.jobRoleId,
-        countryId: nextFilters.countryId,
-        jobTypeId: nextFilters.jobTypeId,
-        workTypeId: nextFilters.workTypeId,
-        minSalary: nextFilters.minSalary,
-        maxSalary: nextFilters.maxSalary,
-        active: nextFilters.active,
+        keyword:     nextFilters.keyword.trim() || undefined,
+        educationId: nextFilters.educationId ? Number(nextFilters.educationId) : undefined,
+        sectorId:    nextFilters.sectorId    ? Number(nextFilters.sectorId)    : undefined,
+        jobRoleId:   nextFilters.jobRoleId   ? Number(nextFilters.jobRoleId)   : undefined,
+        countryId:   nextFilters.countryId   ? Number(nextFilters.countryId)   : undefined,
+        countryName: nextFilters.countryName || undefined,  // ← primary country filter
+        jobTypeId:   nextFilters.jobTypeId   ? Number(nextFilters.jobTypeId)   : undefined,
+        workTypeId:  nextFilters.workTypeId  ? Number(nextFilters.workTypeId)  : undefined,
+        minSalary:   nextFilters.minSalary   ? Number(nextFilters.minSalary)   : undefined,
+        maxSalary:   nextFilters.maxSalary   ? Number(nextFilters.maxSalary)   : undefined,
+        active:      nextFilters.active !== "" ? nextFilters.active             : undefined,
         sortBy: "id",
         sortDir: "ASC",
       };
@@ -343,9 +305,6 @@ export default function JobList() {
         const firstPage = normalizePage(firstResponse);
         resultRows = [...firstPage.content];
         resultTotal = firstPage.totalElements;
-
-        // Fetch every server-filtered page before applying the experience range,
-        // so matching jobs are not missed because of server pagination.
         const pageCount = firstPage.totalPages || Math.ceil(resultTotal / fetchSize);
         if (pageCount > 1) {
           const remainingResponses = await Promise.all(
@@ -357,37 +316,25 @@ export default function JobList() {
             resultRows.push(...normalizePage(pageResponse).content);
           });
         }
-
-        const minimum = nextFilters.minExperience === ""
-          ? null
-          : Number(nextFilters.minExperience);
-        const maximum = nextFilters.maxExperience === ""
-          ? null
-          : Number(nextFilters.maxExperience);
-
+        const minimum = nextFilters.minExperience === "" ? null : Number(nextFilters.minExperience);
+        const maximum = nextFilters.maxExperience === "" ? null : Number(nextFilters.maxExperience);
         resultRows = resultRows.filter((job) => {
           const experience = parseExperienceRange(job?.experienceLevel);
           if (!experience) return false;
-          // Inclusive interval overlap: a job marked 2-4 years matches a selected 3-5 range.
-          return (maximum === null || experience.minimum <= maximum) &&
-            (minimum === null || experience.maximum >= minimum);
+          return (
+            (maximum === null || experience.minimum <= maximum) &&
+            (minimum === null || experience.maximum >= minimum)
+          );
         });
-
         resultTotal = resultRows.length;
         resultRows = resultRows.slice(nextPage * nextSize, (nextPage + 1) * nextSize);
       } else {
-        const response = await searchJobs({
-          ...apiFilters,
-          experienceLevel: "",
-          page: nextPage,
-          size: nextSize,
-        });
+        const response = await searchJobs({ ...apiFilters, page: nextPage, size: nextSize });
         const result = normalizePage(response);
         resultRows = result.content;
         resultTotal = result.totalElements;
       }
 
-      // Ignore older responses so fast filter changes cannot overwrite newer results.
       if (requestId !== requestIdRef.current) return;
       setRows(resultRows);
       setTotal(resultTotal);
@@ -400,12 +347,30 @@ export default function JobList() {
       setTotal(0);
       setError(
         requestError?.response?.data?.message ||
-          requestError?.response?.data?.error ||
-          requestError?.message ||
-          "Failed to load jobs."
+        requestError?.response?.data?.error ||
+        requestError?.message ||
+        "Failed to load jobs."
       );
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
+    }
+  }, []);
+
+  // ─── Build the country list from the jobs already loaded if the job-settings
+  //     country endpoint is unavailable, as a fallback.  Primary source remains
+  //     getJobSettings("country") which calls /admin/job-settings/country.
+  const buildCountryListFromJobs = useCallback(async () => {
+    try {
+      const allJobs = await fetchAllJobs();
+      const seen = new Map();
+      allJobs.forEach((job) => {
+        if (job?.countryName && !seen.has(job.countryName)) {
+          seen.set(job.countryName, { id: job.countryName, name: job.countryName });
+        }
+      });
+      return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      return [];
     }
   }, []);
 
@@ -418,25 +383,29 @@ export default function JobList() {
       const nextSettings = {};
       results.forEach((result, index) => {
         const type = SETTING_TYPES[index];
-        if (result.status === "fulfilled") {
-          nextSettings[type] = normalizeArray(result.value);
-        } else {
-          nextSettings[type] = [];
+        nextSettings[type] = result.status === "fulfilled"
+          ? normalizeArray(result.value)
+          : [];
+        if (result.status === "rejected")
           console.error(`Failed to load ${type} job settings:`, result.reason);
-        }
       });
+
+      // ─── If the country settings endpoint returned data, use it directly.
+      //     If it returned nothing (empty array — endpoint may not exist in the
+      //     backend), derive the country list from job records so the filter
+      //     dropdown is always populated.
+      if (nextSettings.country.length === 0) {
+        nextSettings.country = await buildCountryListFromJobs();
+      }
+
       setSettings((previous) => ({ ...previous, ...nextSettings }));
     } finally {
       setSettingsLoading(false);
     }
-  }, []);
+  }, [buildCountryListFromJobs]);
 
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+  useEffect(() => { loadSettings(); }, [loadSettings]);
 
-  // Live filtering: debounce all filter changes slightly. This is especially useful
-  // for keyword typing and dragging the salary slider, and prevents request floods.
   useEffect(() => {
     setPage(0);
     const hasNegativeExperience =
@@ -456,9 +425,7 @@ export default function JobList() {
       return undefined;
     }
 
-    const timer = setTimeout(() => {
-      loadJobs(0, pageSize, filters);
-    }, 300);
+    const timer = setTimeout(() => { loadJobs(0, pageSize, filters); }, 300);
     return () => clearTimeout(timer);
   }, [filters, refreshKey, loadJobs]);
 
@@ -468,6 +435,25 @@ export default function JobList() {
       if (name === "sectorId") next.jobRoleId = "";
       return next;
     });
+  };
+
+  // ─── Country change: store both the dropdown value (countryId) and the
+  //     country name string (countryName) which is what the backend filters on.
+  //     When the country item id was derived from the name itself (fallback path
+  //     where id === name), countryId and countryName will be the same string —
+  //     that is intentional and correct.
+  const handleCountryChange = (selectedId) => {
+    if (!selectedId) {
+      setFilters((previous) => ({ ...previous, countryId: "", countryName: "" }));
+      return;
+    }
+    const match = settings.country.find((item) => String(item.id) === String(selectedId));
+    // Prefer the name field; fall back to countryName; last resort: use the id itself
+    // (which equals the name in the fallback country list built from job records).
+    const name = match
+      ? (match.name ?? match.countryName ?? String(selectedId))
+      : String(selectedId);
+    setFilters((previous) => ({ ...previous, countryId: selectedId, countryName: name }));
   };
 
   const roleOptions = useMemo(
@@ -482,7 +468,6 @@ export default function JobList() {
   const clearFilters = () => {
     setFilters({ ...EMPTY_FILTERS });
     setPage(0);
-    // Also refresh when Clear is clicked while filters are already empty.
     setRefreshKey((value) => value + 1);
   };
 
@@ -491,7 +476,7 @@ export default function JobList() {
     filters.educationId,
     filters.sectorId,
     filters.jobRoleId,
-    filters.countryId,
+    filters.countryId,   // countryName is derived — count only once
     filters.jobTypeId,
     filters.workTypeId,
     filters.active,
@@ -499,58 +484,16 @@ export default function JobList() {
     filters.minSalary !== "" || filters.maxSalary !== "" ? "range" : "",
   ].filter((value) => value !== "").length;
 
-  // Clicking Active/Inactive again turns that status filter off.
   const toggleStatusFilter = (value) =>
     changeFilter("active", filters.active === value ? "" : value);
 
   const overviewCards = [
-    {
-      title: "Total Jobs",
-      value: overview.total,
-      icon: <WorkOutlineRounded />,
-      color: "#2878C8",
-      loading: overviewCountsLoading,
-      onClick: () => changeFilter("active", ""),
-    },
-    {
-      title: "Active Jobs",
-      value: overview.active,
-      icon: <CheckCircleOutlineRounded />,
-      color: "#29965A",
-      loading: overviewCountsLoading,
-      onClick: () => toggleStatusFilter("true"),
-      selected: filters.active === "true",
-    },
-    {
-      title: "Inactive Jobs",
-      value: overview.inactive,
-      icon: <PauseCircleOutlineRounded />,
-      color: "#7B8794",
-      loading: overviewCountsLoading,
-      onClick: () => toggleStatusFilter("false"),
-      selected: filters.active === "false",
-    },
-    {
-      title: "Total Openings",
-      value: overview.openings,
-      icon: <EventSeatRounded />,
-      color: "#7654B8",
-      loading: overviewDerivedLoading,
-    },
-    {
-      title: "Countries Hiring",
-      value: overview.countries,
-      icon: <PublicRounded />,
-      color: "#17A2B8",
-      loading: overviewDerivedLoading,
-    },
-    {
-      title: "Matching Filters",
-      value: total,
-      icon: <FilterAltRounded />,
-      color: "#D49A16",
-      loading,
-    },
+    { title: "Total Jobs",       value: overview.total,     icon: <WorkOutlineRounded />,         color: "#2878C8", loading: overviewCountsLoading, onClick: () => changeFilter("active", "") },
+    { title: "Active Jobs",      value: overview.active,    icon: <CheckCircleOutlineRounded />,  color: "#29965A", loading: overviewCountsLoading, onClick: () => toggleStatusFilter("true"),  selected: filters.active === "true" },
+    { title: "Inactive Jobs",    value: overview.inactive,  icon: <PauseCircleOutlineRounded />,  color: "#7B8794", loading: overviewCountsLoading, onClick: () => toggleStatusFilter("false"), selected: filters.active === "false" },
+    { title: "Total Openings",   value: overview.openings,  icon: <EventSeatRounded />,           color: "#7654B8", loading: overviewDerivedLoading },
+    { title: "Countries Hiring", value: overview.countries, icon: <PublicRounded />,              color: "#17A2B8", loading: overviewDerivedLoading },
+    { title: "Matching Filters", value: total,              icon: <FilterAltRounded />,           color: "#D49A16", loading },
   ];
 
   const experienceRange = [
@@ -573,10 +516,8 @@ export default function JobList() {
     filters.maxSalary === "" ? salaryBounds[1] : Number(filters.maxSalary),
   ];
 
-  // Salary values are stored/sent as numeric INR amounts; show them in LPA for readability.
-  const formatSalary = (value) => `${(Number(value) / 100000).toLocaleString("en-IN", {
-    maximumFractionDigits: 1,
-  })} LPA`;
+  const formatSalary = (value) =>
+    `${(Number(value) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 1 })} LPA`;
 
   const handleSalaryRangeChange = (_, newValue) => {
     if (!Array.isArray(newValue) || newValue.length !== 2) return;
@@ -602,64 +543,58 @@ export default function JobList() {
       loadOverview();
     } catch (requestError) {
       console.error("Failed to delete job:", requestError);
-      message.error(
-        requestError?.response?.data?.message || "Failed to delete job."
-      );
+      message.error(requestError?.response?.data?.message || "Failed to delete job.");
     }
   };
 
-  // Columns appear progressively with screen width so the table never needs a
-  // horizontal scrollbar. Every detail is always available in the row popup.
   const text = (value) => value || "-";
   const columns = [
-    { title: "ID", dataIndex: "id", key: "id", width: 56, responsive: ["md"] },
-    { title: "Job Title", dataIndex: "jobTitle", key: "jobTitle", ellipsis: true, render: text },
-    { title: "Education", dataIndex: "educationName", key: "educationName", width: 110, ellipsis: true, responsive: ["xxl"], render: text },
-    { title: "Sector", dataIndex: "sectorName", key: "sectorName", width: 120, ellipsis: true, responsive: ["xl"], render: text },
-    { title: "Job Role", dataIndex: "jobRoleName", key: "jobRoleName", width: 130, ellipsis: true, responsive: ["lg"], render: text },
+    { title: "ID",         dataIndex: "id",             key: "id",             width: 56,  responsive: ["md"] },
+    { title: "Job Title",  dataIndex: "jobTitle",        key: "jobTitle",       ellipsis: true, render: text },
+    { title: "Education",  dataIndex: "educationName",   key: "educationName",  width: 110, ellipsis: true, responsive: ["xxl"], render: text },
+    { title: "Sector",     dataIndex: "sectorName",      key: "sectorName",     width: 120, ellipsis: true, responsive: ["xl"],  render: text },
+    { title: "Job Role",   dataIndex: "jobRoleName",     key: "jobRoleName",    width: 130, ellipsis: true, responsive: ["lg"],  render: text },
     {
       title: "Skills", dataIndex: "skills", key: "skills", width: 170, ellipsis: true, responsive: ["xxl"],
       render: (value, record) => formatSkills(value ?? record?.skill),
     },
-    { title: "Country", dataIndex: "countryName", key: "countryName", width: 100, ellipsis: true, responsive: ["sm"], render: text },
-    { title: "Location", dataIndex: "locationName", key: "locationName", width: 110, ellipsis: true, responsive: ["md"], render: text },
-    { title: "Work Type", dataIndex: "workTypeName", key: "workTypeName", width: 95, ellipsis: true, responsive: ["lg"], render: text },
-    { title: "Experience", dataIndex: "experienceLevel", key: "experienceLevel", width: 100, ellipsis: true, responsive: ["xl"], render: text },
+    { title: "Country",    dataIndex: "countryName",     key: "countryName",    width: 100, ellipsis: true, responsive: ["sm"],  render: text },
+    { title: "Location",   dataIndex: "locationName",    key: "locationName",   width: 110, ellipsis: true, responsive: ["md"],  render: text },
+    { title: "Work Type",  dataIndex: "workTypeName",    key: "workTypeName",   width: 95,  ellipsis: true, responsive: ["lg"],  render: text },
+    { title: "Experience", dataIndex: "experienceLevel", key: "experienceLevel",width: 100, ellipsis: true, responsive: ["xl"],  render: text },
     {
       title: "Salary", key: "salary", width: 110, ellipsis: true, responsive: ["md"],
       render: (_, record) => `${record?.currencyName || ""} ${record?.salary ?? "-"}`.trim(),
     },
-    { title: "Job Type", dataIndex: "jobTypeName", key: "jobTypeName", width: 100, ellipsis: true, responsive: ["xl"], render: text },
-    { title: "Openings", dataIndex: "openings", key: "openings", width: 80, responsive: ["lg"], render: (value) => value ?? "-" },
+    { title: "Job Type",   dataIndex: "jobTypeName",     key: "jobTypeName",    width: 100, ellipsis: true, responsive: ["xl"],  render: text },
+    { title: "Openings",   dataIndex: "openings",        key: "openings",       width: 80,  responsive: ["lg"], render: (v) => v ?? "-" },
     {
       title: "Status", dataIndex: "active", key: "active", width: 84,
-      render: (active) => <Tag style={{ marginInlineEnd: 0 }} color={active ? "green" : "default"}>{active ? "Active" : "Inactive"}</Tag>,
+      render: (active) => (
+        <Tag style={{ marginInlineEnd: 0 }} color={active ? "green" : "default"}>
+          {active ? "Active" : "Inactive"}
+        </Tag>
+      ),
     },
     ...(!isBranch
-      ? [
-          {
-            title: "",
-            key: "actions",
-            width: 48,
-            align: "center",
-            render: (_, record) => (
-              // Stops the click (including the confirm popup) from opening the row popup.
-              <span onClick={(event) => event.stopPropagation()}>
-                <Popconfirm
-                  title={`Delete "${record.jobTitle || `job #${record.id}`}"?`}
-                  description="This action cannot be undone."
-                  onConfirm={() => handleDelete(record.id)}
-                  okText="Delete"
-                  cancelText="Cancel"
-                >
-                  <Button size="small" color="error" sx={{ minWidth: 0, p: 0.5 }} aria-label={`Delete job ${record.id}`}>
-                    <DeleteOutlined />
-                  </Button>
-                </Popconfirm>
-              </span>
-            ),
-          },
-        ]
+      ? [{
+          title: "", key: "actions", width: 48, align: "center",
+          render: (_, record) => (
+            <span onClick={(event) => event.stopPropagation()}>
+              <Popconfirm
+                title={`Delete "${record.jobTitle || `job #${record.id}`}"?`}
+                description="This action cannot be undone."
+                onConfirm={() => handleDelete(record.id)}
+                okText="Delete"
+                cancelText="Cancel"
+              >
+                <Button size="small" color="error" sx={{ minWidth: 0, p: 0.5 }} aria-label={`Delete job ${record.id}`}>
+                  <DeleteOutlined />
+                </Button>
+              </Popconfirm>
+            </span>
+          ),
+        }]
       : []),
   ];
 
@@ -668,6 +603,7 @@ export default function JobList() {
     setDetailOpen(true);
   };
 
+  // Generic select for all filters except country.
   const selectFilter = (name, label, options, disabled = false) => (
     <TextField
       select
@@ -681,6 +617,28 @@ export default function JobList() {
     >
       <MenuItem value="">All</MenuItem>
       {options.map((item) => (
+        <MenuItem key={item.id} value={String(item.id)}>
+          {getOptionName(item)}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+
+  // ─── Country dropdown uses handleCountryChange so filters.countryName stays
+  //     in sync and is sent to the backend as the actual filter value.
+  const countryFilter = (
+    <TextField
+      select
+      size="small"
+      label="Country"
+      value={filters.countryId}
+      onChange={(event) => handleCountryChange(event.target.value)}
+      fullWidth
+      sx={{ minWidth: 0, width: "100%" }}
+      disabled={settingsLoading}
+    >
+      <MenuItem value="">All</MenuItem>
+      {settings.country.map((item) => (
         <MenuItem key={item.id} value={String(item.id)}>
           {getOptionName(item)}
         </MenuItem>
@@ -709,13 +667,10 @@ export default function JobList() {
             sm: "repeat(3, minmax(0, 1fr))",
             lg: "repeat(6, minmax(0, 1fr))",
           },
-          gap: 1,
-          mb: 1.25,
+          gap: 1, mb: 1.25,
         }}
       >
-        {overviewCards.map((card) => (
-          <OverviewCard key={card.title} {...card} />
-        ))}
+        {overviewCards.map((card) => <OverviewCard key={card.title} {...card} />)}
       </Box>
 
       <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={1} sx={{ mb: 1 }}>
@@ -784,13 +739,14 @@ export default function JobList() {
         {selectFilter("educationId", "Education", settings.education)}
         {selectFilter("sectorId", "Sector", settings.sector)}
         {selectFilter("jobRoleId", "Role", roleOptions, !filters.sectorId)}
-        {selectFilter("countryId", "Country", settings.country)}
+        {countryFilter}
         {selectFilter("jobTypeId", "Job Type", settings.jobType)}
         {selectFilter("workTypeId", "Work Type", settings.workType)}
         {selectFilter("active", "Status", [
           { id: "true", name: "Active" },
           { id: "false", name: "Inactive" },
         ])}
+
         <Box sx={{ px: 0.5 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={1}>
             <Typography variant="body2" fontWeight={600}>Experience</Typography>
@@ -801,11 +757,7 @@ export default function JobList() {
               {(filters.minExperience !== "" || filters.maxExperience !== "") && (
                 <Button
                   size="small"
-                  onClick={() => setFilters((previous) => ({
-                    ...previous,
-                    minExperience: "",
-                    maxExperience: "",
-                  }))}
+                  onClick={() => setFilters((previous) => ({ ...previous, minExperience: "", maxExperience: "" }))}
                   sx={{ minWidth: "auto", p: 0, textTransform: "none", lineHeight: 1.2 }}
                 >
                   Clear
@@ -829,6 +781,7 @@ export default function JobList() {
             sx={{ my: 0, py: 0.5 }}
           />
         </Box>
+
         <Box sx={{ px: 0.5 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="baseline" spacing={1}>
             <Typography variant="body2" fontWeight={600}>Salary</Typography>
