@@ -18,6 +18,7 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import ArticleIcon from '@mui/icons-material/Article';
 import SchoolIcon from '@mui/icons-material/School';
 import SettingsIcon from '@mui/icons-material/Settings';
+import CardMembershipIcon from '@mui/icons-material/CardMembership';
 
 
 export const NAVIGATION = [
@@ -141,6 +142,13 @@ export const NAVIGATION = [
         { title: "Job Applications", segment: "/wayabroadadmin/admin/jobs/applications", roles: ["superAdmin", "branch"] },
         { title: "Job Settings", segment: "/wayabroadadmin/admin/jobs/settings", roles: ["superAdmin"] },
       ],
+    },
+    {
+      title: "Plan Management",
+      segment: "/wayabroadadmin/admin/plan-management",
+      icon: <CardMembershipIcon />,
+      description: "Manage paid plans and subscriptions",
+      roles: ["superAdmin"],
     },
     {
       title: "Scholarship",

@@ -1180,10 +1180,6 @@ export default function JobDashboard() {
             Print
           </Button>
         </Stack>
-        <Typography variant="caption" color={range.error ? "error" : "text.secondary"} sx={{ display: "block", mt: 1 }}>
-          {range.error ||
-            `Date range applies to New Applications, New Jobs, trend charts and Top Jobs (${rangeLabel}). Totals and status charts are all-time.`}
-        </Typography>
       </Paper>
 
       {errors.length > 0 && (

@@ -65,6 +65,10 @@ import JobApplications from "./Components/Jobs/JobApplications.jsx";
 import SelectedJobApplications from "./Components/Jobs/SelectedJobApplications.jsx";
 import ManualApplicationForm from "./Components/Jobs/ManualApplicationForm.jsx";
 import JobSettings from "./Components/Jobs/JobSettings.jsx";
+import {
+  PlanSidebar, PaidPlanList, PaidPlanForm, PaidPlanDetail, AdditionalFeatureList,
+  RecordSubscription, SubscriptionHistory, PaymentList, PaymentDetail,
+} from "./Components/PlanManagement";
 
 // Lazy-loaded components
 const SidebarLoginContainer = lazy(
@@ -212,6 +216,20 @@ const App = () => {
               <Route path="applications/add" element={<ManualApplicationForm />} />
               <Route path="job-applications" element={<SelectedJobApplications />} />
               <Route path="settings" element={<JobSettings />} />
+            </Route>
+
+            {/* Plan Management (separate from Jobs; superAdmin only, guarded in PlanSidebar) */}
+            <Route path="plan-management" element={<PlanSidebar />}>
+              <Route index element={<Navigate to="plans" replace />} />
+              <Route path="plans" element={<PaidPlanList />} />
+              <Route path="plans/create" element={<PaidPlanForm mode="create" />} />
+              <Route path="plans/edit/:id" element={<PaidPlanForm mode="edit" />} />
+              <Route path="plans/:id" element={<PaidPlanDetail />} />
+              <Route path="subscriptions" element={<RecordSubscription />} />
+              <Route path="subscription-history" element={<SubscriptionHistory />} />
+              <Route path="features" element={<AdditionalFeatureList />} />
+              <Route path="payments" element={<PaymentList />} />
+              <Route path="payments/:id" element={<PaymentDetail />} />
             </Route>
 
             {/* Scholarship Section */}
