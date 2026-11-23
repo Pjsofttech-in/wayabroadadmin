@@ -9,7 +9,7 @@ import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   CheckCircleOutlineRounded, EventSeatRounded, FilterAltOffRounded,
   FilterAltRounded, FilterListRounded, PauseCircleOutlineRounded,
-  PublicRounded, WorkOutlineRounded,
+  PublicRounded,WorkOutlineRounded,
 } from "@mui/icons-material";
 import { deleteJob, getJobSettings, searchJobs } from "./JobService";
 import JobDetailDialog from "./JobDetailDialog";

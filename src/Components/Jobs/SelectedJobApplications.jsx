@@ -58,11 +58,13 @@ const EMPTY_FILTERS = {
 
 // Backend search understands jobId, status and applicantEmail only; the rest is matched here.
 const usesClientFilters = (f) =>
-  Boolean(f.applicantName.trim() || digitsOnly(f.phone) || f.country || f.sector);
+  Boolean(f.applicantEmail.trim() || f.applicantName.trim() || digitsOnly(f.phone) || f.country || f.sector);
 
 const matchesClientFilters = (item, f, jobMeta) => {
   const name = normalize(f.applicantName);
   if (name && !normalize(item?.applicantName).includes(name)) return false;
+  const emailText = normalize(f.applicantEmail);
+  if (emailText && !normalize(item?.email).includes(emailText)) return false;
   const phone = digitsOnly(f.phone);
   if (phone && !digitsOnly(item?.phone).includes(phone)) return false;
   if (f.country && normalize(getInquiryCountry(item, jobMeta)) !== normalize(f.country)) return false;
@@ -104,7 +106,9 @@ export default function SelectedJobApplications() {
       const serverParams = {
         jobId: nextFilters.jobId,
         status: SELECTED_STATUS,
-        applicantEmail: nextFilters.applicantEmail.trim(),
+        // Most recently selected first (statusUpdatedAt is set when the status is changed).
+        sortBy: "statusUpdatedAt",
+        sortDir: "DESC",
       };
 
       if (usesClientFilters(nextFilters)) {
@@ -260,7 +264,8 @@ export default function SelectedJobApplications() {
       title: "Sector", key: "sector", width: 120, ellipsis: true, responsive: ["lg"],
       render: (_, record) => text(getInquirySector(record, jobMeta)),
     },
-    { title: "Applied", dataIndex: "appliedAt", key: "appliedAt", width: 110, responsive: ["lg"], render: formatDate },
+    { title: "Applied", dataIndex: "appliedAt", key: "appliedAt", width: 110, responsive: ["xl"], render: formatDate },
+    { title: "Selected on", dataIndex: "statusUpdatedAt", key: "statusUpdatedAt", width: 115, responsive: ["lg"], render: formatDate },
     {
       title: "Resume", dataIndex: "resumeUrl", key: "resumeUrl", width: 80, responsive: ["xl"],
       render: (url) => url
@@ -469,7 +474,10 @@ export default function SelectedJobApplications() {
               <Field label="Country">{show(getInquiryCountry(selected, jobMeta))}</Field>
               <Field label="Sector">{show(getInquirySector(selected, jobMeta))}</Field>
               <Field label="Candidate">{show(selected.applicantName)}</Field>
+              <Field label="Job Role">{show(selected.jobRoleName)}</Field>
               <Field label="Applied">{formatDateTime(selected.appliedAt)}</Field>
+              <Field label="Selected on">{formatDateTime(selected.statusUpdatedAt)}</Field>
+              <Field label="Updated by">{show(selected.statusUpdatedBy)}</Field>
               <Field label="Email">{show(selected.email)}</Field>
               <Field label="Phone">{show(selected.phone)}</Field>
               <Field label="Resume">

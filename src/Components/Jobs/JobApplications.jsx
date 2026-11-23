@@ -125,7 +125,8 @@ export const getInquirySector = (item, jobMeta) =>
 
 const usesClientFilters = (f) =>
   Boolean(
-    f.applicantName.trim() ||
+    f.applicantEmail.trim() ||
+      f.applicantName.trim() ||
       digitsOnly(f.phone) ||
       f.appliedFrom ||
       f.appliedTo ||
@@ -136,6 +137,10 @@ const usesClientFilters = (f) =>
 const matchesClientFilters = (item, f, jobMeta) => {
   const name = normalize(f.applicantName);
   if (name && !normalize(item?.applicantName).includes(name)) return false;
+
+  // The backend matches applicantEmail exactly; the filter has always been "contains".
+  const emailText = normalize(f.applicantEmail);
+  if (emailText && !normalize(item?.email).includes(emailText)) return false;
 
   const phone = digitsOnly(f.phone);
   if (phone && !digitsOnly(item?.phone).includes(phone)) return false;
@@ -297,7 +302,6 @@ export default function JobApplications() {
       const serverParams = {
         jobId: nextFilters.jobId,
         status: nextFilters.status,
-        applicantEmail: nextFilters.applicantEmail.trim(),
         sortBy: "id",
         sortDir: "ASC",
       };

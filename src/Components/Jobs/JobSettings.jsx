@@ -12,7 +12,7 @@ import CountrySettingDialog from "./CountrySettingDialog";
 
 const TYPES = [
   { key: "education", label: "Education" },
-  { key: "sector", label: "Sector", parentLabel: "Education" },
+  { key: "sector", label: "Sector" },
   { key: "role", label: "Role", parentLabel: "Sector" },
   { key: "currency", label: "Currency" },
   { key: "jobType", label: "Job Type" },
@@ -27,7 +27,6 @@ const recordName = (type, record) => type === "location"
   : record?.name ?? record?.location ?? "";
 const recordCountryId = (record) => record?.countryId ?? record?.country?.id ?? "";
 const getParentId = (type, record) => {
-  if (type === "sector") return record?.education?.id ?? record?.educationId ?? "";
   if (type === "role") return record?.sector?.id ?? record?.sectorId ?? "";
   if (type === "location") return recordCountryId(record);
   return "";
@@ -49,9 +48,8 @@ export default function JobSettings() {
     setLoading(true);
     setError("");
     try {
-      const parentType = type === "sector" ? "education"
-        : type === "role" ? "sector"
-          : type === "location" ? "country" : null;
+      const parentType = type === "role" ? "sector"
+        : type === "location" ? "country" : null;
       const [data, parentData] = await Promise.all([
         getJobSettings(type),
         parentType ? getJobSettings(parentType) : Promise.resolve(null),
@@ -73,16 +71,14 @@ export default function JobSettings() {
   useEffect(() => { loadType(activeType); }, [activeType, loadType]);
 
   const parentOptions = useMemo(() => {
-    if (activeType === "sector") return records.education || [];
     if (activeType === "role") return records.sector || [];
     if (activeType === "location") return records.country || [];
     return [];
-  }, [activeType, records.education, records.sector, records.country]);
+  }, [activeType, records.sector, records.country]);
 
   const ensureParentOptions = (type) => {
-    const parentType = type === "sector" ? "education"
-      : type === "role" ? "sector"
-        : type === "location" ? "country" : null;
+    const parentType = type === "role" ? "sector"
+      : type === "location" ? "country" : null;
     if (parentType && !records[parentType]) {
       getJobSettings(parentType)
         .then((data) => setRecords((previous) => ({ ...previous, [parentType]: Array.isArray(data) ? data : [] })))
@@ -125,9 +121,9 @@ export default function JobSettings() {
       message.error(`${currentLabel} name is required.`);
       return;
     }
-    const needsParent = ["sector", "role", "location"].includes(activeType);
+    const needsParent = ["role", "location"].includes(activeType);
     if (needsParent && !form.parentId) {
-      message.error(`${activeType === "sector" ? "Education" : activeType === "role" ? "Sector" : "Country"} is required.`);
+      message.error(`${activeType === "role" ? "Sector" : "Country"} is required.`);
       return;
     }
     const payload = activeType === "location"
@@ -138,11 +134,10 @@ export default function JobSettings() {
           active: Boolean(form.active),
         }
       : { name: trimmedName, active: Boolean(form.active) };
-    const extraParams = activeType === "sector"
-      ? { educationId: Number(form.parentId) }
-      : activeType === "role"
-        ? { sectorId: Number(form.parentId) }
-        : {};
+    // Sectors are no longer tied to an education, so no educationId is sent.
+    const extraParams = activeType === "role"
+      ? { sectorId: Number(form.parentId) }
+      : {};
 
     setSaving(true);
     try {
@@ -173,10 +168,6 @@ export default function JobSettings() {
   };
 
   const parentName = (record) => {
-    if (activeType === "sector") {
-      const id = record.educationId ?? record.education?.id;
-      return record.education?.name || (records.education || []).find((item) => String(item.id) === String(id))?.name || "-";
-    }
     if (activeType === "role") {
       const id = record.sectorId ?? record.sector?.id;
       return record.sector?.name || (records.sector || []).find((item) => String(item.id) === String(id))?.name || "-";
@@ -194,8 +185,8 @@ export default function JobSettings() {
       title: "Name", key: "name",
       render: (_, record) => recordName(activeType, record) || "-",
     },
-    ...(["sector", "role", "location"].includes(activeType)
-      ? [{ title: activeType === "sector" ? "Education" : activeType === "role" ? "Sector" : "Country", key: "parent", render: (_, record) => parentName(record) }]
+    ...(["role", "location"].includes(activeType)
+      ? [{ title: activeType === "role" ? "Sector" : "Country", key: "parent", render: (_, record) => parentName(record) }]
       : []),
     {
       title: "Status", dataIndex: "active", key: "active",
@@ -215,7 +206,7 @@ export default function JobSettings() {
   ];
 
   const currentLabel = TYPES.find((item) => item.key === activeType)?.label || "Job Settings";
-  const parentLabel = activeType === "sector" ? "Education" : activeType === "role" ? "Sector" : "Country";
+  const parentLabel = activeType === "role" ? "Sector" : "Country";
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, pb: 3 }}>
@@ -267,7 +258,7 @@ export default function JobSettings() {
                 onChange={(e) => setForm((previous) => ({ ...previous, name: e.target.value }))}
                 inputProps={{ maxLength: 255 }}
               />
-              {["sector", "role", "location"].includes(activeType) && (
+              {["role", "location"].includes(activeType) && (
                 <TextField
                   select fullWidth required label={parentLabel}
                   value={form.parentId}

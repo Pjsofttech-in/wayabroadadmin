@@ -96,12 +96,38 @@ export async function getJobApplications({ page = 0, size = 10 } = {}) {
   return unwrap(response);
 }
 
+// The backend search is POST /job-applications/admin/search:
+//   body   = JobApplicationFilterDTO (JSON)
+//   params = page, size, sort ("property,ASC|DESC"), role, email
+// Callers keep passing a flat filter object (jobId, status, page, size, sortBy, sortDir ...).
+const APPLICATION_SORT_FIELDS = ["id", "appliedAt", "applicantName", "status", "statusUpdatedAt"];
+const DEFAULT_APPLICATION_SORT = "appliedAt,DESC";
+const toNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : undefined);
+
 export async function searchJobApplications(filters = {}) {
-  const params = { ...filters, ...authParams() };
-  Object.keys(params).forEach((key) => {
-    if (params[key] === "" || params[key] === null || params[key] === undefined) delete params[key];
+  const { page = 0, size = 10, sortBy, sortDir } = filters;
+
+  // Only filters the backend applies reliably are sent. applicantEmail / phone were exact
+  // matches on the server and appliedFrom / appliedTo were not usable, so the pages keep
+  // matching those in the browser (see matchesClientFilters).
+  const body = {};
+  const jobId = toNumber(filters.jobId);
+  const countryId = toNumber(filters.countryId);
+  const sectorId = toNumber(filters.sectorId);
+  if (filters.jobId !== "" && jobId !== undefined) body.jobId = jobId;
+  if (filters.countryId !== "" && countryId !== undefined) body.countryId = countryId;
+  if (filters.sectorId !== "" && sectorId !== undefined) body.sectorId = sectorId;
+  if (filters.status) body.status = filters.status;
+  if (filters.applicantEmail) body.applicantEmail = filters.applicantEmail;
+  if (filters.applicantName) body.applicantName = filters.applicantName;
+
+  const sort = APPLICATION_SORT_FIELDS.includes(sortBy)
+    ? `${sortBy},${String(sortDir).toUpperCase() === "DESC" ? "DESC" : "ASC"}`
+    : DEFAULT_APPLICATION_SORT;
+
+  const response = await axiosInstance.post("/job-applications/admin/search", body, {
+    params: { page, size, sort, ...authParams() },
   });
-  const response = await axiosInstance.get("/job-applications/admin/search", { params });
   return unwrap(response);
 }
 
