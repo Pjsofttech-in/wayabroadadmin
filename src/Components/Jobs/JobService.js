@@ -66,6 +66,9 @@ export async function getJobById(id) {
 }
 
 export async function searchJobs(filters = {}) {
+  // Keep the supplied filters intact, including countryName. The Job List uses
+  // countryName for the backend's country-name predicate and may also send the
+  // selected countryId for compatibility with ID-based implementations.
   const params = { ...filters, ...authParams() };
   Object.keys(params).forEach((key) => {
     if (params[key] === "" || params[key] === null || params[key] === undefined) delete params[key];
@@ -147,7 +150,6 @@ export async function deactivateJobApplication(id) {
   const response = await axiosInstance.delete(`/job-applications/admin/${id}`, { params: withAuth() });
   return unwrap(response);
 }
-
 
 export async function createJobApplication(formData) {
   const response = await axiosInstance.post("/job-applications/apply", formData, {

@@ -20,7 +20,7 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Input, Popconfirm, Table, Tag, message } from "antd";
-import { DeleteOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined } from "@ant-design/icons";
 import {
   Groups2Rounded,
   LooksOneRounded,
@@ -35,7 +35,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   searchJobApplications,
-  searchJobs, // NEW: used to map jobId -> country/sector and to build filter options
+  searchJobs, // used to map jobId -> country/sector and to build filter options
   getJobApplicationById,
   updateJobApplicationStatus,
   deactivateJobApplication,
@@ -61,8 +61,8 @@ export const getStatusColor = (status) => STATUS_BY_VALUE[status]?.tag || "defau
 const EMPTY_FILTERS = {
   jobId: "",
   status: "",
-  country: "", // NEW
-  sector: "", // NEW
+  country: "",
+  sector: "",
   applicantEmail: "",
   applicantName: "",
   phone: "",
@@ -70,6 +70,10 @@ const EMPTY_FILTERS = {
   appliedTo: "",
 };
 const EMPTY_COUNTS = Object.fromEntries([["total", null], ...STATUSES.map((item) => [item.value, null])]);
+
+// AUTO-FILTER: free-text filters are debounced; everything else applies immediately.
+const TEXT_FILTERS = ["jobId", "applicantEmail", "applicantName", "phone"];
+const DEBOUNCE_MS = 400;
 
 export const getPageData = (response) => {
   const payload = response?.data ?? response;
@@ -105,14 +109,14 @@ const SERVER_PAGE_SIZE = 100;
 export const normalize = (value) => String(value ?? "").trim().toLowerCase();
 export const digitsOnly = (value) => String(value ?? "").replace(/\D/g, "");
 
-// NEW: reads a plain text value from either a string or an object like { name }.
+// Reads a plain text value from either a string or an object like { name }.
 const textOf = (value) => String(value?.name ?? value ?? "").trim();
 
-// NEW: country / sector of a job. If your API uses other keys, change only these two.
+// Country / sector of a job. If your API uses other keys, change only these two.
 export const getJobCountry = (job) => textOf(job?.country ?? job?.countryName);
 export const getJobSector = (job) => textOf(job?.sector ?? job?.sectorName);
 
-// NEW: country / sector of an inquiry. Uses the value on the inquiry itself and
+// Country / sector of an inquiry. Uses the value on the inquiry itself and
 // falls back to its job (jobMeta is a { [jobId]: { country, sector } } lookup).
 export const getInquiryCountry = (item, jobMeta) =>
   textOf(item?.country ?? item?.countryName ?? item?.jobCountry) ||
@@ -145,7 +149,6 @@ const matchesClientFilters = (item, f, jobMeta) => {
   const phone = digitsOnly(f.phone);
   if (phone && !digitsOnly(item?.phone).includes(phone)) return false;
 
-  // NEW
   if (f.country && normalize(getInquiryCountry(item, jobMeta)) !== normalize(f.country)) return false;
   if (f.sector && normalize(getInquirySector(item, jobMeta)) !== normalize(f.sector)) return false;
 
@@ -272,7 +275,7 @@ export default function JobApplications() {
   const [countsLoading, setCountsLoading] = useState(true);
   const [countsIssue, setCountsIssue] = useState("");
 
-  // NEW: jobId -> { country, sector }
+  // jobId -> { country, sector }
   const [jobMeta, setJobMeta] = useState({});
 
   const [detailOpen, setDetailOpen] = useState(false);
@@ -290,7 +293,14 @@ export default function JobApplications() {
   const clientCacheRef = useRef(null);
   const countsRequestRef = useRef(0);
   const detailRequestRef = useRef(0);
-  const jobMetaRef = useRef({}); // NEW: latest jobMeta for use inside loadApplications
+  const jobMetaRef = useRef({}); // latest jobMeta for use inside loadApplications
+
+  // AUTO-FILTER refs
+  const pageSizeRef = useRef(10);
+  pageSizeRef.current = pageSize;
+  const appliedFiltersRef = useRef(EMPTY_FILTERS); // last filters actually sent to the API
+  const prevFiltersRef = useRef(null); // previous filters, to detect which field changed
+  const appliedKeyRef = useRef(null); // normalized snapshot of the last applied filters
 
   const loadApplications = useCallback(async (nextPage, nextSize, nextFilters, reuse = false) => {
     const requestId = ++requestIdRef.current;
@@ -387,7 +397,7 @@ export default function JobApplications() {
     });
   }, []);
 
-  // NEW: load jobs once to know each job's country and sector.
+  // Load jobs once to know each job's country and sector.
   const loadJobMeta = useCallback(async () => {
     try {
       const response = await searchJobs({
@@ -411,13 +421,42 @@ export default function JobApplications() {
     }
   }, []);
 
+  // Counts and job metadata load once on mount.
   useEffect(() => {
-    loadApplications(0, 10, EMPTY_FILTERS);
     loadCounts();
     loadJobMeta();
-  }, [loadApplications, loadCounts, loadJobMeta]);
+  }, [loadCounts, loadJobMeta]);
 
-  // NEW: dropdown options = values from the jobs list + values seen in loaded inquiries.
+  // AUTO-FILTER: applies filters whenever they change (and performs the initial load).
+  // - Dropdowns, dates and status cards apply immediately.
+  // - Text inputs are debounced while typing; clearing a text input applies immediately.
+  // - Effectively unchanged filters (e.g. trailing spaces) do not trigger a new request.
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    prevFiltersRef.current = filters;
+
+    const key = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(filters).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])
+      )
+    );
+    if (key === appliedKeyRef.current) return;
+
+    const changed = prev ? Object.keys(filters).filter((k) => prev[k] !== filters[k]) : [];
+    const isTyping =
+      changed.length > 0 &&
+      changed.every((k) => TEXT_FILTERS.includes(k) && String(filters[k]).trim() !== "");
+
+    const timer = setTimeout(() => {
+      appliedKeyRef.current = key;
+      appliedFiltersRef.current = filters;
+      loadApplications(0, pageSizeRef.current, filters);
+    }, isTyping ? DEBOUNCE_MS : 0);
+
+    return () => clearTimeout(timer);
+  }, [filters, loadApplications]);
+
+  // Dropdown options = values from the jobs list + values seen in loaded inquiries.
   const { countryOptions, sectorOptions } = useMemo(() => {
     const countries = new Set();
     const sectors = new Set();
@@ -439,18 +478,12 @@ export default function JobApplications() {
     setFilters((previous) => ({ ...previous, [name]: value }));
   };
 
-  const search = () => loadApplications(0, pageSize, filters);
-  const clearFilters = () => {
-    setFilters(EMPTY_FILTERS);
-    loadApplications(0, pageSize, EMPTY_FILTERS);
-  };
+  const clearFilters = () => setFilters(EMPTY_FILTERS);
 
   // Clicking a status card filters by that status; clicking it again (or Total) clears it.
   const applyStatusCard = (value) => {
     const nextStatus = value === "" || filters.status === value ? "" : value;
-    const next = { ...filters, status: nextStatus };
-    setFilters(next);
-    loadApplications(0, pageSize, next);
+    updateFilter("status", nextStatus);
   };
 
   const hasFilters = Boolean(
@@ -516,7 +549,7 @@ export default function JobApplications() {
       await updateJobApplicationStatus(selected.id, statusValue, trimmed);
       message.success("Inquiry status updated.");
       setDetailOpen(false);
-      await loadApplications(page, pageSize, filters);
+      await loadApplications(page, pageSize, appliedFiltersRef.current);
       loadCounts();
     } catch (e) {
       console.error("Status update failed:", e);
@@ -531,7 +564,7 @@ export default function JobApplications() {
       await deactivateJobApplication(id);
       message.success("Inquiry deactivated.");
       const lastPage = Math.max(0, Math.ceil((total - 1) / pageSize) - 1);
-      await loadApplications(Math.min(page, lastPage), pageSize, filters);
+      await loadApplications(Math.min(page, lastPage), pageSize, appliedFiltersRef.current);
       loadCounts();
       if (selected?.id === id) {
         setDetailOpen(false);
@@ -554,7 +587,6 @@ export default function JobApplications() {
       title: "Job", dataIndex: "jobTitle", key: "jobTitle", ellipsis: true,
       render: (value, record) => value || (record.jobId != null ? `Job #${record.jobId}` : "-"),
     },
-    // NEW: Country and Sector columns
     {
       title: "Country", key: "country", width: 110, ellipsis: true, responsive: ["lg"],
       render: (_, record) => text(getInquiryCountry(record, jobMeta)),
@@ -681,7 +713,6 @@ export default function JobApplications() {
           label="Job ID"
           value={filters.jobId}
           onChange={(event) => updateFilter("jobId", event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter") search(); }}
           sx={{ flex: "1 1 100px", maxWidth: { sm: 130 }, minWidth: 90 }}
           inputProps={{ min: 1 }}
         />
@@ -696,7 +727,6 @@ export default function JobApplications() {
           <MenuItem value="">All</MenuItem>
           {STATUSES.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
         </TextField>
-        {/* NEW: Country filter */}
         <TextField
           select
           size="small"
@@ -708,7 +738,6 @@ export default function JobApplications() {
           <MenuItem value="">All</MenuItem>
           {countryOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
         </TextField>
-        {/* NEW: Sector filter */}
         <TextField
           select
           size="small"
@@ -726,7 +755,6 @@ export default function JobApplications() {
             allowClear
             value={filters.applicantEmail}
             onChange={(event) => updateFilter("applicantEmail", event.target.value)}
-            onPressEnter={search}
             style={{ width: "100%", height: 40 }}
           />
         </Box>
@@ -737,7 +765,6 @@ export default function JobApplications() {
             label="Applicant name"
             value={filters.applicantName}
             onChange={(event) => updateFilter("applicantName", event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") search(); }}
             sx={{ flex: "1 1 160px", minWidth: 140 }}
             inputProps={{ maxLength: 150 }}
           />
@@ -746,7 +773,6 @@ export default function JobApplications() {
             label="Phone"
             value={filters.phone}
             onChange={(event) => updateFilter("phone", event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") search(); }}
             sx={{ flex: "1 1 130px", maxWidth: { sm: 170 }, minWidth: 120 }}
             inputProps={{ maxLength: 20 }}
           />
@@ -769,9 +795,6 @@ export default function JobApplications() {
             sx={{ flex: "1 1 140px", maxWidth: { sm: 165 }, minWidth: 135 }}
           />
         </Box>
-        <Button variant="contained" startIcon={<SearchOutlined />} onClick={search} sx={{ height: 40, textTransform: "none", boxShadow: "none" }}>
-          Search
-        </Button>
         <Button onClick={clearFilters} disabled={!hasFilters} sx={{ height: 40, textTransform: "none" }}>
           Clear
         </Button>
@@ -817,7 +840,7 @@ export default function JobApplications() {
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "25", "50"],
             showTotal: (count, range) => `${range[0]}-${range[1]} of ${count}`,
-            onChange: (current, size) => loadApplications(current - 1, size, filters, true),
+            onChange: (current, size) => loadApplications(current - 1, size, appliedFiltersRef.current, true),
           }}
         />
       </Box>
@@ -888,7 +911,6 @@ export default function JobApplications() {
               <Field label="Job">
                 {selected.jobTitle || (selected.jobId != null ? `Job #${selected.jobId}` : "-")}
               </Field>
-              {/* NEW */}
               <Field label="Country">{show(getInquiryCountry(selected, jobMeta))}</Field>
               <Field label="Sector">{show(getInquirySector(selected, jobMeta))}</Field>
               <Field label="Applicant">{show(selected.applicantName)}</Field>

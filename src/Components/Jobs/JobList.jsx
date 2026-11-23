@@ -23,8 +23,8 @@ const EMPTY_FILTERS = {
   educationId: "",
   sectorId: "",
   jobRoleId: "",
-  countryId: "",       // controls the dropdown display only
-  countryName: "",     // ← the actual param sent to the backend
+  countryId: "",     
+  countryName: "",     
   jobTypeId: "",
   workTypeId: "",
   minExperience: "",
@@ -95,6 +95,22 @@ function getOptionName(item) {
     item?.jobTypeName ??
     item?.workTypeName ??
     (item?.id != null ? `#${item.id}` : "Unnamed")
+  );
+}
+
+// Country settings may expose the identifier/name either at the top level
+// or inside a nested `country` object. Keep dropdown display and API mapping
+// consistent by resolving both through these helpers.
+function getCountryOptionId(item) {
+  return item?.id ?? item?.countryId ?? item?.country?.id;
+}
+
+function getCountryOptionName(item) {
+  return (
+    item?.name ??
+    item?.countryName ??
+    item?.country?.name ??
+    ""
   );
 }
 
@@ -437,23 +453,24 @@ export default function JobList() {
     });
   };
 
-  // ─── Country change: store both the dropdown value (countryId) and the
-  //     country name string (countryName) which is what the backend filters on.
-  //     When the country item id was derived from the name itself (fallback path
-  //     where id === name), countryId and countryName will be the same string —
-  //     that is intentional and correct.
+  // Resolve the selected country setting to its display name because the
+  // jobs search endpoint filters against the Job.countryName field.
   const handleCountryChange = (selectedId) => {
     if (!selectedId) {
       setFilters((previous) => ({ ...previous, countryId: "", countryName: "" }));
       return;
     }
-    const match = settings.country.find((item) => String(item.id) === String(selectedId));
-    // Prefer the name field; fall back to countryName; last resort: use the id itself
-    // (which equals the name in the fallback country list built from job records).
-    const name = match
-      ? (match.name ?? match.countryName ?? String(selectedId))
-      : String(selectedId);
-    setFilters((previous) => ({ ...previous, countryId: selectedId, countryName: name }));
+
+    const match = settings.country.find(
+      (item) => String(getCountryOptionId(item)) === String(selectedId)
+    );
+    const countryName = match ? getCountryOptionName(match) : "";
+
+    setFilters((previous) => ({
+      ...previous,
+      countryId: String(selectedId),
+      countryName,
+    }));
   };
 
   const roleOptions = useMemo(
@@ -638,11 +655,18 @@ export default function JobList() {
       disabled={settingsLoading}
     >
       <MenuItem value="">All</MenuItem>
-      {settings.country.map((item) => (
-        <MenuItem key={item.id} value={String(item.id)}>
-          {getOptionName(item)}
-        </MenuItem>
-      ))}
+      {settings.country.map((item) => {
+        const countryId = getCountryOptionId(item);
+        const countryName = getCountryOptionName(item);
+
+        if (countryId == null || !countryName) return null;
+
+        return (
+          <MenuItem key={String(countryId)} value={String(countryId)}>
+            {countryName}
+          </MenuItem>
+        );
+      })}
     </TextField>
   );
 
