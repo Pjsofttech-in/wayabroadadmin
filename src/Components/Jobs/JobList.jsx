@@ -14,10 +14,9 @@ import {
 import { deleteJob, getJobSettings, searchJobs } from "./JobService";
 import JobDetailDialog from "./JobDetailDialog";
 
-// ─── The backend /admin/jobs/search endpoint filters country by the
-//     `countryName` string field on the Job entity — NOT by countryId.
-//     So EMPTY_FILTERS tracks both: countryId drives the dropdown's
-//     controlled value, countryName is what gets sent to the API.
+// Country selection is kept as an ID/name pair. The search response is
+// client-filtered by each job's countryId because the endpoint does not
+// reliably constrain results by the supplied countryId.
 const EMPTY_FILTERS = {
   keyword: "",
   educationId: "",
@@ -290,58 +289,81 @@ export default function JobList() {
     setError("");
 
     try {
-      // ─── The backend JobSpecification filters country by the `countryName`
-      //     string column on the Job entity.  We send countryName (the display
-      //     name the user selected) rather than — or in addition to — the
-      //     numeric countryId so the Specification predicate actually matches.
-      //     countryId is also sent for forward-compatibility in case the backend
-      //     is updated to support ID-based filtering later.
+      // Keep country filtering on the frontend: the search endpoint currently
+      // returns records from other countries even when countryId is supplied.
+      // Other filters remain server-side so they continue to work together.
       const apiFilters = {
         keyword:     nextFilters.keyword.trim() || undefined,
         educationId: nextFilters.educationId ? Number(nextFilters.educationId) : undefined,
         sectorId:    nextFilters.sectorId    ? Number(nextFilters.sectorId)    : undefined,
         jobRoleId:   nextFilters.jobRoleId   ? Number(nextFilters.jobRoleId)   : undefined,
-        countryId:   nextFilters.countryId   ? Number(nextFilters.countryId)   : undefined,
-        countryName: nextFilters.countryName || undefined,  // ← primary country filter
         jobTypeId:   nextFilters.jobTypeId   ? Number(nextFilters.jobTypeId)   : undefined,
         workTypeId:  nextFilters.workTypeId  ? Number(nextFilters.workTypeId)  : undefined,
         minSalary:   nextFilters.minSalary   ? Number(nextFilters.minSalary)   : undefined,
         maxSalary:   nextFilters.maxSalary   ? Number(nextFilters.maxSalary)   : undefined,
-        active:      nextFilters.active !== "" ? nextFilters.active             : undefined,
+        active:      nextFilters.active !== "" ? nextFilters.active : undefined,
         sortBy: "id",
         sortDir: "ASC",
       };
 
       let resultRows = [];
       let resultTotal = 0;
+      const hasCountryFilter = nextFilters.countryId !== "";
+      const hasExperienceFilter =
+        nextFilters.minExperience !== "" || nextFilters.maxExperience !== "";
 
-      if (nextFilters.minExperience !== "" || nextFilters.maxExperience !== "") {
+      if (hasCountryFilter || hasExperienceFilter) {
+        // Fetch every server-matched page before applying client-side filters.
+        // This is necessary because filtering only the current page would hide
+        // valid matches and produce incorrect pagination totals.
         const fetchSize = 100;
-        const firstResponse = await searchJobs({ ...apiFilters, page: 0, size: fetchSize });
-        const firstPage = normalizePage(firstResponse);
+        const firstPage = normalizePage(
+          await searchJobs({ ...apiFilters, page: 0, size: fetchSize })
+        );
         resultRows = [...firstPage.content];
-        resultTotal = firstPage.totalElements;
-        const pageCount = firstPage.totalPages || Math.ceil(resultTotal / fetchSize);
+
+        const pageCount = firstPage.totalPages ||
+          Math.ceil(firstPage.totalElements / fetchSize);
         if (pageCount > 1) {
-          const remainingResponses = await Promise.all(
+          const remainingPages = await Promise.all(
             Array.from({ length: pageCount - 1 }, (_, index) =>
               searchJobs({ ...apiFilters, page: index + 1, size: fetchSize })
             )
           );
-          remainingResponses.forEach((pageResponse) => {
+          remainingPages.forEach((pageResponse) => {
             resultRows.push(...normalizePage(pageResponse).content);
           });
         }
-        const minimum = nextFilters.minExperience === "" ? null : Number(nextFilters.minExperience);
-        const maximum = nextFilters.maxExperience === "" ? null : Number(nextFilters.maxExperience);
-        resultRows = resultRows.filter((job) => {
-          const experience = parseExperienceRange(job?.experienceLevel);
-          if (!experience) return false;
-          return (
-            (maximum === null || experience.minimum <= maximum) &&
-            (minimum === null || experience.maximum >= minimum)
-          );
-        });
+
+        if (hasCountryFilter) {
+          const selectedCountryId = String(nextFilters.countryId);
+          const selectedCountryName = String(nextFilters.countryName || "").trim().toLocaleLowerCase();
+
+          resultRows = resultRows.filter((job) => {
+            // Job.countryId is authoritative when present. Use the country
+            // name only for legacy records that do not contain a country ID.
+            if (job?.countryId !== null && job?.countryId !== undefined && job?.countryId !== "") {
+              return String(job.countryId) === selectedCountryId;
+            }
+
+            return selectedCountryName !== "" &&
+              String(job?.countryName || "").trim().toLocaleLowerCase() === selectedCountryName;
+          });
+        }
+
+        if (hasExperienceFilter) {
+          const minimum = nextFilters.minExperience === "" ? null : Number(nextFilters.minExperience);
+          const maximum = nextFilters.maxExperience === "" ? null : Number(nextFilters.maxExperience);
+          resultRows = resultRows.filter((job) => {
+            const experience = parseExperienceRange(job?.experienceLevel);
+            if (!experience) return false;
+            return (
+              (maximum === null || experience.minimum <= maximum) &&
+              (minimum === null || experience.maximum >= minimum)
+            );
+          });
+        }
+
         resultTotal = resultRows.length;
         resultRows = resultRows.slice(nextPage * nextSize, (nextPage + 1) * nextSize);
       } else {
@@ -453,8 +475,7 @@ export default function JobList() {
     });
   };
 
-  // Resolve the selected country setting to its display name because the
-  // jobs search endpoint filters against the Job.countryName field.
+  // Keep the selected setting ID and name together for exact client filtering.
   const handleCountryChange = (selectedId) => {
     if (!selectedId) {
       setFilters((previous) => ({ ...previous, countryId: "", countryName: "" }));
@@ -641,8 +662,8 @@ export default function JobList() {
     </TextField>
   );
 
-  // ─── Country dropdown uses handleCountryChange so filters.countryName stays
-  //     in sync and is sent to the backend as the actual filter value.
+  // Country dropdown stores the setting ID; its name is retained for legacy
+  // job records that do not include countryId.
   const countryFilter = (
     <TextField
       select

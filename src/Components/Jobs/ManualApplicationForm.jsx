@@ -7,6 +7,7 @@ import {
   Button,
   CircularProgress,
   Grid,
+  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -19,13 +20,15 @@ import {
   PersonAddAlt1,
 } from "@mui/icons-material";
 
-import { createJobApplication, searchJobs } from "./JobService";
+import { createJobApplication, getJobSettings, searchJobs } from "./JobService";
 
 const EMPTY_FORM = {
   jobId: "",
   applicantName: "",
   email: "",
   phone: "",
+  educationId: "", // NEW
+  experience: "", // NEW
   coverLetter: "",
 };
 
@@ -37,11 +40,31 @@ const asArray = (value) => {
   return [];
 };
 
+// NEW: helpers used by the Education dropdown (same as Create Job form).
+const idString = (value) =>
+  value === null || value === undefined ? "" : String(value);
+
+const getName = (item) =>
+  item?.name ??
+  item?.educationName ??
+  item?.sectorName ??
+  item?.jobRoleName ??
+  item?.roleName ??
+  item?.location ??
+  item?.locationName ??
+  item?.currencyName ??
+  item?.jobTypeName ??
+  item?.countryName ??
+  item?.workTypeName ??
+  "";
+
+const isActive = (item) => item?.active !== false;
+
 const getErrorMessage = (error) =>
   error?.response?.data?.message ||
   error?.response?.data?.error ||
   error?.message ||
-  "Unable to create the application.";
+  "Unable to create the Inquiry.";
 
 // NEW: Reads the country from a job object.
 // If your API uses a different key, change only this function.
@@ -64,6 +87,8 @@ export default function ManualApplicationForm() {
   const [resume, setResume] = useState(null);
 
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [educationOptions, setEducationOptions] = useState([]); // NEW
+  const [loadingEducation, setLoadingEducation] = useState(true); // NEW
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState("");
@@ -110,7 +135,7 @@ export default function ManualApplicationForm() {
         if (mounted) {
           setError(
             getErrorMessage(loadError).replace(
-              "Unable to create the application.",
+              "Unable to create the Inquiry.",
               "Unable to load active jobs."
             )
           );
@@ -128,6 +153,48 @@ export default function ManualApplicationForm() {
       mounted = false;
     };
   }, [isAuthenticated, canCreateApplication, navigate]);
+
+  // =====================================================
+  // NEW: EDUCATION OPTIONS
+  // Same Job Settings source as the Create Job Education dropdown.
+  // =====================================================
+
+  useEffect(() => {
+    if (!isAuthenticated || !canCreateApplication) return undefined;
+
+    let mounted = true;
+
+    const loadEducation = async () => {
+      setLoadingEducation(true);
+
+      try {
+        const data = await getJobSettings("education");
+
+        if (mounted) {
+          setEducationOptions(asArray(data));
+        }
+      } catch (loadError) {
+        if (mounted) {
+          setError(
+            getErrorMessage(loadError).replace(
+              "Unable to create the Inquiry.",
+              "Unable to load Education options."
+            )
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoadingEducation(false);
+        }
+      }
+    };
+
+    loadEducation();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthenticated, canCreateApplication]);
 
   // =====================================================
   // EXISTING JOB OPTIONS
@@ -281,8 +348,28 @@ export default function ManualApplicationForm() {
       return;
     }
 
-    if (!resume) {
-      setResumeError("Resume file is required.");
+    // NEW: Education validation (selected from Job Settings, like Create Job)
+    const selectedEducation = educationOptions.find(
+      (item) => String(item.id) === String(form.educationId)
+    );
+
+    if (
+      !selectedEducation ||
+      !Number.isInteger(Number(form.educationId)) ||
+      Number(form.educationId) <= 0
+    ) {
+      setError("Please select an education.");
+      return;
+    }
+
+    // NEW: Experience validation
+    if (
+      !form.experience.trim() ||
+      form.experience.trim().length > 100
+    ) {
+      setError(
+        "Experience is required and must not exceed 100 characters."
+      );
       return;
     }
 
@@ -291,6 +378,9 @@ export default function ManualApplicationForm() {
       applicantName: form.applicantName.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
+      educationId: Number(form.educationId), // NEW
+      education: getName(selectedEducation).trim(), // NEW (name, in case the backend stores text)
+      experience: form.experience.trim(), // NEW
       coverLetter: form.coverLetter,
     };
 
@@ -303,14 +393,17 @@ export default function ManualApplicationForm() {
       })
     );
 
-    body.append("resume", resume);
+    // Resume is optional: only attached when the admin chose a file.
+    if (resume) {
+      body.append("resume", resume);
+    }
 
     setSaving(true);
 
     try {
       await createJobApplication(body);
 
-      message.success("Application added successfully.");
+      message.success("Inquiry added successfully.");
 
       navigate("/wayabroadadmin/admin/jobs/applications");
     } catch (submitError) {
@@ -410,7 +503,7 @@ export default function ManualApplicationForm() {
               letterSpacing: "-0.3px",
             }}
           >
-            Add New Application
+            Add New Inquiry
           </Typography>
 
           <Typography
@@ -420,7 +513,7 @@ export default function ManualApplicationForm() {
               mt: 0.3,
             }}
           >
-            Create and manage a new applicant record.
+            Create and manage a new inquiry record.
           </Typography>
         </Box>
 
@@ -448,7 +541,7 @@ export default function ManualApplicationForm() {
             },
           }}
         >
-          Back to Applications
+          Back to Inquiries
         </Button>
       </Stack>
 
@@ -497,7 +590,7 @@ export default function ManualApplicationForm() {
           {/* SECTION 1: APPLICATION INFORMATION */}
           <Box>
             <Typography sx={sectionTitleStyles}>
-              Application Information
+              Inquiry Information
             </Typography>
 
             <Grid container spacing={1.5}>
@@ -699,7 +792,7 @@ export default function ManualApplicationForm() {
                   >
                     {resume
                       ? resume.name
-                      : "Upload Resume *"}
+                      : "Upload Resume (Optional)"}
                   </Typography>
 
                   <Button
@@ -748,6 +841,56 @@ export default function ManualApplicationForm() {
                   {resumeError ||
                     "PDF, DOC, DOCX · Maximum 5 MB"}
                 </Typography>
+              </Grid>
+
+              {/* NEW: EDUCATION (same options as Create Job) */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  select
+                  size="small"
+                  label="Education *"
+                  value={form.educationId}
+                  onChange={(event) =>
+                    setField("educationId", event.target.value)
+                  }
+                  fullWidth
+                  required
+                  disabled={loadingEducation || saving}
+                  sx={inputStyles}
+                >
+                  <MenuItem value="" sx={{ fontSize: "13px" }}>
+                    Select Education
+                  </MenuItem>
+
+                  {educationOptions.map((item) => (
+                    <MenuItem
+                      key={item.id}
+                      value={idString(item.id)}
+                      disabled={!isActive(item) || item.id == null}
+                      sx={{ fontSize: "13px" }}
+                    >
+                      {getName(item) || `#${item.id}`}
+                      {!isActive(item) ? " (Inactive)" : ""}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              {/* NEW: EXPERIENCE */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  size="small"
+                  label="Level of Experience *"
+                  placeholder="e.g. 2–4 years"
+                  value={form.experience}
+                  onChange={(event) =>
+                    setField("experience", event.target.value)
+                  }
+                  fullWidth
+                  required
+                  inputProps={{ maxLength: 100 }}
+                  sx={inputStyles}
+                />
               </Grid>
             </Grid>
           </Box>
@@ -888,7 +1031,7 @@ export default function ManualApplicationForm() {
                 },
               }}
             >
-              {saving ? "Saving..." : "Add Application"}
+              {saving ? "Saving..." : "Add Inquiry"}
             </Button>
           </Stack>
         </Box>
